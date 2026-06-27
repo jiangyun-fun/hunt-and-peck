@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <!--
+    In CI on windows-latest we build against the Microsoft reference-assemblies
+    set via FrameworkPathOverride (the runner no longer ships the 4.5.1/4.5.2
+    targeting packs). Legacy xUnit 2.2.0 ships netstandard1.1 binaries whose
+    [Fact] attribute carries a dependency on System.Runtime; when reference
+    assemblies are supplied via FrameworkPathOverride, that facade is not added
+    to the project references automatically, which causes CS0012. Add it
+    explicitly. This is CI-only: the condition is false on a normal dev machine
+    (FrameworkPathOverride unset), so local builds are unaffected.
+  -->
+  <ItemGroup Condition="
+        '$(TargetFrameworkIdentifier)' == '.NETFramework'
+        And '$(FrameworkPathOverride)' != ''
+        And Exists('$(FrameworkPathOverride)\Facades\System.Runtime.dll')">
+    <Reference Include="System.Runtime, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>$(FrameworkPathOverride)\Facades\System.Runtime.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
