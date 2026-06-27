@@ -1,0 +1,72 @@
+name: build
+
+on:
+  push:
+    branches:
+      - master
+      - ci/github-actions-build # TEMP: exercise the build on this fork branch without a PR
+  pull_request:
+  # Allows on-demand runs on any branch (used to test this workflow on a
+  # feature branch without opening a PR).
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build, test, package (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: NuGet restore
+        run: nuget restore src/HuntAndPeck.sln
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # windows-latest no longer ships the .NET Framework 4.5.1/4.5.2
+      # targeting packs, so MSBuild fails with MSB3644. Point it at the
+      # newest installed reference-assembly set (backwards-compatible; the
+      # output still targets v4.5.1 per the project files).
+      - name: Provide .NET Framework reference assemblies
+        # windows-latest lacks the 4.5.1/4.5.2 targeting packs, and pointing
+        # FrameworkPathOverride at the installed v4.8.1 set breaks legacy
+        # xUnit 2.2.0 (CS0012: System.Runtime facade). Install Microsoft's
+        # reference-assemblies package, which ships the real v4.5.2 set (a
+        # superset of v4.5.1) with facades wired correctly for the era this
+        # code and its test dependencies target.
+        shell: pwsh
+        run: |
+          $pkgDir = Join-Path $env:GITHUB_WORKSPACE 'refassemblies'
+          nuget install Microsoft.NETFramework.ReferenceAssemblies.net452 -Version 1.0.3 -OutputDirectory $pkgDir -NonInteractive
+          $ref = Get-ChildItem -Path $pkgDir -Directory -Filter 'Microsoft.NETFramework.ReferenceAssemblies.net452.*' |
+              Select-Object -First 1
+          if (-not $ref) { throw 'Microsoft.NETFramework.ReferenceAssemblies.net452 was not installed' }
+          $fpo = Join-Path $ref.FullName 'build\.NETFramework\v4.5.2'
+          if (-not (Test-Path (Join-Path $fpo 'mscorlib.dll'))) {
+            throw "mscorlib.dll not found under $fpo; reference assembly layout changed?"
+          }
+          Write-Host "FrameworkPathOverride=$fpo"
+          "FrameworkPathOverride=$fpo" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build (Release, Any CPU)
+        run: msbuild src/HuntAndPeck.sln /p:Configuration=Release /p:Platform="Any CPU" /m
+
+      # xunit.runner.visualstudio is referenced by the test project, so
+      # VSTest discovers and runs the tests.
+      - name: Test
+        run: vstest.console.exe src/HuntAndPeck.Tests/bin/Release/HuntAndPeck.Tests.dll
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HuntAndPeck-Release
+          path: src/HuntAndPeck/bin/Release
+          if-no-files-found: error
