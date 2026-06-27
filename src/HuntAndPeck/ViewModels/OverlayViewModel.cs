@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -65,20 +66,24 @@ namespace HuntAndPeck.ViewModels
         {
             set
             {
+                var matching = Hints.Where(x => x.Label.StartsWith(value, StringComparison.OrdinalIgnoreCase)).ToList();
+                var matchingSet = new HashSet<HintViewModel>(matching);
+
+                // Only flip hints whose Active state actually changes, so we don't
+                // raise PropertyChanged (and trigger WPF binding/layout work) for
+                // every hint on each keystroke.
                 foreach (var x in Hints)
                 {
-                    x.Active = false;
+                    bool shouldMatch = matchingSet.Contains(x);
+                    if (x.Active != shouldMatch)
+                    {
+                        x.Active = shouldMatch;
+                    }
                 }
 
-                var matching = Hints.Where(x => x.Label.StartsWith(value, StringComparison.OrdinalIgnoreCase)).ToArray();
-                foreach (var x in matching)
+                if (matching.Count == 1)
                 {
-                    x.Active = true;
-                }
-
-                if (matching.Count() == 1)
-                {
-                    matching.First().Hint.Invoke();
+                    matching[0].Hint.Invoke();
                     CloseOverlay?.Invoke();
                 }
             }
