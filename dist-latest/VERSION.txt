@@ -1,6 +1,5 @@
-hunt-and-peck — Release build (STA-thread enumeration, INSTRUMENTED)
-Source commit : 98e0376c5d47b013b1a150b9733a3d707c31ebe3
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28282757139
-Built (UTC)   : 2026-06-27T07:39:50Z
-Change        : reverted off-UI-thread (#2) -> enumerate on UI/STA thread
-Note          : writes phase timings to %TEMP%\hap-timing.log on each hotkey press
+hunt-and-peck — Release build (DIAGNOSTIC: plain FindAll vs FindAllBuildCache)
+Source commit : b08095f863c1261c5d16eb25bd0e885f99bc369d
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28282910569
+Built (UTC)   : 2026-06-27T07:46:29Z
+Note          : logs DIAG plain FindAll + FindAllBuildCache timings to %TEMP%\hap-timing.log

@@ -151,12 +151,23 @@ namespace HuntAndPeck.Services
             var conditionOnScreen = _automation.CreatePropertyCondition(UIA_PropertyIds.UIA_IsOffscreenPropertyId, false);
             var condition = _automation.CreateAndCondition(enabledControlCondition, conditionOnScreen);
 
-            // DIAGNOSTIC: time a plain FindAll (no cache) right before the cached
-            // call, to confirm whether pattern caching is the Chromium slowdown.
-            var diagSw = Stopwatch.StartNew();
-            var diagPlain = automationElement.FindAll(TreeScope.TreeScope_Descendants, condition);
-            diagSw.Stop();
-            PerfLog.Mark("  DIAG plain FindAll (no cache)", diagSw.ElapsedMilliseconds);
+            // DIAGNOSTIC: pinpoint which part of the condition makes FindAll slow on
+            // Chromium. Time TrueCondition (no property eval), ControlViewCondition
+            // (structural), and the full compound condition (adds IsEnabled + IsOffscreen).
+            var swTrue = Stopwatch.StartNew();
+            automationElement.FindAll(TreeScope.TreeScope_Descendants, _automation.TrueCondition);
+            swTrue.Stop();
+            PerfLog.Mark("  DIAG FindAll(TrueCondition)", swTrue.ElapsedMilliseconds);
+
+            var swView = Stopwatch.StartNew();
+            automationElement.FindAll(TreeScope.TreeScope_Descendants, _automation.ControlViewCondition);
+            swView.Stop();
+            PerfLog.Mark("  DIAG FindAll(ControlViewCondition)", swView.ElapsedMilliseconds);
+
+            var swCompound = Stopwatch.StartNew();
+            automationElement.FindAll(TreeScope.TreeScope_Descendants, condition);
+            swCompound.Stop();
+            PerfLog.Mark("  DIAG FindAll(compound ControlView+enabled+onscreen)", swCompound.ElapsedMilliseconds);
 
             var cacheRequest = CreateHintCacheRequest();
             var elementArray = automationElement.FindAllBuildCache(TreeScope.TreeScope_Descendants, condition, cacheRequest);
