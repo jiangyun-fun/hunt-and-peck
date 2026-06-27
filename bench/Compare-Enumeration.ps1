@@ -187,7 +187,7 @@ Write-Host ("UNCACHED (old)  min/avg/max ms : {0,8:N1} / {1,8:N1} / {2,8:N1}" -f
 Write-Host ("CACHED   (new)  min/avg/max ms : {0,8:N1} / {1,8:N1} / {2,8:N1}" -f $c.Min, $c.Avg, $c.Max)
 Write-Host ""
 if ($c.Avg -gt 0) {
-    Write-Host ("Speedup (avg): {0:N2}x   ({1:N0} ms -> {2:N0} ms,  saved {3:N0} ms per enumeration)") -f ($u.Avg / $c.Avg), $u.Avg, $c.Avg, ($u.Avg - $c.Avg)
+    Write-Host ("Speedup (avg): {0:N2}x   ({1:N0} ms -> {2:N0} ms,  saved {3:N0} ms per enumeration)" -f ($u.Avg / $c.Avg), $u.Avg, $c.Avg, ($u.Avg - $c.Avg))
 }
 Write-Host ""
 Write-Host "Note: speedup scales with element count. A window with few controls shows"
