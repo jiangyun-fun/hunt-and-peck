@@ -155,7 +155,7 @@ namespace HuntAndPeck.Services
             // Chromium. Time TrueCondition (no property eval), ControlViewCondition
             // (structural), and the full compound condition (adds IsEnabled + IsOffscreen).
             var swTrue = Stopwatch.StartNew();
-            automationElement.FindAll(TreeScope.TreeScope_Descendants, _automation.TrueCondition);
+            automationElement.FindAll(TreeScope.TreeScope_Descendants, _automation.CreateTrueCondition());
             swTrue.Stop();
             PerfLog.Mark("  DIAG FindAll(TrueCondition)", swTrue.ElapsedMilliseconds);
 
