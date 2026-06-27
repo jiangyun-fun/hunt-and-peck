@@ -2,12 +2,8 @@ name: build
 
 on:
   push:
-    branches:
-      - master
-      - ci/github-actions-build # TEMP: exercise the build on this fork branch without a PR
+    branches: [master]
   pull_request:
-  # Allows on-demand runs on any branch (used to test this workflow on a
-  # feature branch without opening a PR).
   workflow_dispatch:
 
 permissions:
