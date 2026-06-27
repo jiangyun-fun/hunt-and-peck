@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services.Interfaces;
@@ -63,9 +64,13 @@ namespace HuntAndPeck.ViewModels
         public DelegateCommand ShowOptionsCommand { get; }
         public DelegateCommand ExitCommand { get; }
 
-        private void _keyListener_OnHotKeyActivated(object sender, EventArgs e)
+        private async void _keyListener_OnHotKeyActivated(object sender, EventArgs e)
         {
-            var session = _hintProviderService.EnumHints();
+            // Enumerate off the UI thread so the foreground window and input stay
+            // responsive while UI Automation walks the tree. UI Automation supports
+            // background-thread clients; the overlay is built/shown back on the UI
+            // thread when the await resumes.
+            var session = await Task.Run(() => _hintProviderService.EnumHints());
             if (session != null)
             {
                 var vm = new OverlayViewModel(session, _hintLabelService);
@@ -73,10 +78,10 @@ namespace HuntAndPeck.ViewModels
             }
         }
 
-        private void _keyListener_OnTaskbarHotKeyActivated(object sender, EventArgs e)
+        private async void _keyListener_OnTaskbarHotKeyActivated(object sender, EventArgs e)
         {
             var taskbarHWnd = User32.FindWindow("Shell_traywnd", "");
-            var session = _hintProviderService.EnumHints(taskbarHWnd);
+            var session = await Task.Run(() => _hintProviderService.EnumHints(taskbarHWnd));
             if (session != null)
             {
                 var vm = new OverlayViewModel(session, _hintLabelService);
