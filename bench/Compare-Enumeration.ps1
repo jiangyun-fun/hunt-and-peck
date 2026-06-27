@@ -1,29 +1,38 @@
 <#
 .SYNOPSIS
     Compare UI Automation hint-enumeration speed: uncached (pre-optimization)
-    vs cached (current), against the foreground window.
+    vs cached (current), against a target window.
 
 .DESCRIPTION
+    Uses the System.Windows.Automation managed wrapper (from the .NET Framework
+    assemblies UIAutomationClient / UIAutomationTypes, present on all Windows)
+    rather than the COM CUIAutomation coclass, whose ProgID is not registered
+    on stock Windows.
+
     Mirrors the two strategies in hunt-and-peck's UiAutomationHintProviderService
     before and after the cache-request optimization (commit 449435c):
 
-      * UNCACHED (old): FindAll + per-element CurrentBoundingRectangle + up to
-        six GetCurrentPattern calls -> ~7 cross-process round-trips per element.
-      * CACHED   (new): one FindAllBuildCache that pre-fetches the bounding
-        rectangle, the six patterns and the two IsReadOnly values, then reads
-        them from the cache.
+      * UNCACHED (old): FindAll + per-element Current.BoundingRectangle + up to
+        six GetCurrentPattern calls.
+      * CACHED   (new): activate a CacheRequest that pre-fetches the bounding
+        rectangle, the six patterns and the two IsReadOnly values, then FindAll
+        + Cached reads.
 
-    Bring a UI-element-rich window to the foreground (a browser tab with many
-    links, an IDE, a large file/list view) and run the script. The speedup is
-    proportional to the number of matching elements, so pick a dense window to
-    see a meaningful difference. No compilation required.
+    The managed wrapper and the app's COM IUIAutomation share the same UI
+    Automation core, so the cached-vs-uncached ratio is representative of the
+    app's improvement.
 
 .PARAMETER Iterations
     Timed passes per strategy (default 10). More = steadier averages.
 
+.PARAMETER ProcessName
+    Target a process's main window directly (e.g. chrome, msedge, devenv, code,
+    explorer, WINWORD). Omit to use a 5-second countdown + the foreground window.
+
 .EXAMPLE
-    .\bench\Compare-Enumeration.ps1
-    .\bench\Compare-Enumeration.ps1 -Iterations 25
+    .\Compare-Enumeration.ps1 -ProcessName chrome
+    .\Compare-Enumeration.ps1 -ProcessName msedge -Iterations 25
+    .\Compare-Enumeration.ps1            # then Alt+Tab to the target within 5s
 #>
 [CmdletBinding()]
 param(
@@ -32,6 +41,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Managed UI Automation wrapper (ships with .NET Framework).
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+
+# Type shortcuts (functions see these via PowerShell dynamic scoping).
+$AE = [System.Windows.Automation.AutomationElement]
+$TS = [System.Windows.Automation.TreeScope]
 
 # --- Win32: foreground window handle ---------------------------------------
 Add-Type @"
@@ -60,80 +77,79 @@ if ($hwnd -eq [IntPtr]::Zero) {
     throw "No target window (HWND is zero). Bring a window to the front first, or pass -ProcessName."
 }
 
-# --- UI Automation (COM CUIAutomation, same API the app uses) --------------
-try {
-    $ua = New-Object -ComObject UIAutomation.CUIAutomation
-} catch {
-    throw "Could not create UIAutomation.CUIAutomation COM object. Ensure UI Automation is available (it is on all desktop Windows). Error: $($_.Exception.Message)"
+$root = $AE::FromHandle($hwnd)
+if ($null -eq $root) { throw "FromHandle returned null for HWND $hwnd." }
+
+# Patterns to probe (same set the app inspects per element).
+$patterns = @(
+    [System.Windows.Automation.InvokePattern]::Pattern,
+    [System.Windows.Automation.TogglePattern]::Pattern,
+    [System.Windows.Automation.SelectionItemPattern]::Pattern,
+    [System.Windows.Automation.ExpandCollapsePattern]::Pattern,
+    [System.Windows.Automation.ValuePattern]::Pattern,
+    [System.Windows.Automation.RangeValuePattern]::Pattern
+)
+
+# Condition: control view AND enabled AND on-screen (same as the app).
+$cv      = $AE::ControlViewCondition
+$enabled = New-Object System.Windows.Automation.PropertyCondition($AE::IsEnabledProperty,  $true)
+$onscr   = New-Object System.Windows.Automation.PropertyCondition($AE::IsOffscreenProperty, $false)
+$cond    = New-Object System.Windows.Automation.AndCondition($cv, $enabled, $onscr)
+
+function New-HintCacheRequest {
+    # Matches the app's CreateHintCacheRequest.
+    $cr = New-Object System.Windows.Automation.CacheRequest
+    $cr.TreeScope = $TS::Element
+    [void]$cr.Add($AE::BoundingRectangleProperty)
+    [void]$cr.Add([System.Windows.Automation.ValuePattern]::IsReadOnlyProperty)
+    [void]$cr.Add([System.Windows.Automation.RangeValuePattern]::IsReadOnlyProperty)
+    foreach ($p in $patterns) { [void]$cr.Add($p) }
+    return $cr
 }
 
-$root = $ua.ElementFromHandle($hwnd)
-if ($null -eq $root) { throw "ElementFromHandle returned null for HWND $hwnd." }
-
-# Property / pattern IDs (UIAutomationClient.h)
-$UIA_IsEnabled        = 30010
-$UIA_IsOffscreen      = 30009
-$UIA_BoundingRect     = 30001
-$UIA_ValueIsReadOnly  = 30046
-$UIA_RangeValueIsRO   = 30048
-$patterns = 10000, 10015, 10036, 10005, 10002, 10033  # Invoke, Toggle, SelectionItem, ExpandCollapse, Value, RangeValue
-
-# Condition: control view AND enabled AND on-screen (same as the app)
-$cv      = $ua.ControlViewCondition
-$enabled = $ua.CreatePropertyCondition($UIA_IsEnabled, $true)
-$onscr   = $ua.CreatePropertyCondition($UIA_IsOffscreen, $false)
-$cond    = $ua.CreateAndCondition($ua.CreateAndCondition($cv, $enabled), $onscr)
-
-$TreeScope_Descendants = 4
-$TreeScope_Element     = 1
-
-# Cache request matching the app's CreateHintCacheRequest
-$cache = $ua.CreateCacheRequest()
-$cache.TreeScope = $TreeScope_Element
-$cache.AddProperty($UIA_BoundingRect)
-$cache.AddProperty($UIA_ValueIsReadOnly)
-$cache.AddProperty($UIA_RangeValueIsRO)
-foreach ($p in $patterns) { [void]$cache.AddPattern($p) }
-
 function Invoke-Uncached {
-    param($root, $cond, $patterns, $scope)
-    $arr = $root.FindAll($scope, $cond)
-    $n = if ($arr) { $arr.Length } else { 0 }
+    param($root, $cond, $patterns)
+    $coll = $root.FindAll($TS::Descendants, $cond)
+    $n = if ($coll) { $coll.Count } else { 0 }
     for ($i = 0; $i -lt $n; $i++) {
-        $el = $arr.GetElement($i)
-        [void]$el.CurrentBoundingRectangle            # cross-proc
-        # GetCurrentPattern may return null or throw for unsupported patterns;
-        # swallow to mirror the app's defensive try/catch in CreateHint.
+        $el = $coll[$i]
+        [void]$el.Current.BoundingRectangle
         foreach ($p in $patterns) { try { [void]$el.GetCurrentPattern($p) } catch { } }
     }
     return $n
 }
 
 function Invoke-Cached {
-    param($root, $cond, $cache, $patterns, $scope)
-    $arr = $root.FindAllBuildCache($scope, $cond, $cache)
-    $n = if ($arr) { $arr.Length } else { 0 }
-    for ($i = 0; $i -lt $n; $i++) {
-        $el = $arr.GetElement($i)
-        [void]$el.CachedBoundingRectangle             # from cache
-        foreach ($p in $patterns) { try { [void]$el.GetCachedPattern($p) } catch { } }
+    param($root, $cond, $patterns, $cr)
+    $cr.Activate()
+    try {
+        $coll = $root.FindAll($TS::Descendants, $cond)
+        $n = if ($coll) { $coll.Count } else { 0 }
+        for ($i = 0; $i -lt $n; $i++) {
+            $el = $coll[$i]
+            [void]$el.Cached.BoundingRectangle
+            foreach ($p in $patterns) { try { [void]$el.GetCachedPattern($p) } catch { } }
+        }
+    } finally {
+        $cr.Pop()
     }
     return $n
 }
 
-# Warm-up + element count (also surfaces which window we targeted)
-$warmUncached = Invoke-Uncached $root $cond $patterns $TreeScope_Descendants
-$warmCached   = Invoke-Cached   $root $cond $cache $patterns $TreeScope_Descendants
+# Warm-up + element count (and surface which window we targeted).
+$warmUncached = Invoke-Uncached $root $cond $patterns
+$cacheRequest = New-HintCacheRequest
+$warmCached   = Invoke-Cached   $root $cond $patterns $cacheRequest
 
 Write-Host ""
-Write-Host ("Foreground window : HWND {0}" -f $hwnd)
-Write-Host ("  Name            : {0}" -f $root.CurrentName)
-Write-Host ("  ClassName       : {0}" -f $root.CurrentClassName)
-Write-Host ("Matching elements : {0} (control view, enabled, on-screen)" -f $warmUncached)
+Write-Host ("Target window       : HWND {0}" -f $hwnd)
+Write-Host ("  Name             : {0}" -f $root.Current.Name)
+Write-Host ("  ClassName        : {0}" -f $root.Current.ClassName)
+Write-Host ("Matching elements  : {0} (control view, enabled, on-screen)" -f $warmUncached)
 Write-Host ("Iterations/strategy: {0}`n" -f $Iterations)
 
 if ($warmUncached -eq 0) {
-    Write-Warning "No matching elements found in the foreground window. Open a denser window (browser/IDE/large list) and re-run."
+    Write-Warning "No matching elements in the target window. Open a denser window (browser/IDE/large list) and re-run."
     return
 }
 
@@ -141,7 +157,7 @@ if ($warmUncached -eq 0) {
 $uncachedMs = @()
 for ($r = 0; $r -lt $Iterations; $r++) {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    [void](Invoke-Uncached $root $cond $patterns $TreeScope_Descendants)
+    [void](Invoke-Uncached $root $cond $patterns)
     $sw.Stop()
     $uncachedMs += $sw.Elapsed.TotalMilliseconds
 }
@@ -150,7 +166,7 @@ for ($r = 0; $r -lt $Iterations; $r++) {
 $cachedMs = @()
 for ($r = 0; $r -lt $Iterations; $r++) {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    [void](Invoke-Cached $root $cond $cache $patterns $TreeScope_Descendants)
+    [void](Invoke-Cached $root $cond $patterns $cacheRequest)
     $sw.Stop()
     $cachedMs += $sw.Elapsed.TotalMilliseconds
 }
