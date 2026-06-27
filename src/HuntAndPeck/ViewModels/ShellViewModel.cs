@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using HuntAndPeck;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services.Interfaces;
 using Application = System.Windows.Application;
@@ -66,14 +67,17 @@ namespace HuntAndPeck.ViewModels
 
         private async void _keyListener_OnHotKeyActivated(object sender, EventArgs e)
         {
+            PerfLog.Start();
             // Enumerate off the UI thread so the foreground window and input stay
             // responsive while UI Automation walks the tree. UI Automation supports
             // background-thread clients; the overlay is built/shown back on the UI
             // thread when the await resumes.
             var session = await Task.Run(() => _hintProviderService.EnumHints());
+            PerfLog.Mark("after EnumHints");
             if (session != null)
             {
                 var vm = new OverlayViewModel(session, _hintLabelService);
+                PerfLog.Mark("after OverlayViewModel");
                 _showOverlay(vm);
             }
         }

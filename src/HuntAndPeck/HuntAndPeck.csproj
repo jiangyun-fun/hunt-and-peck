@@ -105,6 +105,7 @@
     </Compile>
     <Compile Include="Services\UiAutomationPatternIds.cs" />
     <Compile Include="Services\UiAutomationHintProviderService.cs" />
+    <Compile Include="PerfLog.cs" />
     <Compile Include="SingleLaunchMutex.cs" />
     <Compile Include="ViewModels\DebugHintViewModel.cs" />
     <Compile Include="ViewModels\DebugOverlayViewModel.cs" />
