@@ -27,7 +27,8 @@
 #>
 [CmdletBinding()]
 param(
-    [int]$Iterations = 10
+    [int]$Iterations = 10,
+    [string]$ProcessName
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,9 +42,22 @@ public static class HapBench {
 }
 "@
 
-$hwnd = [HapBench]::GetForegroundWindow()
+if ($ProcessName) {
+    $proc = Get-Process -Name $ProcessName -ErrorAction Stop |
+            Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } |
+            Select-Object -First 1
+    if (-not $proc) { throw "No process '$ProcessName' with a visible window found." }
+    $hwnd = $proc.MainWindowHandle
+} else {
+    Write-Host "Switch to the window you want to measure now (Alt+Tab to it)."
+    for ($s = 5; $s -ge 1; $s--) {
+        Write-Host ("  grabbing foreground window in {0}..." -f $s)
+        Start-Sleep -Milliseconds 1000
+    }
+    $hwnd = [HapBench]::GetForegroundWindow()
+}
 if ($hwnd -eq [IntPtr]::Zero) {
-    throw "No foreground window. Bring the target window to the front first."
+    throw "No target window (HWND is zero). Bring a window to the front first, or pass -ProcessName."
 }
 
 # --- UI Automation (COM CUIAutomation, same API the app uses) --------------
