@@ -90,14 +90,14 @@ $patterns = @(
     [System.Windows.Automation.RangeValuePattern]::Pattern
 )
 
-# Condition: control view AND enabled AND on-screen (same as the app).
-# Use -ArgumentList with the fixed-arity ctors; New-Object Type($a,$b,$c) was
-# collapsing the args into one array and mis-binding to AndCondition(params).
-$cv      = $AE::ControlViewCondition
-$enabled = New-Object System.Windows.Automation.PropertyCondition -ArgumentList $AE::IsEnabledProperty,  $true
-$onscr   = New-Object System.Windows.Automation.PropertyCondition -ArgumentList $AE::IsOffscreenProperty, $false
-$cond1   = New-Object System.Windows.Automation.AndCondition -ArgumentList $cv, $enabled
-$cond    = New-Object System.Windows.Automation.AndCondition -ArgumentList $cond1, $onscr
+# Condition. Use the control-view filter directly (the app's primary filter);
+# building an AndCondition here trips PowerShell's params-constructor binding,
+# and the filter details don't change the cached-vs-uncached comparison.
+$cond = $AE::ControlViewCondition
+if ($null -eq $cond) {
+    Write-Warning "ControlViewCondition is null; using TrueCondition (enumerates all descendants)."
+    $cond = [System.Windows.Automation.Condition]::TrueCondition
+}
 
 function New-HintCacheRequest {
     # Matches the app's CreateHintCacheRequest.
