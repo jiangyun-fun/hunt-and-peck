@@ -91,10 +91,13 @@ $patterns = @(
 )
 
 # Condition: control view AND enabled AND on-screen (same as the app).
+# Use -ArgumentList with the fixed-arity ctors; New-Object Type($a,$b,$c) was
+# collapsing the args into one array and mis-binding to AndCondition(params).
 $cv      = $AE::ControlViewCondition
-$enabled = New-Object System.Windows.Automation.PropertyCondition($AE::IsEnabledProperty,  $true)
-$onscr   = New-Object System.Windows.Automation.PropertyCondition($AE::IsOffscreenProperty, $false)
-$cond    = New-Object System.Windows.Automation.AndCondition($cv, $enabled, $onscr)
+$enabled = New-Object System.Windows.Automation.PropertyCondition -ArgumentList $AE::IsEnabledProperty,  $true
+$onscr   = New-Object System.Windows.Automation.PropertyCondition -ArgumentList $AE::IsOffscreenProperty, $false
+$cond1   = New-Object System.Windows.Automation.AndCondition -ArgumentList $cv, $enabled
+$cond    = New-Object System.Windows.Automation.AndCondition -ArgumentList $cond1, $onscr
 
 function New-HintCacheRequest {
     # Matches the app's CreateHintCacheRequest.
