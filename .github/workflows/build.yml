@@ -60,9 +60,15 @@ jobs:
         run: msbuild src/HuntAndPeck.sln /p:Configuration=Release /p:Platform="Any CPU" /m
 
       # xunit.runner.visualstudio is referenced by the test project, so
-      # VSTest discovers and runs the tests.
+      # vstest.console discovers and runs the tests. The test console is not on
+      # PATH on windows-latest, so locate it via vswhere.
       - name: Test
-        run: vstest.console.exe src/HuntAndPeck.Tests/bin/Release/HuntAndPeck.Tests.dll
+        shell: pwsh
+        run: |
+          $vstest = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -prerelease -find 'Common7\IDE\Extensions\TestPlatform\vstest.console.exe' | Select-Object -First 1
+          if (-not $vstest) { throw 'vstest.console.exe not found via vswhere' }
+          Write-Host "Using $vstest"
+          & $vstest src/HuntAndPeck.Tests/bin/Release/HuntAndPeck.Tests.dll
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
