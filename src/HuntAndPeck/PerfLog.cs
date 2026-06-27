@@ -31,5 +31,16 @@ namespace HuntAndPeck
 
             File.AppendAllText(_path, label + ": " + _sw.ElapsedMilliseconds + " ms" + Environment.NewLine);
         }
+
+        /// <summary>Write a self-contained duration (e.g. a局部 Stopwatch), not the global elapsed.</summary>
+        public static void Mark(string label, long milliseconds)
+        {
+            if (_path == null)
+            {
+                return;
+            }
+
+            File.AppendAllText(_path, label + ": " + milliseconds + " ms" + Environment.NewLine);
+        }
     }
 }

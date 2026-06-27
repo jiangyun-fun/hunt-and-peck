@@ -151,6 +151,13 @@ namespace HuntAndPeck.Services
             var conditionOnScreen = _automation.CreatePropertyCondition(UIA_PropertyIds.UIA_IsOffscreenPropertyId, false);
             var condition = _automation.CreateAndCondition(enabledControlCondition, conditionOnScreen);
 
+            // DIAGNOSTIC: time a plain FindAll (no cache) right before the cached
+            // call, to confirm whether pattern caching is the Chromium slowdown.
+            var diagSw = Stopwatch.StartNew();
+            var diagPlain = automationElement.FindAll(TreeScope.TreeScope_Descendants, condition);
+            diagSw.Stop();
+            PerfLog.Mark("  DIAG plain FindAll (no cache)", diagSw.ElapsedMilliseconds);
+
             var cacheRequest = CreateHintCacheRequest();
             var elementArray = automationElement.FindAllBuildCache(TreeScope.TreeScope_Descendants, condition, cacheRequest);
             PerfLog.Mark("  EnumElements: after FindAllBuildCache");
