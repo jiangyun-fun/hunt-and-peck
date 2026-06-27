@@ -65,14 +65,14 @@ namespace HuntAndPeck.ViewModels
         public DelegateCommand ShowOptionsCommand { get; }
         public DelegateCommand ExitCommand { get; }
 
-        private async void _keyListener_OnHotKeyActivated(object sender, EventArgs e)
+        private void _keyListener_OnHotKeyActivated(object sender, EventArgs e)
         {
             PerfLog.Start();
-            // Enumerate off the UI thread so the foreground window and input stay
-            // responsive while UI Automation walks the tree. UI Automation supports
-            // background-thread clients; the overlay is built/shown back on the UI
-            // thread when the await resumes.
-            var session = await Task.Run(() => _hintProviderService.EnumHints());
+            // Enumeration MUST run on the UI (STA) thread. Running it on an MTA
+            // thread-pool thread (Task.Run) made UI Automation calls into
+            // Chromium/Electron targets ~40x slower (measured ~2.2s vs ~55ms),
+            // because of COM apartment marshalling. See bench/Compare-Enumeration.ps1.
+            var session = _hintProviderService.EnumHints();
             PerfLog.Mark("after EnumHints");
             if (session != null)
             {
@@ -82,10 +82,10 @@ namespace HuntAndPeck.ViewModels
             }
         }
 
-        private async void _keyListener_OnTaskbarHotKeyActivated(object sender, EventArgs e)
+        private void _keyListener_OnTaskbarHotKeyActivated(object sender, EventArgs e)
         {
             var taskbarHWnd = User32.FindWindow("Shell_traywnd", "");
-            var session = await Task.Run(() => _hintProviderService.EnumHints(taskbarHWnd));
+            var session = _hintProviderService.EnumHints(taskbarHWnd);
             if (session != null)
             {
                 var vm = new OverlayViewModel(session, _hintLabelService);

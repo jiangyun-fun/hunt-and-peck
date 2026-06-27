@@ -1,6 +1,5 @@
-hunt-and-peck — Release build
-Source commit : 027ee4e01bdc3e95d2921df34738e7a457f55c18
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28282342148
-Built (UTC)   : 2026-06-27T07:22:48Z
-Target        : .NET Framework 4.5.1, Any CPU, Release
-Perf included : #1 UIA cache-request, #2 off-UI-thread enumeration, #3 MatchString
+hunt-and-peck — Release build (INSTRUMENTED)
+Source commit : 6c659b1b2378f38fa6d27df17ad0aea56a71596c
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28282515065
+Built (UTC)   : 2026-06-27T07:29:04Z
+Note          : writes phase timings to %TEMP%\hap-timing.log on each hotkey press

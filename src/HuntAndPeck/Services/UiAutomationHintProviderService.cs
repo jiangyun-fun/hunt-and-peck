@@ -1,4 +1,5 @@
-﻿using HuntAndPeck.Extensions;
+﻿using HuntAndPeck;
+using HuntAndPeck.Extensions;
 using HuntAndPeck.Models;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services.Interfaces;
@@ -141,6 +142,7 @@ namespace HuntAndPeck.Services
         {
             var result = new List<IUIAutomationElement>();
             var automationElement = _automation.ElementFromHandle(hWnd);
+            PerfLog.Mark("  EnumElements: after ElementFromHandle");
 
             var conditionControlView = _automation.ControlViewCondition;
             var conditionEnabled = _automation.CreatePropertyCondition(UIA_PropertyIds.UIA_IsEnabledPropertyId, true);
@@ -151,6 +153,7 @@ namespace HuntAndPeck.Services
 
             var cacheRequest = CreateHintCacheRequest();
             var elementArray = automationElement.FindAllBuildCache(TreeScope.TreeScope_Descendants, condition, cacheRequest);
+            PerfLog.Mark("  EnumElements: after FindAllBuildCache");
             if (elementArray != null)
             {
                 for (var i = 0; i < elementArray.Length; ++i)
@@ -158,6 +161,7 @@ namespace HuntAndPeck.Services
                     result.Add(elementArray.GetElement(i));
                 }
             }
+            PerfLog.Mark("  EnumElements: after element loop");
 
             return result;
         }
