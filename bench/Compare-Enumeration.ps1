@@ -77,7 +77,10 @@ if ($hwnd -eq [IntPtr]::Zero) {
     throw "No target window (HWND is zero). Bring a window to the front first, or pass -ProcessName."
 }
 
+$coldSw = [System.Diagnostics.Stopwatch]::StartNew()
 $root = $AE::FromHandle($hwnd)
+$coldSw.Stop()
+$coldFromHandleMs = $coldSw.Elapsed.TotalMilliseconds
 if ($null -eq $root) { throw "FromHandle returned null for HWND $hwnd." }
 
 # Patterns to probe (same set the app inspects per element).
@@ -140,7 +143,13 @@ function Invoke-Cached {
 }
 
 # Warm-up + element count (and surface which window we targeted).
+# First (COLD) enumeration. For Chromium/Electron apps this can include
+# accessibility-tree lazy initialization -- exactly the latency felt on the
+# first hotkey press that the warm iterations below do NOT capture.
+$coldSw = [System.Diagnostics.Stopwatch]::StartNew()
 $warmUncached = Invoke-Uncached $root $cond $patterns
+$coldSw.Stop()
+$coldFindAllMs = $coldSw.Elapsed.TotalMilliseconds
 $cacheRequest = New-HintCacheRequest
 $warmCached   = Invoke-Cached   $root $cond $patterns $cacheRequest
 
@@ -149,7 +158,10 @@ Write-Host ("Target window       : HWND {0}" -f $hwnd)
 Write-Host ("  Name             : {0}" -f $root.Current.Name)
 Write-Host ("  ClassName        : {0}" -f $root.Current.ClassName)
 Write-Host ("Matching elements  : {0} (control view, enabled, on-screen)" -f $warmUncached)
-Write-Host ("Iterations/strategy: {0}`n" -f $Iterations)
+Write-Host ("Iterations/strategy: {0}" -f $Iterations)
+Write-Host ("Cold FromHandle   : {0,8:N1} ms  (first UI Automation connection to the window)" -f $coldFromHandleMs)
+Write-Host ("Cold FindAll      : {0,8:N1} ms  (first enumeration; may trigger Chromium a11y init)" -f $coldFindAllMs)
+Write-Host ""
 
 if ($warmUncached -eq 0) {
     Write-Warning "No matching elements in the target window. Open a denser window (browser/IDE/large list) and re-run."
