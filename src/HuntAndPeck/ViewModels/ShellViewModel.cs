@@ -65,27 +65,31 @@ namespace HuntAndPeck.ViewModels
         public DelegateCommand ShowOptionsCommand { get; }
         public DelegateCommand ExitCommand { get; }
 
-        private void _keyListener_OnHotKeyActivated(object sender, EventArgs e)
+        private async void _keyListener_OnHotKeyActivated(object sender, EventArgs e)
         {
             PerfLog.Start();
-            // Enumeration MUST run on the UI (STA) thread. Running it on an MTA
-            // thread-pool thread (Task.Run) made UI Automation calls into
-            // Chromium/Electron targets ~40x slower (measured ~2.2s vs ~55ms),
-            // because of COM apartment marshalling. See bench/Compare-Enumeration.ps1.
-            var session = _hintProviderService.EnumHints();
-            PerfLog.Mark("after EnumHints");
+            // Capture the foreground window on the UI thread, then enumerate off-thread.
+            // The per-window cache (in the service) makes repeat presses on the same
+            // window instant; the first press on a large tree (e.g. Chromium apps) still
+            // takes seconds but runs off-thread so the UI does not freeze.
+            var hWnd = User32.GetForegroundWindow();
+            if (hWnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            var session = await Task.Run(() => _hintProviderService.EnumHints(hWnd));
             if (session != null)
             {
                 var vm = new OverlayViewModel(session, _hintLabelService);
-                PerfLog.Mark("after OverlayViewModel");
                 _showOverlay(vm);
             }
         }
 
-        private void _keyListener_OnTaskbarHotKeyActivated(object sender, EventArgs e)
+        private async void _keyListener_OnTaskbarHotKeyActivated(object sender, EventArgs e)
         {
             var taskbarHWnd = User32.FindWindow("Shell_traywnd", "");
-            var session = _hintProviderService.EnumHints(taskbarHWnd);
+            var session = await Task.Run(() => _hintProviderService.EnumHints(taskbarHWnd));
             if (session != null)
             {
                 var vm = new OverlayViewModel(session, _hintLabelService);

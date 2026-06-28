@@ -1,5 +1,5 @@
-hunt-and-peck — Release build (DIAG: TrueCondition vs ControlView vs compound)
-Source commit : 69ba81d0252b2a279aff7e671255e0d1d8b68533
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28283065965
-Built (UTC)   : 2026-06-27T07:53:56Z
-Note          : logs 3 condition FindAll timings + FindAllBuildCache to %TEMP%\hap-timing.log
+hunt-and-peck — Release build (DIAG: element counts per condition)
+Source commit : eca8f1f22978f734802565fc820374f357626c41
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28308308228
+Built (UTC)   : 2026-06-28T02:04:13Z
+Note          : logs element counts + timings per condition to %TEMP%\hap-timing.log

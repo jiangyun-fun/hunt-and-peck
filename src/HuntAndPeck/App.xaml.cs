@@ -24,9 +24,7 @@ namespace HuntAndPeck
                 DataContext = vm
             };
             vm.CloseOverlay = () => view.Close();
-            PerfLog.Mark("before ShowDialog");
             view.ShowDialog();
-            PerfLog.Mark("after ShowDialog (closed)");
         }
 
         private void ShowDebugOverlay(DebugOverlayViewModel vm)

@@ -16,6 +16,22 @@ namespace HuntAndPeck.Services
     {
         private readonly IUIAutomation _automation = new CUIAutomation();
 
+        /// <summary>
+        /// Per-window hint-session cache so repeated hotkey presses on the same window
+        /// are instant. UI Automation enumeration of large trees (notably Chromium apps
+        /// that expose 600+ controls) can take seconds; this avoids re-walking on
+        /// repeat presses. Entries expire after <see cref="SessionCacheTtl"/>.
+        /// </summary>
+        private static readonly TimeSpan SessionCacheTtl = TimeSpan.FromSeconds(5);
+        private readonly Dictionary<IntPtr, CacheEntry> _sessionCache = new Dictionary<IntPtr, CacheEntry>();
+        private readonly object _sessionCacheLock = new object();
+
+        private sealed class CacheEntry
+        {
+            public HintSession Session;
+            public DateTime ExpiresAt;
+        }
+
         public HintSession EnumHints()
         {
             var foregroundWindow = User32.GetForegroundWindow();
@@ -28,12 +44,33 @@ namespace HuntAndPeck.Services
 
         public HintSession EnumHints(IntPtr hWnd)
         {
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
+            // Fast path: return a cached session if this window was enumerated recently.
+            lock (_sessionCacheLock)
+            {
+                if (_sessionCache.TryGetValue(hWnd, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
+                {
+                    PerfLog.Mark("EnumHints cache HIT");
+                    return cached.Session;
+                }
+            }
+
+            var sw = Stopwatch.StartNew();
             var session = EnumWindowHints(hWnd, CreateHint);
             sw.Stop();
+            PerfLog.Mark("EnumHints cache MISS", sw.ElapsedMilliseconds);
 
-            Debug.WriteLine("Enumeration of hints took {0} ms", sw.ElapsedMilliseconds);
+            if (session != null)
+            {
+                lock (_sessionCacheLock)
+                {
+                    _sessionCache[hWnd] = new CacheEntry
+                    {
+                        Session = session,
+                        ExpiresAt = DateTime.UtcNow + SessionCacheTtl,
+                    };
+                }
+            }
+
             return session;
         }
 
@@ -142,7 +179,6 @@ namespace HuntAndPeck.Services
         {
             var result = new List<IUIAutomationElement>();
             var automationElement = _automation.ElementFromHandle(hWnd);
-            PerfLog.Mark("  EnumElements: after ElementFromHandle");
 
             var conditionControlView = _automation.ControlViewCondition;
             var conditionEnabled = _automation.CreatePropertyCondition(UIA_PropertyIds.UIA_IsEnabledPropertyId, true);
@@ -151,27 +187,8 @@ namespace HuntAndPeck.Services
             var conditionOnScreen = _automation.CreatePropertyCondition(UIA_PropertyIds.UIA_IsOffscreenPropertyId, false);
             var condition = _automation.CreateAndCondition(enabledControlCondition, conditionOnScreen);
 
-            // DIAGNOSTIC: pinpoint which part of the condition makes FindAll slow on
-            // Chromium. Time TrueCondition (no property eval), ControlViewCondition
-            // (structural), and the full compound condition (adds IsEnabled + IsOffscreen).
-            var swTrue = Stopwatch.StartNew();
-            var arrTrue = automationElement.FindAll(TreeScope.TreeScope_Descendants, _automation.CreateTrueCondition());
-            swTrue.Stop();
-            PerfLog.Mark("  DIAG FindAll(TrueCondition) [" + (arrTrue == null ? 0 : arrTrue.Length) + " elems]", swTrue.ElapsedMilliseconds);
-
-            var swView = Stopwatch.StartNew();
-            var arrView = automationElement.FindAll(TreeScope.TreeScope_Descendants, _automation.ControlViewCondition);
-            swView.Stop();
-            PerfLog.Mark("  DIAG FindAll(ControlViewCondition) [" + (arrView == null ? 0 : arrView.Length) + " elems]", swView.ElapsedMilliseconds);
-
-            var swCompound = Stopwatch.StartNew();
-            var arrCompound = automationElement.FindAll(TreeScope.TreeScope_Descendants, condition);
-            swCompound.Stop();
-            PerfLog.Mark("  DIAG FindAll(compound) [" + (arrCompound == null ? 0 : arrCompound.Length) + " elems]", swCompound.ElapsedMilliseconds);
-
             var cacheRequest = CreateHintCacheRequest();
             var elementArray = automationElement.FindAllBuildCache(TreeScope.TreeScope_Descendants, condition, cacheRequest);
-            PerfLog.Mark("  EnumElements: after FindAllBuildCache");
             if (elementArray != null)
             {
                 for (var i = 0; i < elementArray.Length; ++i)
@@ -179,7 +196,6 @@ namespace HuntAndPeck.Services
                     result.Add(elementArray.GetElement(i));
                 }
             }
-            PerfLog.Mark("  EnumElements: after element loop");
 
             return result;
         }

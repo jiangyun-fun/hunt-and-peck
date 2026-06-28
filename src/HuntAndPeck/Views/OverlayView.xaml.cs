@@ -15,12 +15,11 @@ namespace HuntAndPeck.Views
         public OverlayView()
         {
             InitializeComponent();
-            ContentRendered += (s, e) => PerfLog.Mark("ContentRendered (visible)");
+            ContentRendered += (s, e) => PerfLog.Mark("overlay visible");
         }
 
         private void OverlayView_OnLoaded(object sender, RoutedEventArgs e)
         {
-            PerfLog.Mark("OverlayView OnLoaded");
             var m = PresentationSource.FromVisual(this).CompositionTarget.TransformToDevice;
             var scaleX = m.M11;
             var scaleY = m.M22;
