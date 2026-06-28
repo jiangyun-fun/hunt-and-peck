@@ -1,5 +1,6 @@
-hunt-and-peck — Release build (DIAG: element counts per condition)
-Source commit : eca8f1f22978f734802565fc820374f357626c41
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28308308228
-Built (UTC)   : 2026-06-28T02:04:13Z
-Note          : logs element counts + timings per condition to %TEMP%\hap-timing.log
+hunt-and-peck — Release build (MITIGATIONS: per-window cache + off-UI-thread)
+Source commit : ad3dccf93bba9297bf10b019fc744f6c5bf50fd5
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28308706962
+Built (UTC)   : 2026-06-28T02:23:10Z
+Changes       : per-window hint cache (5s TTL) + off-UI-thread enumeration; diagnostics removed
+Note          : logs EnumHints cache HIT/MISS + overlay-visible to %TEMP%\hap-timing.log

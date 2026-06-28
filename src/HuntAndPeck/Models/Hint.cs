@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Windows;
+using UIAutomationClient;
 
 namespace HuntAndPeck.Models
 {
@@ -20,14 +21,21 @@ namespace HuntAndPeck.Models
         }
 
         /// <summary>
-        /// The bounding rectangle for the hint in Window coordinates for the owning window
+        /// The bounding rectangle for the hint in Window coordinates for the owning window.
+        /// Internal set so the hint provider can refresh positions on a cache hit.
         /// </summary>
-        public Rect BoundingRectangle { get; private set; }
+        public Rect BoundingRectangle { get; internal set; }
 
         /// <summary>
         /// The window handle of the owning window
         /// </summary>
         public IntPtr OwningWindow { get; private set; }
+
+        /// <summary>
+        /// The source automation element. Held so a cached hint can refresh its
+        /// bounding rectangle (CurrentBoundingRectangle) without re-walking the tree.
+        /// </summary>
+        public IUIAutomationElement AutomationElement { get; set; }
 
         /// <summary>
         /// Invokes the hint

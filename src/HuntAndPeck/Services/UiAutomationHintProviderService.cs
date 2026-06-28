@@ -49,7 +49,10 @@ namespace HuntAndPeck.Services
             {
                 if (_sessionCache.TryGetValue(hWnd, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
                 {
-                    PerfLog.Mark("EnumHints cache HIT");
+                    // Cache hit: avoid the tree walk, but re-read each element's current
+                    // bounding rectangle so hint positions follow scroll/content moves.
+                    RefreshSessionPositions(cached.Session, hWnd);
+                    PerfLog.Mark("EnumHints cache HIT (positions refreshed)");
                     return cached.Session;
                 }
             }
@@ -72,6 +75,58 @@ namespace HuntAndPeck.Services
             }
 
             return session;
+        }
+
+        /// <summary>
+        /// Refreshes a cached session's hint positions by re-reading each element's
+        /// current bounding rectangle, without re-walking the automation tree. Best-effort:
+        /// elements that have disappeared keep their last known bounds. Runs off the UI
+        /// thread (the caller is Task.Run), so this does not freeze the app.
+        /// </summary>
+        private void RefreshSessionPositions(HintSession session, IntPtr hWnd)
+        {
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                var rawWindowBounds = new RECT();
+                User32.GetWindowRect(hWnd, ref rawWindowBounds);
+                Rect windowBounds = rawWindowBounds;
+                session.OwningWindowBounds = windowBounds;
+
+                foreach (var hint in session.Hints)
+                {
+                    var element = hint.AutomationElement;
+                    if (element == null)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        var br = element.CurrentBoundingRectangle;
+                        if (br.right > br.left && br.bottom > br.top)
+                        {
+                            var niceRect = new Rect(new Point(br.left, br.top), new Point(br.right, br.bottom));
+                            var logicalRect = niceRect.PhysicalToLogicalRect(hWnd);
+                            if (!logicalRect.IsEmpty)
+                            {
+                                hint.BoundingRectangle = niceRect.ScreenToWindowCoordinates(windowBounds);
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // Element may have gone; keep its last known bounds.
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Best-effort refresh; fall back to cached positions.
+            }
+
+            sw.Stop();
+            PerfLog.Mark("  refreshed positions", sw.ElapsedMilliseconds);
         }
 
         public HintSession EnumDebugHints()
@@ -119,6 +174,7 @@ namespace HuntAndPeck.Services
                         var hint = hintFactory(hWnd, windowCoords, element);
                         if (hint != null)
                         {
+                            hint.AutomationElement = element;
                             result.Add(hint);
                         }
                     }
