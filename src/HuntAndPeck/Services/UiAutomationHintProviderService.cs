@@ -155,19 +155,19 @@ namespace HuntAndPeck.Services
             // Chromium. Time TrueCondition (no property eval), ControlViewCondition
             // (structural), and the full compound condition (adds IsEnabled + IsOffscreen).
             var swTrue = Stopwatch.StartNew();
-            automationElement.FindAll(TreeScope.TreeScope_Descendants, _automation.CreateTrueCondition());
+            var arrTrue = automationElement.FindAll(TreeScope.TreeScope_Descendants, _automation.CreateTrueCondition());
             swTrue.Stop();
-            PerfLog.Mark("  DIAG FindAll(TrueCondition)", swTrue.ElapsedMilliseconds);
+            PerfLog.Mark("  DIAG FindAll(TrueCondition) [" + (arrTrue == null ? 0 : arrTrue.Length) + " elems]", swTrue.ElapsedMilliseconds);
 
             var swView = Stopwatch.StartNew();
-            automationElement.FindAll(TreeScope.TreeScope_Descendants, _automation.ControlViewCondition);
+            var arrView = automationElement.FindAll(TreeScope.TreeScope_Descendants, _automation.ControlViewCondition);
             swView.Stop();
-            PerfLog.Mark("  DIAG FindAll(ControlViewCondition)", swView.ElapsedMilliseconds);
+            PerfLog.Mark("  DIAG FindAll(ControlViewCondition) [" + (arrView == null ? 0 : arrView.Length) + " elems]", swView.ElapsedMilliseconds);
 
             var swCompound = Stopwatch.StartNew();
-            automationElement.FindAll(TreeScope.TreeScope_Descendants, condition);
+            var arrCompound = automationElement.FindAll(TreeScope.TreeScope_Descendants, condition);
             swCompound.Stop();
-            PerfLog.Mark("  DIAG FindAll(compound ControlView+enabled+onscreen)", swCompound.ElapsedMilliseconds);
+            PerfLog.Mark("  DIAG FindAll(compound) [" + (arrCompound == null ? 0 : arrCompound.Length) + " elems]", swCompound.ElapsedMilliseconds);
 
             var cacheRequest = CreateHintCacheRequest();
             var elementArray = automationElement.FindAllBuildCache(TreeScope.TreeScope_Descendants, condition, cacheRequest);

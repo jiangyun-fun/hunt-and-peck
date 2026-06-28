@@ -1,5 +1,5 @@
-hunt-and-peck — Release build (DIAGNOSTIC: plain FindAll vs FindAllBuildCache)
-Source commit : b08095f863c1261c5d16eb25bd0e885f99bc369d
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28282910569
-Built (UTC)   : 2026-06-27T07:46:29Z
-Note          : logs DIAG plain FindAll + FindAllBuildCache timings to %TEMP%\hap-timing.log
+hunt-and-peck — Release build (DIAG: TrueCondition vs ControlView vs compound)
+Source commit : 69ba81d0252b2a279aff7e671255e0d1d8b68533
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28283065965
+Built (UTC)   : 2026-06-27T07:53:56Z
+Note          : logs 3 condition FindAll timings + FindAllBuildCache to %TEMP%\hap-timing.log
