@@ -2,7 +2,6 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
-using HuntAndPeck;
 using HuntAndPeck.ViewModels;
 
 namespace HuntAndPeck.Views
@@ -15,7 +14,6 @@ namespace HuntAndPeck.Views
         public OverlayView()
         {
             InitializeComponent();
-            ContentRendered += (s, e) => PerfLog.Mark("overlay visible");
         }
 
         private void OverlayView_OnLoaded(object sender, RoutedEventArgs e)

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using HuntAndPeck;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services.Interfaces;
 using Application = System.Windows.Application;
@@ -67,7 +66,6 @@ namespace HuntAndPeck.ViewModels
 
         private async void _keyListener_OnHotKeyActivated(object sender, EventArgs e)
         {
-            PerfLog.Start();
             // Capture the foreground window on the UI thread, then enumerate off-thread.
             // The per-window cache (in the service) makes repeat presses on the same
             // window instant; the first press on a large tree (e.g. Chromium apps) still

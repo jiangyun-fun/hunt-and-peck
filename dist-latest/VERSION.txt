@@ -1,6 +1,6 @@
-hunt-and-peck — Release build (MITIGATIONS: per-window cache + off-UI-thread)
-Source commit : ad3dccf93bba9297bf10b019fc744f6c5bf50fd5
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28308706962
-Built (UTC)   : 2026-06-28T02:23:10Z
-Changes       : per-window hint cache (5s TTL) + off-UI-thread enumeration; diagnostics removed
-Note          : logs EnumHints cache HIT/MISS + overlay-visible to %TEMP%\hap-timing.log
+hunt-and-peck — Release build (refresh positions on cache hit)
+Source commit : 5b3264015374fc63f9efd98f57ff37577f592d35
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28309307385
+Built (UTC)   : 2026-06-28T02:53:06Z
+Change        : cache hits now re-read each element's current bounding rect (fresh positions, no tree walk)
+Note          : logs EnumHints HIT(refreshed)/MISS + refresh ms to %TEMP%\hap-timing.log

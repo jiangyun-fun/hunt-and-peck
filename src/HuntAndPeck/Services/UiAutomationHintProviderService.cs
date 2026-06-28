@@ -1,11 +1,9 @@
-﻿using HuntAndPeck;
-using HuntAndPeck.Extensions;
+﻿using HuntAndPeck.Extensions;
 using HuntAndPeck.Models;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services.Interfaces;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using UIAutomationClient;
@@ -52,15 +50,11 @@ namespace HuntAndPeck.Services
                     // Cache hit: avoid the tree walk, but re-read each element's current
                     // bounding rectangle so hint positions follow scroll/content moves.
                     RefreshSessionPositions(cached.Session, hWnd);
-                    PerfLog.Mark("EnumHints cache HIT (positions refreshed)");
                     return cached.Session;
                 }
             }
 
-            var sw = Stopwatch.StartNew();
             var session = EnumWindowHints(hWnd, CreateHint);
-            sw.Stop();
-            PerfLog.Mark("EnumHints cache MISS", sw.ElapsedMilliseconds);
 
             if (session != null)
             {
@@ -85,7 +79,6 @@ namespace HuntAndPeck.Services
         /// </summary>
         private void RefreshSessionPositions(HintSession session, IntPtr hWnd)
         {
-            var sw = Stopwatch.StartNew();
             try
             {
                 var rawWindowBounds = new RECT();
@@ -124,9 +117,6 @@ namespace HuntAndPeck.Services
             {
                 // Best-effort refresh; fall back to cached positions.
             }
-
-            sw.Stop();
-            PerfLog.Mark("  refreshed positions", sw.ElapsedMilliseconds);
         }
 
         public HintSession EnumDebugHints()
