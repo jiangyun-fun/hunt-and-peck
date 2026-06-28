@@ -4,6 +4,7 @@ using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services.Interfaces;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Windows;
 using UIAutomationClient;
@@ -187,7 +188,7 @@ namespace HuntAndPeck.Services
         /// (Microsoft Win32 docs). This is the dominant cost when populating hints.
         /// </summary>
         /// <returns>A cache request covering the properties/patterns hints use</returns>
-        private IUIAutomationCacheRequest CreateHintCacheRequest()
+        private IUIAutomationCacheRequest CreateHintCacheRequest(bool includeFilterProperties)
         {
             var cacheRequest = _automation.CreateCacheRequest();
 
@@ -201,6 +202,12 @@ namespace HuntAndPeck.Services
             // Properties. AddPattern caches the pattern object but not its
             // properties, so the two IsReadOnly values must be added explicitly.
             cacheRequest.AddProperty(UIA_PropertyIds.UIA_BoundingRectanglePropertyId);
+            if (includeFilterProperties)
+            {
+                // Needed to filter enabled/on-screen during the depth-limited walk.
+                cacheRequest.AddProperty(UIA_PropertyIds.UIA_IsEnabledPropertyId);
+                cacheRequest.AddProperty(UIA_PropertyIds.UIA_IsOffscreenPropertyId);
+            }
             cacheRequest.AddProperty(UIA_PropertyIds.UIA_ValueIsReadOnlyPropertyId);
             cacheRequest.AddProperty(UIA_PropertyIds.UIA_RangeValueIsReadOnlyPropertyId);
 
@@ -225,25 +232,101 @@ namespace HuntAndPeck.Services
         {
             var result = new List<IUIAutomationElement>();
             var automationElement = _automation.ElementFromHandle(hWnd);
+            var maxDepth = ReadMaxEnumerationDepth();
 
-            var conditionControlView = _automation.ControlViewCondition;
-            var conditionEnabled = _automation.CreatePropertyCondition(UIA_PropertyIds.UIA_IsEnabledPropertyId, true);
-            var enabledControlCondition = _automation.CreateAndCondition(conditionControlView, conditionEnabled);
-
-            var conditionOnScreen = _automation.CreatePropertyCondition(UIA_PropertyIds.UIA_IsOffscreenPropertyId, false);
-            var condition = _automation.CreateAndCondition(enabledControlCondition, conditionOnScreen);
-
-            var cacheRequest = CreateHintCacheRequest();
-            var elementArray = automationElement.FindAllBuildCache(TreeScope.TreeScope_Descendants, condition, cacheRequest);
-            if (elementArray != null)
+            if (maxDepth <= 0)
             {
-                for (var i = 0; i < elementArray.Length; ++i)
+                // Unbounded: original FindAll over all descendants.
+                var conditionControlView = _automation.ControlViewCondition;
+                var conditionEnabled = _automation.CreatePropertyCondition(UIA_PropertyIds.UIA_IsEnabledPropertyId, true);
+                var enabledControlCondition = _automation.CreateAndCondition(conditionControlView, conditionEnabled);
+
+                var conditionOnScreen = _automation.CreatePropertyCondition(UIA_PropertyIds.UIA_IsOffscreenPropertyId, false);
+                var condition = _automation.CreateAndCondition(enabledControlCondition, conditionOnScreen);
+
+                var elementArray = automationElement.FindAllBuildCache(TreeScope.TreeScope_Descendants, condition, CreateHintCacheRequest(false));
+                if (elementArray != null)
                 {
-                    result.Add(elementArray.GetElement(i));
+                    for (var i = 0; i < elementArray.Length; ++i)
+                    {
+                        result.Add(elementArray.GetElement(i));
+                    }
                 }
+            }
+            else
+            {
+                // Depth-limited: walk the control-view tree up to maxDepth levels.
+                // Visits fewer nodes on large trees (e.g. Chromium), at the cost of
+                // missing deeply-nested controls.
+                WalkControlView(_automation.ControlViewWalker, automationElement, CreateHintCacheRequest(true), result, 0, maxDepth);
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Depth-limited DFS over the control-view tree. Children are retrieved with the
+        /// cache request so IsEnabled/IsOffscreen/bounds/patterns come back in one pass;
+        /// enabled, on-screen elements are collected. <paramref name="elementDepth"/> is
+        /// the depth of <paramref name="element"/> (the root window is 0).
+        /// </summary>
+        private void WalkControlView(IUIAutomationTreeWalker walker, IUIAutomationElement element, IUIAutomationCacheRequest cache, List<IUIAutomationElement> result, int elementDepth, int maxDepth)
+        {
+            if (elementDepth >= maxDepth)
+            {
+                return;
+            }
+
+            IUIAutomationElement child;
+            try
+            {
+                child = walker.GetFirstChildElementBuildCache(element, cache);
+            }
+            catch (Exception)
+            {
+                return;
+            }
+
+            while (child != null)
+            {
+                try
+                {
+                    if (child.CachedIsEnabled != 0 && child.CachedIsOffscreen == 0)
+                    {
+                        result.Add(child);
+                    }
+                }
+                catch (Exception)
+                {
+                    // Skip elements whose cached state cannot be read.
+                }
+
+                WalkControlView(walker, child, cache, result, elementDepth + 1, maxDepth);
+
+                try
+                {
+                    child = walker.GetNextSiblingElementBuildCache(child, cache);
+                }
+                catch (Exception)
+                {
+                    child = null;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reads MaxEnumerationDepth from hap.exe.config. 0 (or unset/invalid) means
+        /// unbounded -- the original whole-window FindAll behavior.
+        /// </summary>
+        private static int ReadMaxEnumerationDepth()
+        {
+            var raw = ConfigurationManager.AppSettings["MaxEnumerationDepth"];
+            if (int.TryParse(raw, out var depth) && depth > 0)
+            {
+                return depth;
+            }
+
+            return 0;
         }
 
         /// <summary>
