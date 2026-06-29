@@ -1,7 +1,5 @@
-hunt-and-peck — Release build (FINAL)
-Source commit : 638965c36e053df14ecef3a9724137be42e26a3f
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28322322503
-Built (UTC)   : 2026-06-28T12:33:41Z
-Optimizations : UIA cache-request (#1) + off-UI-thread enumeration (#2) +
-                 per-window session cache + refresh-positions-on-cache-hit
-                 (no diagnostic logging; clean production build)
+hunt-and-peck — Release build (max-depth enumeration, configurable)
+Source commit : f435b3771b6f8ba541583402bb4c1a9cfb824751
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28327060037
+Built (UTC)   : 2026-06-28T15:32:25Z
+Tunable       : edit hap.exe.config -> appSettings/MaxEnumerationDepth (0=unlimited, try 4-7), restart hap.exe

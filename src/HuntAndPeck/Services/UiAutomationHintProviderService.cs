@@ -320,10 +320,20 @@ namespace HuntAndPeck.Services
         /// </summary>
         private static int ReadMaxEnumerationDepth()
         {
-            var raw = ConfigurationManager.AppSettings["MaxEnumerationDepth"];
-            if (int.TryParse(raw, out var depth) && depth > 0)
+            try
             {
-                return depth;
+                // Refresh so edits to hap.exe.config take effect on the next hotkey
+                // press without restarting (hot-reload).
+                ConfigurationManager.RefreshSection("appSettings");
+                var raw = ConfigurationManager.AppSettings["MaxEnumerationDepth"];
+                if (int.TryParse(raw, out var depth) && depth > 0)
+                {
+                    return depth;
+                }
+            }
+            catch (Exception)
+            {
+                // Config read/parse issue (e.g. file mid-save); fall back to unbounded.
             }
 
             return 0;
