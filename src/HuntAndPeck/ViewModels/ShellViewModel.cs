@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using HuntAndPeck.Models;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services;
 using HuntAndPeck.Services.Interfaces;
@@ -44,12 +46,6 @@ namespace HuntAndPeck.ViewModels
                     KeyModifier.Control | KeyModifier.Alt | KeyModifier.Shift)
             };
 
-            keyListener1.TaskbarHotKey = new HotKey
-            {
-                Keys = Keys.OemSemicolon,
-                Modifier = KeyModifier.Control
-            };
-
 #if DEBUG
             keyListener1.DebugHotKey = new HotKey
             {
@@ -59,7 +55,6 @@ namespace HuntAndPeck.ViewModels
 #endif
 
             keyListener1.OnHotKeyActivated += _keyListener_OnHotKeyActivated;
-            keyListener1.OnTaskbarHotKeyActivated += _keyListener_OnTaskbarHotKeyActivated;
             keyListener1.OnDebugHotKeyActivated += _keyListener_OnDebugHotKeyActivated;
 
             ShowOptionsCommand = new DelegateCommand(ShowOptions);
@@ -81,7 +76,9 @@ namespace HuntAndPeck.ViewModels
                 return;
             }
 
-            var session = await Task.Run(() => _hintProviderService.EnumHints(hWnd));
+            // Enumerate the foreground window and always merge the taskbar in, so the
+            // taskbar's buttons are reachable from the main overlay (no separate key).
+            var session = await Task.Run(() => MergeWithTaskbar(_hintProviderService.EnumHints(hWnd)));
             if (session != null)
             {
                 var vm = new OverlayViewModel(session, _hintLabelService);
@@ -89,14 +86,58 @@ namespace HuntAndPeck.ViewModels
             }
         }
 
-        private async void _keyListener_OnTaskbarHotKeyActivated(object sender, EventArgs e)
+        /// <summary>
+        /// Merges the taskbar's hints into the foreground session so both show in one
+        /// overlay. The overlay is enlarged to the union of the two windows, and every
+        /// hint's bounds are re-based to that union origin. Mutating BoundingRectangle
+        /// is safe: Grid sessions are fresh per press, and Automation sessions are
+        /// re-read (RefreshSessionPositions) on the next cache hit.
+        /// </summary>
+        private HintSession MergeWithTaskbar(HintSession foreground)
         {
-            var taskbarHWnd = User32.FindWindow("Shell_traywnd", "");
-            var session = await Task.Run(() => _hintProviderService.EnumHints(taskbarHWnd));
-            if (session != null)
+            if (foreground == null)
             {
-                var vm = new OverlayViewModel(session, _hintLabelService);
-                _showOverlay(vm);
+                return null;
+            }
+
+            var taskbarHWnd = User32.FindWindow("Shell_traywnd", "");
+            if (taskbarHWnd == IntPtr.Zero || taskbarHWnd == foreground.OwningWindow)
+            {
+                return foreground;
+            }
+
+            var taskbar = _hintProviderService.EnumHints(taskbarHWnd);
+            if (taskbar == null || taskbar.Hints == null || taskbar.Hints.Count == 0)
+            {
+                return foreground;
+            }
+
+            var fb = foreground.OwningWindowBounds;
+            var tb = taskbar.OwningWindowBounds;
+            var union = System.Windows.Rect.Union(fb, tb);
+
+            RebaseTo(foreground.Hints, fb.Left - union.Left, fb.Top - union.Top);
+            RebaseTo(taskbar.Hints, tb.Left - union.Left, tb.Top - union.Top);
+
+            var merged = new List<Hint>(foreground.Hints.Count + taskbar.Hints.Count);
+            merged.AddRange(foreground.Hints);
+            merged.AddRange(taskbar.Hints);
+
+            return new HintSession
+            {
+                Hints = merged,
+                OwningWindow = foreground.OwningWindow,
+                OwningWindowBounds = union
+            };
+        }
+
+        private static void RebaseTo(IList<Hint> hints, double dx, double dy)
+        {
+            for (int i = 0; i < hints.Count; i++)
+            {
+                var h = hints[i];
+                var br = h.BoundingRectangle;
+                h.BoundingRectangle = new System.Windows.Rect(br.Left + dx, br.Top + dy, br.Width, br.Height);
             }
         }
 
