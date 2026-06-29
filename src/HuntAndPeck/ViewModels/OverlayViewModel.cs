@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Linq;
 using System.Collections.ObjectModel;
 using System.Windows;
 using HuntAndPeck.Models;
+using HuntAndPeck.NativeMethods;
+using HuntAndPeck.Services;
 using HuntAndPeck.Services.Interfaces;
 
 namespace HuntAndPeck.ViewModels
@@ -13,6 +14,9 @@ namespace HuntAndPeck.ViewModels
     {
         private Rect _bounds;
         private ObservableCollection<HintViewModel> _hints = new ObservableCollection<HintViewModel>();
+        private bool _isMoveOnlyMode;
+        private int _nudgeX;
+        private int _nudgeY;
 
         public OverlayViewModel(
             HintSession session,
@@ -48,6 +52,16 @@ namespace HuntAndPeck.ViewModels
             }
         }
 
+        /// <summary>True once Space has been pressed: continuous move-only positioning.</summary>
+        public bool IsMoveOnlyMode
+        {
+            get { return _isMoveOnlyMode; }
+            private set { _isMoveOnlyMode = value; NotifyOfPropertyChange(); }
+        }
+
+        /// <summary>Indicator text shown by the view while in move-only mode.</summary>
+        public string MoveOnlyHint => OverlayActionConfig.MoveOnlyHint;
+
         public ObservableCollection<HintViewModel> Hints
         {
             get
@@ -62,6 +76,19 @@ namespace HuntAndPeck.ViewModels
         }
 
         public Action CloseOverlay { get; set; }
+
+        /// <summary>
+        /// Default mode: move the cursor onto the matched target, synthesize a real
+        /// left click there, then close. Implemented by the view (click-through +
+        /// mouse_event). Null in Invoke mode.
+        /// </summary>
+        public Action<Point> PerformClickAndClose { get; set; }
+
+        /// <summary>
+        /// Move-only mode: clear the TextBox so the next label can be typed fresh.
+        /// Implemented by the view.
+        /// </summary>
+        public Action ResetInput { get; set; }
 
         public string MatchString
         {
@@ -84,35 +111,63 @@ namespace HuntAndPeck.ViewModels
 
                 if (matching.Count == 1)
                 {
-                    if (ShouldMoveMouseInsteadOfClick())
+                    var target = matching[0].Hint;
+                    target.MoveMouseToCenter();
+
+                    // Capture the real landed cursor position so nudging and the
+                    // click use it (consistent for PointHint and UIA hints).
+                    POINT p;
+                    User32.GetCursorPos(out p);
+                    _nudgeX = p.X;
+                    _nudgeY = p.Y;
+
+                    if (_isMoveOnlyMode)
                     {
-                        matching[0].Hint.MoveMouseToCenter();
+                        // Jump only; clear input for the next label; never click.
+                        ResetInput?.Invoke();
+                    }
+                    else if (OverlayActionConfig.ReadClickMode() == ClickMode.Invoke)
+                    {
+                        target.Invoke();
+                        CloseOverlay?.Invoke();
                     }
                     else
                     {
-                        matching[0].Hint.Invoke();
+                        // RealClick (default): synthesize a real left click at the target.
+                        PerformClickAndClose?.Invoke(new Point(_nudgeX, _nudgeY));
                     }
-
-                    CloseOverlay?.Invoke();
                 }
             }
         }
 
         /// <summary>
-        /// Reads HintAction from hap.exe.config (hot-reload). "MoveMouse" positions the
-        /// cursor on the target instead of invoking it; anything else (default) clicks.
+        /// Enters move-only mode (Space): the overlay stays open, becomes
+        /// click-through, and never auto-clicks. Captures the current cursor
+        /// position so arrows can nudge from there.
         /// </summary>
-        private static bool ShouldMoveMouseInsteadOfClick()
+        public void EnterMoveOnlyMode()
         {
-            try
+            if (_isMoveOnlyMode)
             {
-                ConfigurationManager.RefreshSection("appSettings");
-                return string.Equals(ConfigurationManager.AppSettings["HintAction"], "MoveMouse", StringComparison.OrdinalIgnoreCase);
+                return;
             }
-            catch (Exception)
-            {
-                return false;
-            }
+            IsMoveOnlyMode = true;
+            POINT p;
+            User32.GetCursorPos(out p);
+            _nudgeX = p.X;
+            _nudgeY = p.Y;
+        }
+
+        /// <summary>
+        /// Nudges the cursor by (dx, dy) in physical pixels, then clears the input
+        /// so the next label starts fresh. Move-only mode only.
+        /// </summary>
+        public void Nudge(int dx, int dy)
+        {
+            _nudgeX += dx;
+            _nudgeY += dy;
+            User32.SetCursorPos(_nudgeX, _nudgeY);
+            ResetInput?.Invoke();
         }
     }
 }
