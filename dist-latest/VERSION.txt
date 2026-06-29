@@ -1,9 +1,9 @@
-hunt-and-peck — Release build (+ Grid hint source)
-Source commit : 3eda2f64db3803a18ef0f827e52eec1388ee2093
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28345590231
-Built (UTC)   : 2026-06-29T02:55:27Z
-Tunable live (hap.exe.config appSettings, hot-reload):
-  HintSource     Automation (default) | Grid (instant cursor-jump grid)
-  GridCols/Rows  grid density when HintSource=Grid (default 12 x 8)
-  HintAction     Click (default) | MoveMouse
-  MaxEnumerationDepth  0=unlimited (Automation mode only)
+hunt-and-peck — Release build (grid fixes: cursor-on-label, edge inset, configurable chars)
+Source commit : a76f4b4726456ac8072081e3b50770c754e9c4ff
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28346974780
+Built (UTC)   : 2026-06-29T03:39:16Z
+Grid mode (HintSource=Grid) fixes:
+  - cursor lands ON the label (was ~half-cell off)
+  - grid inset 5% from edges (top labels no longer clipped)
+  - HintCharacters configurable (set to ABCDEFGHIJKLMNOPQRSTUVWXYZ for 2-char labels up to 676)
+All settings hot-reload via hap.exe.config.
