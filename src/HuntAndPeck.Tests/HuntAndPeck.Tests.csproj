@@ -35,6 +35,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Windows.Forms" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Core" />
     <Reference Include="System.IO.Compression" />
@@ -67,6 +68,10 @@
     <ProjectReference Include="..\HuntAndPeck\HuntAndPeck.csproj">
       <Project>{d9a0620d-d51f-4fcf-821e-aadd36230830}</Project>
       <Name>HuntAndPeck</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\NativeMethods\NativeMethods.csproj">
+      <Project>{556f1a03-8752-4c41-bb29-e7fa7ff68cd9}</Project>
+      <Name>NativeMethods</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
