@@ -1,3 +1,5 @@
+using System;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -13,6 +15,8 @@ namespace HuntAndPeck.Views
     /// </summary>
     public partial class OverlayView
     {
+        private Stopwatch _renderSw;
+
         public OverlayView()
         {
             InitializeComponent();
@@ -38,6 +42,20 @@ namespace HuntAndPeck.Views
             // double) and a manual click all reach the app beneath; keyboard
             // focus is unaffected, so typing keeps working.
             SetClickThrough(true);
+
+            // Measure window-load to content-rendered (the label layout/render cost).
+            _renderSw = Stopwatch.StartNew();
+            ContentRendered += OverlayView_OnContentRendered;
+        }
+
+        private void OverlayView_OnContentRendered(object sender, EventArgs e)
+        {
+            ContentRendered -= OverlayView_OnContentRendered;
+            if (_renderSw != null)
+            {
+                TimingLog.Log("render " + _renderSw.ElapsedMilliseconds + "ms");
+                _renderSw = null;
+            }
         }
 
         private void OverlayView_OnPreviewKeyDown(object sender, KeyEventArgs e)

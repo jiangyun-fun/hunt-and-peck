@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using HuntAndPeck.Models;
@@ -78,7 +79,11 @@ namespace HuntAndPeck.ViewModels
 
             // Enumerate the foreground window and always merge the taskbar in, so the
             // taskbar's buttons are reachable from the main overlay (no separate key).
+            var sw = Stopwatch.StartNew();
             var session = await Task.Run(() => MergeWithTaskbar(_hintProviderService.EnumHints(hWnd)));
+            sw.Stop();
+            TimingLog.Log("enum+merge " + sw.ElapsedMilliseconds + "ms  hints="
+                + (session != null && session.Hints != null ? session.Hints.Count : 0));
             if (session != null)
             {
                 var vm = new OverlayViewModel(session, _hintLabelService);
