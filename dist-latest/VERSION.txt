@@ -1,8 +1,8 @@
-hunt-and-peck — Release build (edge-weighted grid)
-Source commit : 641175926aef3711dd8f35f753b40736568fafbc
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28347744491
-Built (UTC)   : 2026-06-29T04:04:33Z
-Grid mode now clusters points densely in the edge bands (tabs/sidebars/widgets)
-and sparsely in the center. GridEdgeBandPercent (default 20; 0=uniform) controls it.
-Out-of-box: HintSource=Grid, 26x26, MoveMouse, A-Z labels, GridInset=10, EdgeBand=20%.
-All settings hot-reload via hap.exe.config.
+hunt-and-peck — Release build (region-based grid: full strips + corners)
+Source commit : 0299c89f83de1a216557f335827294bcdfe12f09
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28348387772
+Built (UTC)   : 2026-06-29T04:22:18Z
+Grid (HintSource=Grid) is now region-based:
+  GridDenseRegions = Left,Top,TR,BR,Center (full left + top strips, TR/BR corners, sparse center)
+  GridEdgeBandPercent = 15, GridEdgeStep = 60, GridCenterStep = 160, GridInset = 10
+All hot-reload via hap.exe.config.

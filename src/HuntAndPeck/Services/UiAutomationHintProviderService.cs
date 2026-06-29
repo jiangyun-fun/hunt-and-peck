@@ -360,12 +360,50 @@ namespace HuntAndPeck.Services
 
             var inset = ReadIntSetting("GridInset", 10);
             var bandPct = ReadIntSetting("GridEdgeBandPercent", 15) / 100.0;
-            var edgeStep = ReadIntSetting("GridEdgeStep", 60);
-            var centerStep = ReadIntSetting("GridCenterStep", 160);
+            var edgeStep = (double)ReadIntSetting("GridEdgeStep", 60);
+            var centerStep = (double)ReadIntSetting("GridCenterStep", 160);
             var want = new HashSet<string>(
                 (ReadStringSetting("GridDenseRegions") ?? "Left,Top,TR,BR,Center").Split(',').Select(s => s.Trim()),
                 StringComparer.OrdinalIgnoreCase);
 
+            // Cap the total at the two-character label capacity (HintCharacters^2) so every
+            // hint stays two chars. If the window is large and the steps would produce too
+            // many points, scale the steps up and regenerate.
+            int maxHints = ReadHintCharacterCount();
+            maxHints *= maxHints;
+
+            List<Hint> hints;
+            var guard = 0;
+            do
+            {
+                hints = GenerateGridPoints(hWnd, windowBounds, inset, bandPct, edgeStep, centerStep, want);
+                if (hints.Count <= maxHints || guard >= 6)
+                {
+                    break;
+                }
+
+                double scale = Math.Sqrt((double)hints.Count / maxHints);
+                edgeStep *= scale;
+                centerStep *= scale;
+                guard++;
+            } while (true);
+
+            return new HintSession
+            {
+                Hints = hints,
+                OwningWindow = hWnd,
+                OwningWindowBounds = windowBounds,
+            };
+        }
+
+        /// <summary>
+        /// Builds the grid points: dense full-length edge strips + corner squares, then a
+        /// sparse pass over the FULL window (CENTER). Dedup by rounded coordinates means
+        /// non-dense areas (e.g. bottom-middle, right-middle) still get sparse coverage
+        /// instead of being empty, while dense regions are not doubled up.
+        /// </summary>
+        private static List<Hint> GenerateGridPoints(IntPtr hWnd, Rect windowBounds, double inset, double bandPct, double edgeStep, double centerStep, HashSet<string> want)
+        {
             double left = windowBounds.Left + inset;
             double top = windowBounds.Top + inset;
             double right = windowBounds.Left + windowBounds.Width - inset;
@@ -373,8 +411,6 @@ namespace HuntAndPeck.Services
             double bandW = (windowBounds.Width - (2 * inset)) * bandPct;
             double bandH = (windowBounds.Height - (2 * inset)) * bandPct;
 
-            // Dense full-length edge strips + corner squares + sparse center. Overlapping
-            // regions dedupe by rounded coordinates so a strip and a corner do not double up.
             var hints = new List<Hint>();
             var seen = new HashSet<string>();
             double box = edgeStep * 0.8;
@@ -387,14 +423,32 @@ namespace HuntAndPeck.Services
             if (want.Contains("TR"))     FillRegion(hints, seen, hWnd, windowBounds, right - bandW, top,           right,          top + bandH,    edgeStep, box);
             if (want.Contains("BL"))     FillRegion(hints, seen, hWnd, windowBounds, left,          bottom - bandH, left + bandW,   bottom,         edgeStep, box);
             if (want.Contains("BR"))     FillRegion(hints, seen, hWnd, windowBounds, right - bandW, bottom - bandH, right,          bottom,         edgeStep, box);
-            if (want.Contains("CENTER")) FillRegion(hints, seen, hWnd, windowBounds, left + bandW,  top + bandH,   right - bandW,  bottom - bandH, centerStep, box);
+            if (want.Contains("CENTER")) FillRegion(hints, seen, hWnd, windowBounds, left,          top,           right,          bottom,         centerStep, box);
 
-            return new HintSession
+            return hints;
+        }
+
+        /// <summary>Number of distinct hint characters configured (for the label-capacity cap).</summary>
+        private static int ReadHintCharacterCount()
+        {
+            try
             {
-                Hints = hints,
-                OwningWindow = hWnd,
-                OwningWindowBounds = windowBounds,
-            };
+                ConfigurationManager.RefreshSection("appSettings");
+                var raw = ConfigurationManager.AppSettings["HintCharacters"];
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    var n = raw.Trim().ToUpperInvariant().Distinct().Count();
+                    if (n > 0)
+                    {
+                        return n;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+
+            return 14;
         }
 
         /// <summary>
