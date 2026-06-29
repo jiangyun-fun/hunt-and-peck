@@ -452,25 +452,36 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
-        /// Fills a rectangular region (screen coords) with a regular grid of PointHints
-        /// at the given step, deduplicating against <paramref name="seen"/> (by rounded
-        /// coordinates) so overlapping regions (e.g. a strip and a corner) do not
-        /// double up. <paramref name="box"/> is the uniform label size.
+        /// Fills a rectangular region (screen coords) with an evenly distributed grid of
+        /// PointHints. Points are placed at cell centers spanning the full region (no edge
+        /// gaps), and deduplicated by box-sized cells against <paramref name="seen"/> so
+        /// overlapping regions (e.g. a strip and the full-window center pass) do not place
+        /// two labels on top of each other. <paramref name="step"/> sets the density;
+        /// <paramref name="box"/> is the uniform label size.
         /// </summary>
         private static void FillRegion(List<Hint> hints, HashSet<string> seen, IntPtr hWnd, Rect windowBounds, double x1, double y1, double x2, double y2, double step, double box)
         {
-            if (step <= 0 || x2 <= x1 || y2 <= y1)
+            if (step <= 0 || x2 <= x1 || y2 <= y1 || box <= 0)
             {
                 return;
             }
 
-            for (double sx = x1 + step / 2.0; sx < x2; sx += step)
+            int cols = Math.Max(1, (int)Math.Round((x2 - x1) / step));
+            int rows = Math.Max(1, (int)Math.Round((y2 - y1) / step));
+            double dx = (x2 - x1) / cols;
+            double dy = (y2 - y1) / rows;
+
+            for (int i = 0; i < cols; i++)
             {
-                for (double sy = y1 + step / 2.0; sy < y2; sy += step)
+                for (int j = 0; j < rows; j++)
                 {
-                    int ix = (int)sx;
-                    int iy = (int)sy;
-                    if (!seen.Add(ix + "," + iy))
+                    double sx = x1 + (i + 0.5) * dx;
+                    double sy = y1 + (j + 0.5) * dy;
+
+                    // Dedup by box-sized cell so no two labels are closer than `box`.
+                    int cx = (int)(sx / box);
+                    int cy = (int)(sy / box);
+                    if (!seen.Add(cx + "," + cy))
                     {
                         continue;
                     }

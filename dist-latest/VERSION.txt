@@ -1,8 +1,8 @@
-hunt-and-peck — Release build (region-based grid: full strips + corners)
-Source commit : 0299c89f83de1a216557f335827294bcdfe12f09
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28348387772
-Built (UTC)   : 2026-06-29T04:22:18Z
-Grid (HintSource=Grid) is now region-based:
-  GridDenseRegions = Left,Top,TR,BR,Center (full left + top strips, TR/BR corners, sparse center)
-  GridEdgeBandPercent = 15, GridEdgeStep = 60, GridCenterStep = 160, GridInset = 10
-All hot-reload via hap.exe.config.
+hunt-and-peck — Release build (grid: full-window center + label cap)
+Source commit : a76c62c2f19415826432ae66d8837e365bb5366d
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28349098744
+Built (UTC)   : 2026-06-29T04:43:14Z
+Fixes:
+  - Center pass covers the FULL window (no more empty bottom-middle / right-middle).
+  - Point count capped at HintCharacters^2 (676 for A-Z) with auto step-scaling,
+    so all labels stay two characters regardless of window size.
