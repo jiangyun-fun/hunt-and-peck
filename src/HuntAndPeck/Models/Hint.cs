@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Windows;
+using HuntAndPeck.NativeMethods;
 using UIAutomationClient;
 
 namespace HuntAndPeck.Models
@@ -41,5 +42,29 @@ namespace HuntAndPeck.Models
         /// Invokes the hint
         /// </summary>
         public abstract void Invoke();
+
+        /// <summary>
+        /// Moves the mouse cursor to the center of this hint's element (its current
+        /// screen bounding rectangle) without clicking. Used in MoveMouse mode, e.g.
+        /// for targets whose UI Automation Invoke pattern does not fire.
+        /// </summary>
+        public void MoveMouseToCenter()
+        {
+            var element = AutomationElement;
+            if (element == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var br = element.CurrentBoundingRectangle;
+                User32.SetCursorPos((br.left + br.right) / 2, (br.top + br.bottom) / 2);
+            }
+            catch (Exception)
+            {
+                // Element may have gone.
+            }
+        }
     }
 }

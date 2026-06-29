@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -83,9 +84,34 @@ namespace HuntAndPeck.ViewModels
 
                 if (matching.Count == 1)
                 {
-                    matching[0].Hint.Invoke();
+                    if (ShouldMoveMouseInsteadOfClick())
+                    {
+                        matching[0].Hint.MoveMouseToCenter();
+                    }
+                    else
+                    {
+                        matching[0].Hint.Invoke();
+                    }
+
                     CloseOverlay?.Invoke();
                 }
+            }
+        }
+
+        /// <summary>
+        /// Reads HintAction from hap.exe.config (hot-reload). "MoveMouse" positions the
+        /// cursor on the target instead of invoking it; anything else (default) clicks.
+        /// </summary>
+        private static bool ShouldMoveMouseInsteadOfClick()
+        {
+            try
+            {
+                ConfigurationManager.RefreshSection("appSettings");
+                return string.Equals(ConfigurationManager.AppSettings["HintAction"], "MoveMouse", StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
     }

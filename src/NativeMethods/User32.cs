@@ -43,5 +43,9 @@ namespace HuntAndPeck.NativeMethods
 
         [DllImport("user32.dll", SetLastError = true)]
         public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetCursorPos(int x, int y);
     }
 }
