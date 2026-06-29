@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Text;
 using HuntAndPeck.Extensions;
@@ -23,7 +24,7 @@ namespace HuntAndPeck.Services
                 return hintStrings;
             }
 
-            var hintCharacters = new[] { 'S', 'A', 'D', 'F', 'J', 'K', 'L', 'E', 'W', 'C', 'M', 'P', 'G', 'H' };
+            var hintCharacters = ReadHintCharacters();
             var digitsNeeded = (int)Math.Ceiling(Math.Log(hintCount) / Math.Log(hintCharacters.Length));
 
             var wholeHintCount = (int)Math.Pow(hintCharacters.Length, digitsNeeded);
@@ -49,6 +50,34 @@ namespace HuntAndPeck.Services
             }
 
             return hintStrings.ToList();
+        }
+
+        /// <summary>
+        /// Reads the hint character set from hap.exe.config (hot-reload). More characters
+        /// means more short labels: 14 chars gives ~196 two-char labels, 26 (A-Z) gives
+        /// ~676. Defaults to the Vimium-style home-row set.
+        /// </summary>
+        private static char[] ReadHintCharacters()
+        {
+            try
+            {
+                ConfigurationManager.RefreshSection("appSettings");
+                var raw = ConfigurationManager.AppSettings["HintCharacters"];
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    var chars = raw.Trim().ToUpperInvariant().Distinct().ToArray();
+                    if (chars.Length > 0)
+                    {
+                        return chars;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // fall through to default
+            }
+
+            return new[] { 'S', 'A', 'D', 'F', 'J', 'K', 'L', 'E', 'W', 'C', 'M', 'P', 'G', 'H' };
         }
 
         /// <summary>

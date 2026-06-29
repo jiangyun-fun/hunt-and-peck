@@ -360,16 +360,25 @@ namespace HuntAndPeck.Services
             var cols = ReadIntSetting("GridCols", 12);
             var rows = ReadIntSetting("GridRows", 8);
 
+            // Inset from the window edges so labels (and their cursor targets) avoid
+            // the title bar and screen edges (otherwise top-row labels get clipped).
+            double insetX = windowBounds.Width * 0.05;
+            double insetY = windowBounds.Height * 0.05;
+            double cellW = (windowBounds.Width - 2 * insetX) / cols;
+            double cellH = (windowBounds.Height - 2 * insetY) / rows;
+
             var hints = new List<Hint>();
-            double cellW = windowBounds.Width / cols;
-            double cellH = windowBounds.Height / rows;
             for (var r = 0; r < rows; r++)
             {
                 for (var c = 0; c < cols; c++)
                 {
-                    double screenX = windowBounds.Left + (c + 0.5) * cellW;
-                    double screenY = windowBounds.Top + (r + 0.5) * cellH;
-                    var relBounds = new Rect(c * cellW, r * cellH, cellW, cellH);
+                    // Place the label at the cell's top-left and target that same point
+                    // with the cursor, so it lands on the label (not the cell center).
+                    double relX = insetX + c * cellW;
+                    double relY = insetY + r * cellH;
+                    var relBounds = new Rect(relX, relY, cellW, cellH);
+                    double screenX = windowBounds.Left + relX;
+                    double screenY = windowBounds.Top + relY;
                     hints.Add(new PointHint(hWnd, relBounds, new Point(screenX, screenY)));
                 }
             }

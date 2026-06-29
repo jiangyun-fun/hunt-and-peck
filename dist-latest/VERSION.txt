@@ -1,8 +1,9 @@
-hunt-and-peck — Release build (+ MoveMouse mode)
-Source commit : 4ea56db5b3c84fece268b4a8583b3f2fccef2169
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28344653208
-Built (UTC)   : 2026-06-29T02:27:12Z
-Tunable live  : hap.exe.config appSettings:
-                  MaxEnumerationDepth (0=unlimited, try 4-7)
-                  HintAction (Click [default] | MoveMouse)
-                Edit, save, press Alt+; (hot-reload, no restart).
+hunt-and-peck — Release build (+ Grid hint source)
+Source commit : 3eda2f64db3803a18ef0f827e52eec1388ee2093
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28345590231
+Built (UTC)   : 2026-06-29T02:55:27Z
+Tunable live (hap.exe.config appSettings, hot-reload):
+  HintSource     Automation (default) | Grid (instant cursor-jump grid)
+  GridCols/Rows  grid density when HintSource=Grid (default 12 x 8)
+  HintAction     Click (default) | MoveMouse
+  MaxEnumerationDepth  0=unlimited (Automation mode only)
