@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using HuntAndPeck.NativeMethods;
+using HuntAndPeck.Services;
 using HuntAndPeck.Services.Interfaces;
 using Application = System.Windows.Application;
 
@@ -33,10 +34,14 @@ namespace HuntAndPeck.ViewModels
             _hintProviderService = hintProviderService;
             _debugHintProviderService = debugHintProviderService;
 
+            // Main overlay hotkey. Read once at startup from hap.exe.config
+            // (HotkeyKey / HotkeyModifier); restart to apply a change, since the
+            // global hotkey is registered once. Default: Ctrl+Shift+Alt+F.
             keyListener1.HotKey = new HotKey
             {
-                Keys = Keys.OemSemicolon,
-                Modifier = KeyModifier.Alt
+                Keys = OverlayActionConfig.ReadHotkeyKey(Keys.F),
+                Modifier = OverlayActionConfig.ReadHotkeyModifier(
+                    KeyModifier.Control | KeyModifier.Alt | KeyModifier.Shift)
             };
 
             keyListener1.TaskbarHotKey = new HotKey

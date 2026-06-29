@@ -34,20 +34,9 @@ namespace HuntAndPeck.Views
             Width = vm.Bounds.Width / scaleX;
             Height = vm.Bounds.Height / scaleY;
 
-            if (vm != null)
-            {
-                // Default finalize: the cursor is already on the matched label
-                // (set by the VM); fire a real left click there and close. The
-                // overlay is click-through so the click reaches the app beneath.
-                vm.PerformClickAndClose = () =>
-                {
-                    DoLeftClick();
-                    Close();
-                };
-            }
-
-            // Click-through from the start so a synthesized click (default) and a
-            // manual click both reach the app beneath; keyboard focus is unaffected.
+            // Click-through from the start so synthesized clicks (left/right/
+            // double) and a manual click all reach the app beneath; keyboard
+            // focus is unaffected, so typing keeps working.
             SetClickThrough(true);
         }
 
@@ -64,7 +53,7 @@ namespace HuntAndPeck.Views
 
             if (e.Key == Key.Space && vm != null)
             {
-                vm.ToggleMoveOnly();
+                vm.CycleMode();
                 e.Handled = true;   // never let Space enter the TextBox
                 return;
             }
@@ -119,13 +108,6 @@ namespace HuntAndPeck.Views
                 ext &= ~User32.WS_EX_TRANSPARENT;
             }
             User32.SetWindowLong(hwnd, User32.GWL_EXSTYLE, ext);
-        }
-
-        /// <summary>Fires a real left click at the current cursor position.</summary>
-        private static void DoLeftClick()
-        {
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
         }
     }
 }
