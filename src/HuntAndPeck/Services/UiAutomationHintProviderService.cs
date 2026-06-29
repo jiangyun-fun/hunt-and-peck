@@ -412,7 +412,7 @@ namespace HuntAndPeck.Services
             double bandH = (windowBounds.Height - (2 * inset)) * bandPct;
 
             var hints = new List<Hint>();
-            var seen = new Dictionary<(int, int), List<(double, double)>>();
+            var seen = new Dictionary<string, List<double[]>>();
             double box = edgeStep * 0.8;
 
             if (want.Contains("LEFT"))   FillRegion(hints, seen, hWnd, windowBounds, left,          top,           left + bandW,   bottom,         edgeStep, box);
@@ -459,7 +459,7 @@ namespace HuntAndPeck.Services
         /// placed within <paramref name="box"/> of each other, so labels never stack.
         /// <paramref name="step"/> sets the density; <paramref name="box"/> is the label size.
         /// </summary>
-        private static void FillRegion(List<Hint> hints, Dictionary<(int, int), List<(double, double)>> seen, IntPtr hWnd, Rect windowBounds, double x1, double y1, double x2, double y2, double step, double box)
+        private static void FillRegion(List<Hint> hints, Dictionary<string, List<double[]>> seen, IntPtr hWnd, Rect windowBounds, double x1, double y1, double x2, double y2, double step, double box)
         {
             if (step <= 0 || x2 <= x1 || y2 <= y1 || box <= 0)
             {
@@ -496,7 +496,7 @@ namespace HuntAndPeck.Services
         /// (Chebyshev distance) of (x, y). Checks the 3x3 cell neighborhood so dense strips
         /// and the full-window center pass cannot place overlapping labels.
         /// </summary>
-        private static bool HasNearbyPoint(Dictionary<(int, int), List<(double, double)>> seen, double x, double y, double box)
+        private static bool HasNearbyPoint(Dictionary<string, List<double[]>> seen, double x, double y, double box)
         {
             int cx = (int)(x / box);
             int cy = (int)(y / box);
@@ -504,11 +504,11 @@ namespace HuntAndPeck.Services
             {
                 for (int oy = -1; oy <= 1; oy++)
                 {
-                    if (seen.TryGetValue((cx + ox, cy + oy), out var list))
+                    if (seen.TryGetValue((cx + ox) + "," + (cy + oy), out var list))
                     {
                         foreach (var p in list)
                         {
-                            if (Math.Abs(p.Item1 - x) < box && Math.Abs(p.Item2 - y) < box)
+                            if (Math.Abs(p[0] - x) < box && Math.Abs(p[1] - y) < box)
                             {
                                 return true;
                             }
@@ -519,17 +519,17 @@ namespace HuntAndPeck.Services
             return false;
         }
 
-        private static void AddPoint(Dictionary<(int, int), List<(double, double)>> seen, double x, double y, double box)
+        private static void AddPoint(Dictionary<string, List<double[]>> seen, double x, double y, double box)
         {
             int cx = (int)(x / box);
             int cy = (int)(y / box);
-            var key = (cx, cy);
+            string key = cx + "," + cy;
             if (!seen.TryGetValue(key, out var list))
             {
-                list = new List<(double, double)>();
+                list = new List<double[]>();
                 seen[key] = list;
             }
-            list.Add((x, y));
+            list.Add(new[] { x, y });
         }
 
         private static bool IsGridMode()
