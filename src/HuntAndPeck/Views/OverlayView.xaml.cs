@@ -87,7 +87,8 @@ namespace HuntAndPeck.Views
 
         private static bool IsLabelKey(Key key)
         {
-            return key >= Key.A && key <= Key.Z;
+            // Letters (A-Z) and top-row digits (D0-D9) drive label matching.
+            return (key >= Key.A && key <= Key.Z) || (key >= Key.D0 && key <= Key.D9);
         }
 
         /// <summary>
