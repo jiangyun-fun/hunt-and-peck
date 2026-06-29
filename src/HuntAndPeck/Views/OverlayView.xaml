@@ -11,20 +11,16 @@
     FocusManager.FocusedElement="{Binding ElementName=MatchStringControl}"
     Loaded="OverlayView_OnLoaded"
     PreviewKeyDown="OverlayView_OnPreviewKeyDown">
-    <local:ForegroundWindow.Resources>
-        <Style x:Key="HintStyle" TargetType="TextBlock">
-            <Setter Property="Background" Value="Yellow" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Active}" Value="false">
-                    <Setter Property="Background" Value="LightYellow" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-    </local:ForegroundWindow.Resources>
     <local:ForegroundWindow.Background>
         <SolidColorBrush Color="Transparent" />
     </local:ForegroundWindow.Background>
     <Grid x:Name="layoutGrid">
+        <local:HintCanvas Width="{Binding Bounds.Width}" Height="{Binding Bounds.Height}"
+                          HintsSource="{Binding Hints}">
+            <local:HintCanvas.RenderTransform>
+                <TranslateTransform X="{Binding OffsetX}" Y="{Binding OffsetY}" />
+            </local:HintCanvas.RenderTransform>
+        </local:HintCanvas>
         <TextBlock Text="{Binding ActiveLegend}"
                    FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
                    Foreground="Black" Background="Yellow"
@@ -37,33 +33,6 @@
                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4"
                    Visibility="Visible" />
         <TextBox x:Name="MatchStringControl" Text="{Binding MatchString, UpdateSourceTrigger=PropertyChanged, Mode=OneWayToSource}" Width="50" VerticalAlignment="Bottom" Background="Transparent" Foreground="White" />
-        <ItemsControl ItemsSource="{Binding Hints}">
-            <ItemsControl.RenderTransform>
-                <TranslateTransform X="{Binding OffsetX}" Y="{Binding OffsetY}" />
-            </ItemsControl.RenderTransform>
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <Canvas IsItemsHost="True" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-
-            <ItemsControl.ItemContainerStyle>
-                <Style>
-                    <Setter Property="Canvas.Top" Value="{Binding Hint.BoundingRectangle.Top}" />
-                    <Setter Property="Canvas.Left" Value="{Binding Hint.BoundingRectangle.Left}" />
-                </Style>
-            </ItemsControl.ItemContainerStyle>
-
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <TextBlock Text="{Binding Label}"
-                               FontFamily="Helvetica, Arial" FontWeight="Bold"
-                               FontSize="{Binding FontSizeReadValue}"
-                               Style="{StaticResource HintStyle}"
-                               Margin="1 1 0 0" />
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
         </Grid>
 </local:ForegroundWindow>
 
