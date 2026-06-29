@@ -358,36 +358,36 @@ namespace HuntAndPeck.Services
             User32.GetWindowRect(hWnd, ref rawBounds);
             Rect windowBounds = rawBounds;
 
-            var cols = ReadIntSetting("GridCols", 26);
-            var rows = ReadIntSetting("GridRows", 26);
             var inset = ReadIntSetting("GridInset", 10);
-            var edgeBand = ReadIntSetting("GridEdgeBandPercent", 20) / 100.0;
+            var bandPct = ReadIntSetting("GridEdgeBandPercent", 15) / 100.0;
+            var edgeStep = ReadIntSetting("GridEdgeStep", 60);
+            var centerStep = ReadIntSetting("GridCenterStep", 160);
+            var want = new HashSet<string>(
+                (ReadStringSetting("GridDenseRegions") ?? "Left,Top,TR,BR,Center").Split(',').Select(s => s.Trim()),
+                StringComparer.OrdinalIgnoreCase);
 
-            double usableW = windowBounds.Width - (2 * inset);
-            double usableH = windowBounds.Height - (2 * inset);
+            double left = windowBounds.Left + inset;
+            double top = windowBounds.Top + inset;
+            double right = windowBounds.Left + windowBounds.Width - inset;
+            double bottom = windowBounds.Top + windowBounds.Height - inset;
+            double bandW = (windowBounds.Width - (2 * inset)) * bandPct;
+            double bandH = (windowBounds.Height - (2 * inset)) * bandPct;
 
-            // Denser in the edge bands, sparser in the center. edgeBand <= 0 => uniform.
-            var xs = BuildAxisPositions(windowBounds.Left, inset, usableW, cols, edgeBand);
-            var ys = BuildAxisPositions(windowBounds.Top, inset, usableH, rows, edgeBand);
-
-            // Uniform label box sized to the smallest (edge) gap so labels stay legible
-            // and adjacent edge labels do not overlap.
-            double boxW = MinGap(xs, usableW / cols);
-            double boxH = MinGap(ys, usableH / rows);
-
+            // Dense full-length edge strips + corner squares + sparse center. Overlapping
+            // regions dedupe by rounded coordinates so a strip and a corner do not double up.
             var hints = new List<Hint>();
-            for (var r = 0; r < ys.Count; r++)
-            {
-                for (var c = 0; c < xs.Count; c++)
-                {
-                    double screenX = xs[c];
-                    double screenY = ys[r];
-                    double relX = screenX - windowBounds.Left;
-                    double relY = screenY - windowBounds.Top;
-                    var relBounds = new Rect(relX, relY, boxW, boxH);
-                    hints.Add(new PointHint(hWnd, relBounds, new Point(screenX, screenY)));
-                }
-            }
+            var seen = new HashSet<string>();
+            double box = edgeStep * 0.8;
+
+            if (want.Contains("LEFT"))   FillRegion(hints, seen, hWnd, windowBounds, left,          top,           left + bandW,   bottom,         edgeStep, box);
+            if (want.Contains("TOP"))    FillRegion(hints, seen, hWnd, windowBounds, left,          top,           right,          top + bandH,    edgeStep, box);
+            if (want.Contains("RIGHT"))  FillRegion(hints, seen, hWnd, windowBounds, right - bandW, top,           right,          bottom,         edgeStep, box);
+            if (want.Contains("BOTTOM")) FillRegion(hints, seen, hWnd, windowBounds, left,          bottom - bandH, right,          bottom,         edgeStep, box);
+            if (want.Contains("TL"))     FillRegion(hints, seen, hWnd, windowBounds, left,          top,           left + bandW,   top + bandH,    edgeStep, box);
+            if (want.Contains("TR"))     FillRegion(hints, seen, hWnd, windowBounds, right - bandW, top,           right,          top + bandH,    edgeStep, box);
+            if (want.Contains("BL"))     FillRegion(hints, seen, hWnd, windowBounds, left,          bottom - bandH, left + bandW,   bottom,         edgeStep, box);
+            if (want.Contains("BR"))     FillRegion(hints, seen, hWnd, windowBounds, right - bandW, bottom - bandH, right,          bottom,         edgeStep, box);
+            if (want.Contains("CENTER")) FillRegion(hints, seen, hWnd, windowBounds, left + bandW,  top + bandH,   right - bandW,  bottom - bandH, centerStep, box);
 
             return new HintSession
             {
@@ -398,60 +398,34 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
-        /// Builds axis positions (screen coords) denser in each edge band and sparser in
-        /// the center. <paramref name="edgeBand"/> is the fraction of the usable length
-        /// allocated to EACH edge; <= 0 yields uniform spacing.
+        /// Fills a rectangular region (screen coords) with a regular grid of PointHints
+        /// at the given step, deduplicating against <paramref name="seen"/> (by rounded
+        /// coordinates) so overlapping regions (e.g. a strip and a corner) do not
+        /// double up. <paramref name="box"/> is the uniform label size.
         /// </summary>
-        private static List<double> BuildAxisPositions(double origin, double inset, double usable, int count, double edgeBand)
+        private static void FillRegion(List<Hint> hints, HashSet<string> seen, IntPtr hWnd, Rect windowBounds, double x1, double y1, double x2, double y2, double step, double box)
         {
-            var positions = new List<double>(count);
-            if (count <= 0)
+            if (step <= 0 || x2 <= x1 || y2 <= y1)
             {
-                return positions;
+                return;
             }
 
-            if (edgeBand <= 0 || count <= 2)
+            for (double sx = x1 + step / 2.0; sx < x2; sx += step)
             {
-                for (var i = 0; i < count; i++)
+                for (double sy = y1 + step / 2.0; sy < y2; sy += step)
                 {
-                    positions.Add(origin + inset + (count == 1 ? usable / 2.0 : (i + 0.5) * usable / count));
+                    int ix = (int)sx;
+                    int iy = (int)sy;
+                    if (!seen.Add(ix + "," + iy))
+                    {
+                        continue;
+                    }
+
+                    double relX = sx - windowBounds.Left;
+                    double relY = sy - windowBounds.Top;
+                    hints.Add(new PointHint(hWnd, new Rect(relX, relY, box, box), new Point(sx, sy)));
                 }
-                return positions;
             }
-
-            var edgeCount = Math.Max(1, count / 3);
-            var centerCount = Math.Max(1, count - (2 * edgeCount));
-            double band = usable * edgeBand;
-            double center = usable - (2 * band);
-
-            for (var i = 0; i < edgeCount; i++)
-            {
-                positions.Add(origin + inset + (i + 0.5) * (band / edgeCount));
-            }
-            for (var i = 0; i < centerCount; i++)
-            {
-                positions.Add(origin + inset + band + (i + 0.5) * (center / centerCount));
-            }
-            for (var i = 0; i < edgeCount; i++)
-            {
-                positions.Add(origin + inset + band + center + (i + 0.5) * (band / edgeCount));
-            }
-            return positions;
-        }
-
-        private static double MinGap(List<double> positions, double fallback)
-        {
-            if (positions == null || positions.Count < 2)
-            {
-                return fallback;
-            }
-
-            double min = double.MaxValue;
-            for (var i = 1; i < positions.Count; i++)
-            {
-                min = Math.Min(min, positions[i] - positions[i - 1]);
-            }
-            return min;
         }
 
         private static bool IsGridMode()

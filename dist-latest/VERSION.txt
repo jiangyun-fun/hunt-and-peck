@@ -1,8 +1,8 @@
-hunt-and-peck — Release build (shipped defaults: Grid 26x26 MoveMouse, GridInset=10)
-Source commit : d9b62d92252acdb0096610ab9c13a58f59c28275
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28347399593
-Built (UTC)   : 2026-06-29T03:53:45Z
-Out-of-box defaults (hap.exe.config):
-  HintSource=Grid, HintAction=MoveMouse, GridCols=26, GridRows=26,
-  HintCharacters=A-Z, GridInset=10
-All settings hot-reload: edit hap.exe.config, save, press Alt+; .
+hunt-and-peck — Release build (edge-weighted grid)
+Source commit : 641175926aef3711dd8f35f753b40736568fafbc
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28347744491
+Built (UTC)   : 2026-06-29T04:04:33Z
+Grid mode now clusters points densely in the edge bands (tabs/sidebars/widgets)
+and sparsely in the center. GridEdgeBandPercent (default 20; 0=uniform) controls it.
+Out-of-box: HintSource=Grid, 26x26, MoveMouse, A-Z labels, GridInset=10, EdgeBand=20%.
+All settings hot-reload via hap.exe.config.
