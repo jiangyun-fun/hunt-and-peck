@@ -98,6 +98,26 @@ namespace HuntAndPeck.Services
             return ReadIntSetting("NudgeStep", 3);
         }
 
+        /// <summary>
+        /// Reads the hint label font size (hot-reload). Returns null when unset or
+        /// invalid so the caller can fall back to the Options-dialog default.
+        /// </summary>
+        public static string ReadHintFontSize()
+        {
+            try
+            {
+                ConfigurationManager.RefreshSection("appSettings");
+                var raw = ConfigurationManager.AppSettings["HintFontSize"];
+                int v;
+                return int.TryParse(raw, out v) && v > 0 ? raw : null;
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return null;
+            }
+        }
+
         /// <summary>Shift+arrow pan step (px). Default 15.</summary>
         public static int ReadNudgeStepFast()
         {

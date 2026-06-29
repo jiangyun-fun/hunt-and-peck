@@ -1,5 +1,6 @@
 using HuntAndPeck.Models;
 using HuntAndPeck.Properties;
+using HuntAndPeck.Services;
 
 namespace HuntAndPeck.ViewModels
 {
@@ -12,7 +13,8 @@ namespace HuntAndPeck.ViewModels
         public HintViewModel(Hint hint)
         {
             Hint = hint;
-            FontSizeReadValue = Settings.Default.FontSize;
+            // App.config HintFontSize (hot-reload) wins; else the Options-dialog value.
+            FontSizeReadValue = OverlayActionConfig.ReadHintFontSize() ?? Settings.Default.FontSize;
         }
 
         public Hint Hint { get; set; }
