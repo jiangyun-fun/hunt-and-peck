@@ -25,6 +25,21 @@
         <SolidColorBrush Color="Transparent" />
     </local:ForegroundWindow.Background>
     <Grid x:Name="layoutGrid">
+        <TextBlock Text="{Binding MoveOnlyHint}"
+                   FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="14"
+                   Foreground="Black" Background="Yellow"
+                   HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMoveOnlyMode}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
         <TextBox x:Name="MatchStringControl" Text="{Binding MatchString, UpdateSourceTrigger=PropertyChanged, Mode=OneWayToSource}" Width="50" VerticalAlignment="Bottom" Background="Transparent" Foreground="White" />
         <ItemsControl ItemsSource="{Binding Hints}">
             <ItemsControl.ItemsPanel>
