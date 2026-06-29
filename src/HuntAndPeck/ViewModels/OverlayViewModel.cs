@@ -14,9 +14,9 @@ namespace HuntAndPeck.ViewModels
     {
         private Rect _bounds;
         private ObservableCollection<HintViewModel> _hints = new ObservableCollection<HintViewModel>();
-        private HintViewModel _activeHint;
-        private int _cursorX;
-        private int _cursorY;
+        private double _offsetX;
+        private double _offsetY;
+        private bool _moveOnly;
 
         public OverlayViewModel(
             HintSession session,
@@ -52,6 +52,27 @@ namespace HuntAndPeck.ViewModels
             }
         }
 
+        /// <summary>Grid pan offset X (px). Bound to the label panel's TranslateTransform.</summary>
+        public double OffsetX
+        {
+            get { return _offsetX; }
+            set { _offsetX = value; NotifyOfPropertyChange(); }
+        }
+
+        /// <summary>Grid pan offset Y (px). Bound to the label panel's TranslateTransform.</summary>
+        public double OffsetY
+        {
+            get { return _offsetY; }
+            set { _offsetY = value; NotifyOfPropertyChange(); }
+        }
+
+        /// <summary>True when Space has toggled move-only: typing 2 chars positions without clicking.</summary>
+        public bool IsMoveOnlyMode
+        {
+            get { return _moveOnly; }
+            private set { _moveOnly = value; NotifyOfPropertyChange(); }
+        }
+
         /// <summary>Legend shown on the overlay so the gestures are discoverable.</summary>
         public string ActiveLegend => OverlayActionConfig.OverlayLegend;
 
@@ -71,10 +92,11 @@ namespace HuntAndPeck.ViewModels
         public Action CloseOverlay { get; set; }
 
         /// <summary>
-        /// Clear the TextBox so the next label can be typed fresh after a jump.
-        /// Implemented by the view.
+        /// Default mode: fire a real left click at the current cursor position
+        /// (already moved onto the matched label), then close. Implemented by the
+        /// view. Not used in move-only mode.
         /// </summary>
-        public Action ResetInput { get; set; }
+        public Action PerformClickAndClose { get; set; }
 
         public string MatchString
         {
@@ -97,36 +119,42 @@ namespace HuntAndPeck.ViewModels
 
                 if (matching.Count == 1)
                 {
-                    // Jump the cursor onto the label WITHOUT clicking. This label
-                    // becomes the active one that arrows will slide. The overlay
-                    // stays open; the user clicks manually when lined up.
+                    // Move the cursor onto the matched label, then apply the grid
+                    // pan offset so it lands where the label was shifted to by the
+                    // arrow keys.
                     matching[0].Hint.MoveMouseToCenter();
                     POINT p;
                     User32.GetCursorPos(out p);
-                    _cursorX = p.X;
-                    _cursorY = p.Y;
-                    _activeHint = matching[0];
-                    ResetInput?.Invoke();
+                    User32.SetCursorPos(p.X + (int)_offsetX, p.Y + (int)_offsetY);
+
+                    if (_moveOnly)
+                    {
+                        // Position only; the user clicks manually after close.
+                        CloseOverlay?.Invoke();
+                    }
+                    else
+                    {
+                        PerformClickAndClose?.Invoke();
+                    }
                 }
             }
         }
 
         /// <summary>
-        /// Slides the active label and the cursor together by (dx, dy) px. Both
-        /// move the same delta so the label marker stays under the cursor. No-op
-        /// until a label has been jumped to.
+        /// Pans ALL labels by (dx, dy) px via the offset (the panel's
+        /// TranslateTransform moves every label together). The cursor is not
+        /// moved here; it jumps to a label only when you type its characters.
         /// </summary>
         public void Nudge(int dx, int dy)
         {
-            if (_activeHint == null)
-            {
-                return;
-            }
-            _cursorX += dx;
-            _cursorY += dy;
-            User32.SetCursorPos(_cursorX, _cursorY);
-            _activeHint.CanvasLeft += dx;
-            _activeHint.CanvasTop += dy;
+            OffsetX += dx;
+            OffsetY += dy;
+        }
+
+        /// <summary>Toggles move-only (Space): finalize positions without clicking.</summary>
+        public void ToggleMoveOnly()
+        {
+            IsMoveOnlyMode = !_moveOnly;
         }
     }
 }

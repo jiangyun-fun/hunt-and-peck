@@ -30,8 +30,26 @@
                    Foreground="Black" Background="Yellow"
                    HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4"
                    Visibility="Visible" />
+        <TextBlock Text="MOVE-ONLY: type 2 chars positions, no click"
+                   FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
+                   Foreground="White" Background="Red"
+                   HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMoveOnlyMode}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
         <TextBox x:Name="MatchStringControl" Text="{Binding MatchString, UpdateSourceTrigger=PropertyChanged, Mode=OneWayToSource}" Width="50" VerticalAlignment="Bottom" Background="Transparent" Foreground="White" />
         <ItemsControl ItemsSource="{Binding Hints}">
+            <ItemsControl.RenderTransform>
+                <TranslateTransform X="{Binding OffsetX}" Y="{Binding OffsetY}" />
+            </ItemsControl.RenderTransform>
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <Canvas IsItemsHost="True" />
@@ -40,8 +58,8 @@
 
             <ItemsControl.ItemContainerStyle>
                 <Style>
-                    <Setter Property="Canvas.Top" Value="{Binding CanvasTop}" />
-                    <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}" />
+                    <Setter Property="Canvas.Top" Value="{Binding Hint.BoundingRectangle.Top}" />
+                    <Setter Property="Canvas.Left" Value="{Binding Hint.BoundingRectangle.Left}" />
                 </Style>
             </ItemsControl.ItemContainerStyle>
 

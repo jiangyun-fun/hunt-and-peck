@@ -36,13 +36,18 @@ namespace HuntAndPeck.Views
 
             if (vm != null)
             {
-                // Clear the TextBox between jumps so each label is typed fresh.
-                vm.ResetInput = () => MatchStringControl.Clear();
+                // Default finalize: the cursor is already on the matched label
+                // (set by the VM); fire a real left click there and close. The
+                // overlay is click-through so the click reaches the app beneath.
+                vm.PerformClickAndClose = () =>
+                {
+                    DoLeftClick();
+                    Close();
+                };
             }
 
-            // Click-through from the start: the user clicks manually, and that
-            // click must reach the app beneath (which also deactivates this
-            // overlay so it closes via ForegroundWindow.OnDeactivated).
+            // Click-through from the start so a synthesized click (default) and a
+            // manual click both reach the app beneath; keyboard focus is unaffected.
             SetClickThrough(true);
         }
 
@@ -54,6 +59,13 @@ namespace HuntAndPeck.Views
             {
                 Close();
                 e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Space && vm != null)
+            {
+                vm.ToggleMoveOnly();
+                e.Handled = true;   // never let Space enter the TextBox
                 return;
             }
 
@@ -70,16 +82,14 @@ namespace HuntAndPeck.Views
                             : OverlayActionConfig.ReadNudgeStep();
                         int dx = e.Key == Key.Left ? -step : (e.Key == Key.Right ? step : 0);
                         int dy = e.Key == Key.Up ? -step : (e.Key == Key.Down ? step : 0);
-                        // Slides the active label + cursor together; no-op until a
-                        // label has been jumped to.
+                        // Pan ALL labels together by the offset.
                         vm.Nudge(dx, dy);
                     }
                     e.Handled = true;
                     return;
             }
 
-            // Let letters through to the TextBox; swallow everything else (Space,
-            // Enter, ...) so the input stays clean.
+            // Let letters through to the TextBox; swallow everything else.
             if (!IsLabelKey(e.Key))
             {
                 e.Handled = true;
@@ -109,6 +119,13 @@ namespace HuntAndPeck.Views
                 ext &= ~User32.WS_EX_TRANSPARENT;
             }
             User32.SetWindowLong(hwnd, User32.GWL_EXSTYLE, ext);
+        }
+
+        /// <summary>Fires a real left click at the current cursor position.</summary>
+        private static void DoLeftClick()
+        {
+            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
         }
     }
 }

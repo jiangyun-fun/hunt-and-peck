@@ -13,7 +13,7 @@ namespace HuntAndPeck.Services
     {
         /// <summary>Legend shown on the overlay so the gestures are discoverable.</summary>
         public const string OverlayLegend =
-            "type a label = jump  |  arrows = slide (shift = fast)  |  click or Esc = done";
+            "arrows = move all labels  |  type 2 chars = click  |  space = move-only  |  Esc = cancel";
 
         /// <summary>Parses an integer; returns defaultValue when blank, non-numeric, or non-positive.</summary>
         public static int ParseInt(string raw, int defaultValue)
