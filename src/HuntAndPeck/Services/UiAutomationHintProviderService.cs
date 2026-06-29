@@ -347,7 +347,8 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
-        /// Generates a grid of synthetic PointHints covering the window. Each point's
+        /// Generates a grid of synthetic PointHints covering the window, denser in the
+        /// edge bands (tabs/sidebars/widgets) and sparser in the center. Each point's
         /// label, when typed, jumps the cursor there so the user can nudge to a target.
         /// Instant -- no UI Automation walk.
         /// </summary>
@@ -357,27 +358,33 @@ namespace HuntAndPeck.Services
             User32.GetWindowRect(hWnd, ref rawBounds);
             Rect windowBounds = rawBounds;
 
-            var cols = ReadIntSetting("GridCols", 12);
-            var rows = ReadIntSetting("GridRows", 8);
+            var cols = ReadIntSetting("GridCols", 26);
+            var rows = ReadIntSetting("GridRows", 26);
+            var inset = ReadIntSetting("GridInset", 10);
+            var edgeBand = ReadIntSetting("GridEdgeBandPercent", 20) / 100.0;
 
-            // Inset (pixels) from the window edges so labels avoid the title bar /
-            // screen edge. Configurable via GridInset (default 10).
-            double inset = ReadIntSetting("GridInset", 10);
-            double cellW = (windowBounds.Width - 2 * inset) / cols;
-            double cellH = (windowBounds.Height - 2 * inset) / rows;
+            double usableW = windowBounds.Width - (2 * inset);
+            double usableH = windowBounds.Height - (2 * inset);
+
+            // Denser in the edge bands, sparser in the center. edgeBand <= 0 => uniform.
+            var xs = BuildAxisPositions(windowBounds.Left, inset, usableW, cols, edgeBand);
+            var ys = BuildAxisPositions(windowBounds.Top, inset, usableH, rows, edgeBand);
+
+            // Uniform label box sized to the smallest (edge) gap so labels stay legible
+            // and adjacent edge labels do not overlap.
+            double boxW = MinGap(xs, usableW / cols);
+            double boxH = MinGap(ys, usableH / rows);
 
             var hints = new List<Hint>();
-            for (var r = 0; r < rows; r++)
+            for (var r = 0; r < ys.Count; r++)
             {
-                for (var c = 0; c < cols; c++)
+                for (var c = 0; c < xs.Count; c++)
                 {
-                    // Place the label at the cell's top-left and target that same point
-                    // with the cursor, so it lands on the label (not the cell center).
-                    double relX = inset + c * cellW;
-                    double relY = inset + r * cellH;
-                    var relBounds = new Rect(relX, relY, cellW, cellH);
-                    double screenX = windowBounds.Left + relX;
-                    double screenY = windowBounds.Top + relY;
+                    double screenX = xs[c];
+                    double screenY = ys[r];
+                    double relX = screenX - windowBounds.Left;
+                    double relY = screenY - windowBounds.Top;
+                    var relBounds = new Rect(relX, relY, boxW, boxH);
                     hints.Add(new PointHint(hWnd, relBounds, new Point(screenX, screenY)));
                 }
             }
@@ -388,6 +395,63 @@ namespace HuntAndPeck.Services
                 OwningWindow = hWnd,
                 OwningWindowBounds = windowBounds,
             };
+        }
+
+        /// <summary>
+        /// Builds axis positions (screen coords) denser in each edge band and sparser in
+        /// the center. <paramref name="edgeBand"/> is the fraction of the usable length
+        /// allocated to EACH edge; <= 0 yields uniform spacing.
+        /// </summary>
+        private static List<double> BuildAxisPositions(double origin, double inset, double usable, int count, double edgeBand)
+        {
+            var positions = new List<double>(count);
+            if (count <= 0)
+            {
+                return positions;
+            }
+
+            if (edgeBand <= 0 || count <= 2)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    positions.Add(origin + inset + (count == 1 ? usable / 2.0 : (i + 0.5) * usable / count));
+                }
+                return positions;
+            }
+
+            var edgeCount = Math.Max(1, count / 3);
+            var centerCount = Math.Max(1, count - (2 * edgeCount));
+            double band = usable * edgeBand;
+            double center = usable - (2 * band);
+
+            for (var i = 0; i < edgeCount; i++)
+            {
+                positions.Add(origin + inset + (i + 0.5) * (band / edgeCount));
+            }
+            for (var i = 0; i < centerCount; i++)
+            {
+                positions.Add(origin + inset + band + (i + 0.5) * (center / centerCount));
+            }
+            for (var i = 0; i < edgeCount; i++)
+            {
+                positions.Add(origin + inset + band + center + (i + 0.5) * (band / edgeCount));
+            }
+            return positions;
+        }
+
+        private static double MinGap(List<double> positions, double fallback)
+        {
+            if (positions == null || positions.Count < 2)
+            {
+                return fallback;
+            }
+
+            double min = double.MaxValue;
+            for (var i = 1; i < positions.Count; i++)
+            {
+                min = Math.Min(min, positions[i] - positions[i - 1]);
+            }
+            return min;
         }
 
         private static bool IsGridMode()
