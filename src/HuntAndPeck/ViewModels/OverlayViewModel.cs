@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections.ObjectModel;
@@ -14,9 +14,9 @@ namespace HuntAndPeck.ViewModels
     {
         private Rect _bounds;
         private ObservableCollection<HintViewModel> _hints = new ObservableCollection<HintViewModel>();
-        private bool _isMoveOnlyMode;
-        private int _nudgeX;
-        private int _nudgeY;
+        private HintViewModel _activeHint;
+        private int _cursorX;
+        private int _cursorY;
 
         public OverlayViewModel(
             HintSession session,
@@ -52,15 +52,8 @@ namespace HuntAndPeck.ViewModels
             }
         }
 
-        /// <summary>True once Space has been pressed: continuous move-only positioning.</summary>
-        public bool IsMoveOnlyMode
-        {
-            get { return _isMoveOnlyMode; }
-            private set { _isMoveOnlyMode = value; NotifyOfPropertyChange(); }
-        }
-
-        /// <summary>Indicator text shown by the view while in move-only mode.</summary>
-        public string MoveOnlyHint => OverlayActionConfig.MoveOnlyHint;
+        /// <summary>Legend shown on the overlay so the gestures are discoverable.</summary>
+        public string ActiveLegend => OverlayActionConfig.OverlayLegend;
 
         public ObservableCollection<HintViewModel> Hints
         {
@@ -78,14 +71,7 @@ namespace HuntAndPeck.ViewModels
         public Action CloseOverlay { get; set; }
 
         /// <summary>
-        /// Default mode: move the cursor onto the matched target, synthesize a real
-        /// left click there, then close. Implemented by the view (click-through +
-        /// mouse_event). Null in Invoke mode.
-        /// </summary>
-        public Action<Point> PerformClickAndClose { get; set; }
-
-        /// <summary>
-        /// Move-only mode: clear the TextBox so the next label can be typed fresh.
+        /// Clear the TextBox so the next label can be typed fresh after a jump.
         /// Implemented by the view.
         /// </summary>
         public Action ResetInput { get; set; }
@@ -111,63 +97,36 @@ namespace HuntAndPeck.ViewModels
 
                 if (matching.Count == 1)
                 {
-                    var target = matching[0].Hint;
-                    target.MoveMouseToCenter();
-
-                    // Capture the real landed cursor position so nudging and the
-                    // click use it (consistent for PointHint and UIA hints).
+                    // Jump the cursor onto the label WITHOUT clicking. This label
+                    // becomes the active one that arrows will slide. The overlay
+                    // stays open; the user clicks manually when lined up.
+                    matching[0].Hint.MoveMouseToCenter();
                     POINT p;
                     User32.GetCursorPos(out p);
-                    _nudgeX = p.X;
-                    _nudgeY = p.Y;
-
-                    if (_isMoveOnlyMode)
-                    {
-                        // Jump only; clear input for the next label; never click.
-                        ResetInput?.Invoke();
-                    }
-                    else if (OverlayActionConfig.ReadClickMode() == ClickMode.Invoke)
-                    {
-                        target.Invoke();
-                        CloseOverlay?.Invoke();
-                    }
-                    else
-                    {
-                        // RealClick (default): synthesize a real left click at the target.
-                        PerformClickAndClose?.Invoke(new Point(_nudgeX, _nudgeY));
-                    }
+                    _cursorX = p.X;
+                    _cursorY = p.Y;
+                    _activeHint = matching[0];
+                    ResetInput?.Invoke();
                 }
             }
         }
 
         /// <summary>
-        /// Enters move-only mode (Space): the overlay stays open, becomes
-        /// click-through, and never auto-clicks. Captures the current cursor
-        /// position so arrows can nudge from there.
-        /// </summary>
-        public void EnterMoveOnlyMode()
-        {
-            if (_isMoveOnlyMode)
-            {
-                return;
-            }
-            IsMoveOnlyMode = true;
-            POINT p;
-            User32.GetCursorPos(out p);
-            _nudgeX = p.X;
-            _nudgeY = p.Y;
-        }
-
-        /// <summary>
-        /// Nudges the cursor by (dx, dy) in physical pixels, then clears the input
-        /// so the next label starts fresh. Move-only mode only.
+        /// Slides the active label and the cursor together by (dx, dy) px. Both
+        /// move the same delta so the label marker stays under the cursor. No-op
+        /// until a label has been jumped to.
         /// </summary>
         public void Nudge(int dx, int dy)
         {
-            _nudgeX += dx;
-            _nudgeY += dy;
-            User32.SetCursorPos(_nudgeX, _nudgeY);
-            ResetInput?.Invoke();
+            if (_activeHint == null)
+            {
+                return;
+            }
+            _cursorX += dx;
+            _cursorY += dy;
+            User32.SetCursorPos(_cursorX, _cursorY);
+            _activeHint.CanvasLeft += dx;
+            _activeHint.CanvasTop += dy;
         }
     }
 }

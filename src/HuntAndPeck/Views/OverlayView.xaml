@@ -25,21 +25,11 @@
         <SolidColorBrush Color="Transparent" />
     </local:ForegroundWindow.Background>
     <Grid x:Name="layoutGrid">
-        <TextBlock Text="{Binding MoveOnlyHint}"
-                   FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="14"
+        <TextBlock Text="{Binding ActiveLegend}"
+                   FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
                    Foreground="Black" Background="Yellow"
-                   HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4">
-            <TextBlock.Style>
-                <Style TargetType="TextBlock">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsMoveOnlyMode}" Value="True">
-                            <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </TextBlock.Style>
-        </TextBlock>
+                   HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4"
+                   Visibility="Visible" />
         <TextBox x:Name="MatchStringControl" Text="{Binding MatchString, UpdateSourceTrigger=PropertyChanged, Mode=OneWayToSource}" Width="50" VerticalAlignment="Bottom" Background="Transparent" Foreground="White" />
         <ItemsControl ItemsSource="{Binding Hints}">
             <ItemsControl.ItemsPanel>
@@ -50,8 +40,8 @@
 
             <ItemsControl.ItemContainerStyle>
                 <Style>
-                    <Setter Property="Canvas.Top" Value="{Binding Hint.BoundingRectangle.Top}" />
-                    <Setter Property="Canvas.Left" Value="{Binding Hint.BoundingRectangle.Left}" />
+                    <Setter Property="Canvas.Top" Value="{Binding CanvasTop}" />
+                    <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}" />
                 </Style>
             </ItemsControl.ItemContainerStyle>
 

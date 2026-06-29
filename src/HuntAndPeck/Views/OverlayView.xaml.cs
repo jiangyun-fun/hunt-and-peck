@@ -1,4 +1,3 @@
-﻿using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -37,19 +36,14 @@ namespace HuntAndPeck.Views
 
             if (vm != null)
             {
-                // Default mode: click-through so the synthesized click reaches the
-                // app beneath, re-position exactly, fire a real left click, then close.
-                vm.PerformClickAndClose = p =>
-                {
-                    SetClickThrough(true);
-                    User32.SetCursorPos((int)p.X, (int)p.Y);
-                    DoLeftClick();
-                    Close();
-                };
-
-                // Move-only mode: clear the TextBox between labels.
+                // Clear the TextBox between jumps so each label is typed fresh.
                 vm.ResetInput = () => MatchStringControl.Clear();
             }
+
+            // Click-through from the start: the user clicks manually, and that
+            // click must reach the app beneath (which also deactivates this
+            // overlay so it closes via ForegroundWindow.OnDeactivated).
+            SetClickThrough(true);
         }
 
         private void OverlayView_OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -63,38 +57,33 @@ namespace HuntAndPeck.Views
                 return;
             }
 
-            if (vm != null && vm.IsMoveOnlyMode)
+            switch (e.Key)
             {
-                int step = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift
-                    ? OverlayActionConfig.ReadNudgeStepFast()
-                    : OverlayActionConfig.ReadNudgeStep();
-
-                switch (e.Key)
-                {
-                    case Key.Up:    vm.Nudge(0, -step); e.Handled = true; return;
-                    case Key.Down:  vm.Nudge(0,  step); e.Handled = true; return;
-                    case Key.Left:  vm.Nudge(-step, 0); e.Handled = true; return;
-                    case Key.Right: vm.Nudge( step, 0); e.Handled = true; return;
-                }
-
-                // Let letters through to the TextBox to drive MatchString; swallow
-                // everything else (Space, Enter, etc.) so the input stays clean.
-                if (!IsLabelKey(e.Key))
-                {
+                case Key.Up:
+                case Key.Down:
+                case Key.Left:
+                case Key.Right:
+                    if (vm != null)
+                    {
+                        int step = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift
+                            ? OverlayActionConfig.ReadNudgeStepFast()
+                            : OverlayActionConfig.ReadNudgeStep();
+                        int dx = e.Key == Key.Left ? -step : (e.Key == Key.Right ? step : 0);
+                        int dy = e.Key == Key.Up ? -step : (e.Key == Key.Down ? step : 0);
+                        // Slides the active label + cursor together; no-op until a
+                        // label has been jumped to.
+                        vm.Nudge(dx, dy);
+                    }
                     e.Handled = true;
-                }
-                return;
+                    return;
             }
 
-            if (e.Key == Key.Space && vm != null)
+            // Let letters through to the TextBox; swallow everything else (Space,
+            // Enter, ...) so the input stays clean.
+            if (!IsLabelKey(e.Key))
             {
-                vm.EnterMoveOnlyMode();
-                SetClickThrough(true);
-                e.Handled = true;   // never let Space enter the TextBox
-                return;
+                e.Handled = true;
             }
-
-            // Default mode: let letters through to the TextBox.
         }
 
         private static bool IsLabelKey(Key key)
@@ -120,13 +109,6 @@ namespace HuntAndPeck.Views
                 ext &= ~User32.WS_EX_TRANSPARENT;
             }
             User32.SetWindowLong(hwnd, User32.GWL_EXSTYLE, ext);
-        }
-
-        /// <summary>Fires a real left click at the current cursor position.</summary>
-        private static void DoLeftClick()
-        {
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
         }
     }
 }
