@@ -1,5 +1,13 @@
 # Arrow-Key Cursor Nudging + Real-Click Default — Implementation Plan
 
+> **STATUS (2026-06-29): SUPERSEDED.** This plan implemented the two-mode
+> (default real-click + Space move-only) design, which was then revised after
+> testing into a **grid-pan** model: arrow keys move ALL labels together
+> (`TranslateTransform` on the panel); typing a label's 2 chars clicks at its
+> moved position (default) or positions only (Space = move-only). See commits
+> `64b6bb1` and `356f55c` and the current `OverlayViewModel` / `OverlayView`
+> for as-built behavior. The steps below are retained as history.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the hint action with a two-mode model — completing a hint moves + real-clicks by default; pressing `Space` first enters a continuous move-only positioning mode (jump by label, nudge with arrows, click manually).

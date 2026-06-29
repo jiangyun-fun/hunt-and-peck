@@ -1,5 +1,14 @@
 # Arrow-Key Cursor Nudging + Real-Click Default
 
+> **STATUS (2026-06-29): REVISED after manual testing.** The two-mode design
+> below was replaced. As-built (`OverlayViewModel` / `OverlayView`, commits
+> `64b6bb1`..`356f55c`): arrow keys **pan ALL labels together** via a
+> `TranslateTransform` bound to `OffsetX`/`OffsetY`; typing a label's 2 chars
+> jumps the cursor to its **moved** position and **auto-clicks** (default) or
+> **positions without clicking** (Space toggles move-only); Esc cancels; the
+> overlay is click-through (`WS_EX_TRANSPARENT`) so clicks reach the app. The
+> body below is retained as design history.
+
 **Date:** 2026-06-29
 **Author:** Yun Jiang
 **Status:** Approved (pending implementation)
