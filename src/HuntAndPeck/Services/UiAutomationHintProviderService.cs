@@ -43,6 +43,13 @@ namespace HuntAndPeck.Services
 
         public HintSession EnumHints(IntPtr hWnd)
         {
+            // Grid mode: generate a synthetic grid of cursor-jump points covering the
+            // window. Instant (no UI Automation walk), always fresh, works on any app.
+            if (IsGridMode())
+            {
+                return EnumGridHints(hWnd);
+            }
+
             // Fast path: return a cached session if this window was enumerated recently.
             lock (_sessionCacheLock)
             {
@@ -337,6 +344,79 @@ namespace HuntAndPeck.Services
             }
 
             return 0;
+        }
+
+        /// <summary>
+        /// Generates a grid of synthetic PointHints covering the window. Each point's
+        /// label, when typed, jumps the cursor there so the user can nudge to a target.
+        /// Instant -- no UI Automation walk.
+        /// </summary>
+        private HintSession EnumGridHints(IntPtr hWnd)
+        {
+            var rawBounds = new RECT();
+            User32.GetWindowRect(hWnd, ref rawBounds);
+            Rect windowBounds = rawBounds;
+
+            var cols = ReadIntSetting("GridCols", 12);
+            var rows = ReadIntSetting("GridRows", 8);
+
+            var hints = new List<Hint>();
+            double cellW = windowBounds.Width / cols;
+            double cellH = windowBounds.Height / rows;
+            for (var r = 0; r < rows; r++)
+            {
+                for (var c = 0; c < cols; c++)
+                {
+                    double screenX = windowBounds.Left + (c + 0.5) * cellW;
+                    double screenY = windowBounds.Top + (r + 0.5) * cellH;
+                    var relBounds = new Rect(c * cellW, r * cellH, cellW, cellH);
+                    hints.Add(new PointHint(hWnd, relBounds, new Point(screenX, screenY)));
+                }
+            }
+
+            return new HintSession
+            {
+                Hints = hints,
+                OwningWindow = hWnd,
+                OwningWindowBounds = windowBounds,
+            };
+        }
+
+        private static bool IsGridMode()
+        {
+            return string.Equals(ReadStringSetting("HintSource"), "Grid", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string ReadStringSetting(string key)
+        {
+            try
+            {
+                ConfigurationManager.RefreshSection("appSettings");
+                return ConfigurationManager.AppSettings[key];
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private static int ReadIntSetting(string key, int defaultValue)
+        {
+            try
+            {
+                ConfigurationManager.RefreshSection("appSettings");
+                var raw = ConfigurationManager.AppSettings[key];
+                if (int.TryParse(raw, out var value) && value > 0)
+                {
+                    return value;
+                }
+            }
+            catch (Exception)
+            {
+                // fall through to default
+            }
+
+            return defaultValue;
         }
 
         /// <summary>

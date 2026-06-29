@@ -48,7 +48,7 @@ namespace HuntAndPeck.Models
         /// screen bounding rectangle) without clicking. Used in MoveMouse mode, e.g.
         /// for targets whose UI Automation Invoke pattern does not fire.
         /// </summary>
-        public void MoveMouseToCenter()
+        public virtual void MoveMouseToCenter()
         {
             var element = AutomationElement;
             if (element == null)

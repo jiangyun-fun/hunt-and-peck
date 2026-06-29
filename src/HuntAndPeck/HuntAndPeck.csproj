@@ -90,6 +90,7 @@
     <Compile Include="Extensions\RectExtensions.cs" />
     <Compile Include="Models\DebugHint.cs" />
     <Compile Include="Models\Hint.cs" />
+    <Compile Include="Models\PointHint.cs" />
     <Compile Include="Models\HintSession.cs" />
     <Compile Include="Models\UiAutomationExpandCollapseHint.cs" />
     <Compile Include="Models\UiAutomationFocusHint.cs" />

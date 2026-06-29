@@ -1,6 +1,8 @@
-hunt-and-peck — Release build (max-depth + hot-reload config)
-Source commit : 3c8dd9aabf06eeebe431e906e16b85cb98bb56ae
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28344018495
-Built (UTC)   : 2026-06-29T02:03:41Z
-Tunable live  : edit hap.exe.config -> appSettings/MaxEnumerationDepth (0=unlimited, try 4-7),
-                save, press Alt+; (hot-reload, no restart needed)
+hunt-and-peck — Release build (+ MoveMouse mode)
+Source commit : 4ea56db5b3c84fece268b4a8583b3f2fccef2169
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28344653208
+Built (UTC)   : 2026-06-29T02:27:12Z
+Tunable live  : hap.exe.config appSettings:
+                  MaxEnumerationDepth (0=unlimited, try 4-7)
+                  HintAction (Click [default] | MoveMouse)
+                Edit, save, press Alt+; (hot-reload, no restart).
