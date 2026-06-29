@@ -412,7 +412,7 @@ namespace HuntAndPeck.Services
             double bandH = (windowBounds.Height - (2 * inset)) * bandPct;
 
             var hints = new List<Hint>();
-            var seen = new HashSet<string>();
+            var seen = new Dictionary<(int, int), List<(double, double)>>();
             double box = edgeStep * 0.8;
 
             if (want.Contains("LEFT"))   FillRegion(hints, seen, hWnd, windowBounds, left,          top,           left + bandW,   bottom,         edgeStep, box);
@@ -454,12 +454,12 @@ namespace HuntAndPeck.Services
         /// <summary>
         /// Fills a rectangular region (screen coords) with an evenly distributed grid of
         /// PointHints. Points are placed at cell centers spanning the full region (no edge
-        /// gaps), and deduplicated by box-sized cells against <paramref name="seen"/> so
-        /// overlapping regions (e.g. a strip and the full-window center pass) do not place
-        /// two labels on top of each other. <paramref name="step"/> sets the density;
-        /// <paramref name="box"/> is the uniform label size.
+        /// gaps). A box-overlap proximity check (<paramref name="seen"/>) ensures no two
+        /// labels -- even across overlapping regions (strip vs. full-window center) -- are
+        /// placed within <paramref name="box"/> of each other, so labels never stack.
+        /// <paramref name="step"/> sets the density; <paramref name="box"/> is the label size.
         /// </summary>
-        private static void FillRegion(List<Hint> hints, HashSet<string> seen, IntPtr hWnd, Rect windowBounds, double x1, double y1, double x2, double y2, double step, double box)
+        private static void FillRegion(List<Hint> hints, Dictionary<(int, int), List<(double, double)>> seen, IntPtr hWnd, Rect windowBounds, double x1, double y1, double x2, double y2, double step, double box)
         {
             if (step <= 0 || x2 <= x1 || y2 <= y1 || box <= 0)
             {
@@ -478,19 +478,58 @@ namespace HuntAndPeck.Services
                     double sx = x1 + (i + 0.5) * dx;
                     double sy = y1 + (j + 0.5) * dy;
 
-                    // Dedup by box-sized cell so no two labels are closer than `box`.
-                    int cx = (int)(sx / box);
-                    int cy = (int)(sy / box);
-                    if (!seen.Add(cx + "," + cy))
+                    if (HasNearbyPoint(seen, sx, sy, box))
                     {
                         continue;
                     }
 
+                    AddPoint(seen, sx, sy, box);
                     double relX = sx - windowBounds.Left;
                     double relY = sy - windowBounds.Top;
                     hints.Add(new PointHint(hWnd, new Rect(relX, relY, box, box), new Point(sx, sy)));
                 }
             }
+        }
+
+        /// <summary>
+        /// True if <paramref name="seen"/> contains a point within <paramref name="box"/>
+        /// (Chebyshev distance) of (x, y). Checks the 3x3 cell neighborhood so dense strips
+        /// and the full-window center pass cannot place overlapping labels.
+        /// </summary>
+        private static bool HasNearbyPoint(Dictionary<(int, int), List<(double, double)>> seen, double x, double y, double box)
+        {
+            int cx = (int)(x / box);
+            int cy = (int)(y / box);
+            for (int ox = -1; ox <= 1; ox++)
+            {
+                for (int oy = -1; oy <= 1; oy++)
+                {
+                    if (seen.TryGetValue((cx + ox, cy + oy), out var list))
+                    {
+                        foreach (var p in list)
+                        {
+                            if (Math.Abs(p.Item1 - x) < box && Math.Abs(p.Item2 - y) < box)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        private static void AddPoint(Dictionary<(int, int), List<(double, double)>> seen, double x, double y, double box)
+        {
+            int cx = (int)(x / box);
+            int cy = (int)(y / box);
+            var key = (cx, cy);
+            if (!seen.TryGetValue(key, out var list))
+            {
+                list = new List<(double, double)>();
+                seen[key] = list;
+            }
+            list.Add((x, y));
         }
 
         private static bool IsGridMode()

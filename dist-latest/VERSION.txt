@@ -1,8 +1,10 @@
-hunt-and-peck — Release build (grid: full-window center + label cap)
-Source commit : a76c62c2f19415826432ae66d8837e365bb5366d
-CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28349098744
-Built (UTC)   : 2026-06-29T04:43:14Z
+hunt-and-peck — Release build (grid: even distribution + box-cell dedup)
+Source commit : 187aec41e017a297db0e0ba029cf974f5ab62bda
+CI run        : https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/28349566693
+Built (UTC)   : 2026-06-29T04:58:17Z
 Fixes:
-  - Center pass covers the FULL window (no more empty bottom-middle / right-middle).
-  - Point count capped at HintCharacters^2 (676 for A-Z) with auto step-scaling,
-    so all labels stay two characters regardless of window size.
+  - Even distribution: every region (including center) spans its full extent,
+    so bottom-middle/right-middle are no longer empty (no edge gaps).
+  - Box-cell dedup: dense regions and the full-window center pass cannot place
+    overlapping labels (which looked like 3-char buttons). All 2-char now.
+  - Point count capped at HintCharacters^2 with auto step-scaling.
