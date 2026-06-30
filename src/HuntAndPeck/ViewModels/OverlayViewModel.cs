@@ -28,11 +28,17 @@ namespace HuntAndPeck.ViewModels
             _modeOrder = OverlayActionConfig.ReadClickActionOrder();
             _modeIndex = 0; // start on the first mode (Left, by default)
 
+            // Read the font size ONCE for the whole overlay. Re-reading the config
+            // file per hint (via ReadHintFontSize) made overlay build O(N) in disk
+            // reads and dominated latency at high label counts.
+            var fontSize = OverlayActionConfig.ReadHintFontSize()
+                ?? HuntAndPeck.Properties.Settings.Default.FontSize;
+
             var labels = hintLabelService.GetHintStrings(session.Hints.Count());
             for (int i = 0; i < labels.Count; ++i)
             {
                 var hint = session.Hints[i];
-                _hints.Add(new HintViewModel(hint)
+                _hints.Add(new HintViewModel(hint, fontSize)
                 {
                     Label = labels[i],
                     Active = false
