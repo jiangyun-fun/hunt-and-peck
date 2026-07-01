@@ -12,6 +12,21 @@ Forked from [`zsims/hunt-and-peck`](https://github.com/zsims/hunt-and-peck); thi
 fork adds grid mode, multi-action click modes, an always-merged taskbar, hot-reload
 configuration, and a large performance overhaul.
 
+## Demo
+
+Press the hotkey and a grid of labeled hints appears over the active window **and the
+taskbar**; pan with the arrows, cycle the click mode with `Space`, then type a label's
+two characters to move or click its target — no mouse needed.
+
+<video controls muted width="960"
+       src="screenshots/demo.mp4"
+       poster="screenshots/hint-overlay.jpg">
+  <img src="screenshots/hint-overlay.jpg"
+       alt="hunt-and-peck: a grid of yellow labeled hints overlaid on a browser window and the Windows taskbar, with the current click-mode badge in the top-right">
+</video>
+
+*The overlay is click-through, so your real clicks always reach the app beneath.*
+
 ## Download
 
 Grab the latest `HuntAndPeck-*.zip` from the **[Releases](../../releases/latest)** page,
