@@ -1,41 +1,89 @@
-# hunt-n-peck
-[![Build status](https://ci.appveyor.com/api/projects/status/jet85wsdqn10grhk/branch/master?svg=true)](https://ci.appveyor.com/project/zsims/hunt-and-peck/branch/master)
+# hunt-and-peck
 
-Simple vimium/vimperator style navigation for Windows applications based on the UI Automation framework. In essence, it works the same as screen readers or accessibility programs but with the goal of making any Windows program faster to use.
+[![Build](../../actions/workflows/build.yml/badge.svg)](../../actions/workflows/build.yml)
 
-It works for any Windows program (excluding Modern UI apps :))
+Vimium-style mouseless clicking for Windows. Press a hotkey and a grid of labeled
+hints appears over the active window and taskbar; type a label to move or click its
+target without touching the mouse. Works on **any** application — including
+Chromium/Electron apps (e.g. Feishu) — via a synthetic grid plus real mouse clicks.
 
-NOTE: hunt-n-peck is sporadically maintained, please consider one of the various forks.
+Forked from [`zsims/hunt-and-peck`](https://github.com/zsims/hunt-and-peck); this
+fork adds grid mode, multi-action click modes, an always-merged taskbar, hot-reload
+configuration, and a large performance overhaul.
 
-# Download
+## Download
 
-https://github.com/zsims/hunt-and-peck/releases/download/release%2F1.7/HuntAndPeck-1.7.zip
+Grab the latest `HuntAndPeck-*.zip` from the **[Releases](../../releases/latest)** page,
+unzip, and run `hap.exe`. Requires the **.NET Framework 4.5.1** runtime (Windows).
 
-# How to change font size
+## Quick start
 
-Find the application icon in tray, click right mouse button, select `Options`, then use the `FontSize` menu to change the font size.
+1. Launch `hap.exe` (a tray icon appears).
+2. Focus any window, press **`Ctrl + Shift + Alt + F`** (the default hotkey; configurable).
+3. An overlay of labels appears over the window **and the taskbar**.
+4. Use it:
+   - **Arrow keys** pan all labels together (3 px; `Shift`+arrows = 15 px) so a label sits on your target.
+   - **Space** cycles the click mode (shown by the badge top-right): `Left → Right → Double → Move`.
+   - **Type a label's 2 chars** → the cursor jumps to its (panned) position and fires the current mode:
+     - `Left` / `Right` / `Double` → a real left / right / double click there.
+     - `Move` → cursor positions, **no click** (you click manually).
+   - **Esc** cancels.
 
-# Screenshots
+The overlay is click-through, so your real mouse clicks always reach the app beneath.
 
-![ScreenShot](https://raw.github.com/zsims/hunt-n-peck/master/screenshots/explorer.png)
-![ScreenShot](https://raw.github.com/zsims/hunt-n-peck/master/screenshots/visual-studio.png)
+## Configuration
 
-## To use
+All settings live in `hap.exe.config` (next to `hap.exe`). Most are **hot-reload** —
+edit, save, and press the hotkey again (no restart). The hotkey itself is read once
+at startup, so it needs a **restart** to apply.
 
-1. Launch the executable.
-2. With any window focused, press `Alt + ;`
-    - The tray can be highlighted with `Ctrl + ;`
-3. An overlay window will be displayed, type any of the hint characters you see.
+| Setting | Default | Purpose |
+|--------|---------|---------|
+| `HotkeyKey` / `HotkeyModifier` | `F` / `Control,Alt,Shift` | overlay hotkey (**restart** to apply) |
+| `HintSource` | `Grid` | `Grid` (instant synthetic grid, any app) or `Automation` (real controls) |
+| `ClickModeOrder` | `Left,Right,Double,Move` | Space cycle order (wraps; subset allowed) |
+| `HintCharacters` | `ABC…XYZ1234567890` | chars used for labels (letters **and** digits) |
+| `HintFontSize` | `10` | label font size (px) |
+| `GridEdgeStep` / `GridCenterStep` | `30` / `50` | grid spacing (px) — smaller = denser |
+| `GridDenseRegions` | `Left,Top,TR,BR,Center` | which regions get dense clusters |
+| `GridInset` / `GridEdgeBandPercent` | `10` / `15` | edge margin (px) / dense-band thickness (%) |
+| `NudgeStep` / `NudgeStepFast` | `3` / `15` | arrow pan step / Shift+arrow step (px) |
+| `MaxEnumerationDepth` | `0` | `Automation` mode tree depth (0 = unbounded) |
+| `TimingLogEnabled` | `false` | set `true` to log overlay timings to `%TEMP%\hap-timing.log` |
 
-Alternatively, Hunt and Peck can be launched via the command-line or AutoHotKey by specifying `/hint`:
+### Changing the hotkey
+`HotkeyKey` is a [`System.Windows.Forms.Keys`](https://learn.microsoft.com/dotnet/api/system.windows.forms.keys) name (`F`, `Space`, `OemSemicolon`, `D1`, …).
+`HotkeyModifier` is a comma-separated list of `Alt` / `Control` / `Shift` / `Windows`.
+Example — `Ctrl+Space`:
+```xml
+<add key="HotkeyKey" value="Space" />
+<add key="HotkeyModifier" value="Control" />
 ```
-hap.exe /hint
-```
 
-Or in tray mode with
-```
-hap.exe /tray
-```
+## How it works
 
-# Supported Elements
-Only UI Automation elements with "Invoke" patterns are supported (and displayed).
+- **Grid mode** (`HintSource=Grid`, default): generates an instant grid of cursor-jump
+  points covering the window — no UI Automation tree walk, so it's fast and works on
+  any app. The taskbar is always merged in.
+- **Automation mode** (`HintSource=Automation`): enumerates the window's real UI
+  Automation elements (precise, but slow on huge trees such as Chromium). Supports
+  `Invoke`, `Toggle`, `Select`, `ExpandCollapse`, and `Focus` patterns.
+- Labels are rendered in a single pass by a custom `DrawingVisual` (`HintCanvas`),
+  and config is read once per overlay — so latency stays low even with 1000+ labels.
+
+## Building from source
+
+This is **WPF on .NET Framework 4.5.1** — Windows-only. It cannot be built on
+Linux/macOS. Builds run on **GitHub Actions** (`.github/workflows/build.yml`,
+`windows-latest`): `nuget restore` → `msbuild` → `vstest` → upload the Release drop.
+
+```bash
+msbuild src/HuntAndPeck.sln /p:Configuration=Release /p:Platform="Any CPU"
+```
+The runnable app is `src/HuntAndPeck/bin/Release/hap.exe` (plus `hap.exe.config` and
+its DLLs).
+
+## Credits
+
+Forked from [zsims/hunt-and-peck](https://github.com/zsims/hunt-and-peck). Hint-label
+generation is adapted from [Vimium](https://github.com/philc/vimium).
