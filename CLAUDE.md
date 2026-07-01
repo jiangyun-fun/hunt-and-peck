@@ -79,6 +79,16 @@ This is the core loop — see the `ship-drop` skill for the automated version.
 5. **Manual test** on the Windows box (the user runs it; you cannot drive the GUI).
    For latency work, use the `measure-latency` skill.
 
+## Releases
+
+Pushing a tag (`git tag -a v2.0.0 -m v2.0.0` → `git push origin v2.0.0`) triggers
+`.github/workflows/release.yml`: CI builds the Release drop, zips it as
+`HuntAndPeck-<tag>.zip`, and attaches it to the GitHub release (creating the
+release with generated notes if it doesn't exist). Rebuild an existing tag's asset
+with `gh workflow run release.yml -f tag=v2.0.0` (workflow_dispatch). The
+`ship-drop` skill is for ad-hoc dev drops to the Windows box; the release workflow
+is for tagged public releases.
+
 ## Configuration (`src/HuntAndPeck/App.config`)
 
 Two kinds of settings:
