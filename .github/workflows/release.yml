@@ -1,0 +1,74 @@
+name: release
+
+# Builds the Release drop on tag push and attaches a zip to the GitHub release.
+# Also supports workflow_dispatch to (re)build an existing tag.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and attach"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and publish (Windows)
+    runs-on: windows-latest
+    steps:
+      - id: tag
+        shell: bash
+        run: echo "name=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.name }}
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: NuGet restore
+        run: nuget restore src/HuntAndPeck.sln
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # windows-latest lacks the .NET Framework 4.5.1/4.5.2 targeting packs.
+      # Install the reference-assemblies package (ships v4.5.2, a superset of
+      # v4.5.1) with the legacy facades this codebase needs.
+      - name: Provide .NET Framework reference assemblies
+        shell: pwsh
+        run: |
+          $pkgDir = Join-Path $env:GITHUB_WORKSPACE 'refassemblies'
+          nuget install Microsoft.NETFramework.ReferenceAssemblies.net452 -Version 1.0.3 -OutputDirectory $pkgDir -NonInteractive
+          $ref = Get-ChildItem -Path $pkgDir -Directory -Filter 'Microsoft.NETFramework.ReferenceAssemblies.net452.*' | Select-Object -First 1
+          if (-not $ref) { throw 'Microsoft.NETFramework.ReferenceAssemblies.net452 was not installed' }
+          $fpo = Join-Path $ref.FullName 'build\.NETFramework\v4.5.2'
+          if (-not (Test-Path (Join-Path $fpo 'mscorlib.dll'))) { throw "mscorlib.dll not found under $fpo" }
+          "FrameworkPathOverride=$fpo" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build (Release, Any CPU)
+        run: msbuild src/HuntAndPeck.sln /p:Configuration=Release /p:Platform="Any CPU" /m
+
+      - name: Package (zip)
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.tag.outputs.name }}"
+          7z a "HuntAndPeck-$tag.zip" "$env:GITHUB_WORKSPACE/src/HuntAndPeck/bin/Release/*"
+
+      - name: Attach to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.tag.outputs.name }}"
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$tag" --title "$tag" --generate-notes --repo "$GITHUB_REPOSITORY"
+          gh release upload "$tag" "HuntAndPeck-$tag.zip" --clobber --repo "$GITHUB_REPOSITORY"

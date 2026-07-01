@@ -1,6 +1,7 @@
 # hunt-and-peck
 
 [![Build](../../actions/workflows/build.yml/badge.svg)](../../actions/workflows/build.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Vimium-style mouseless clicking for Windows. Press a hotkey and a grid of labeled
 hints appears over the active window and taskbar; type a label to move or click its

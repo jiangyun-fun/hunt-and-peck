@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # GitHub Actions versions (low risk).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    groups: { actions: { patterns: ["*"] } }
+
+  # NuGet packages (legacy packages.config deps pinned for .NET 4.5.1).
+  # Monthly + grouped so bumps land as one reviewable PR; CI gates any breakage.
+  - package-ecosystem: nuget
+    directory: /src
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
+    labels: [dependencies]
+    groups: { nuget: { patterns: ["*"] } }
