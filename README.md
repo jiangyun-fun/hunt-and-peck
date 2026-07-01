@@ -20,7 +20,7 @@ two characters to move or click its target — no mouse needed.
 
 ![hunt-and-peck overlay: a grid of yellow labeled hints over a browser window and the Windows taskbar, with the click-mode badge in the top-right](screenshots/hint-overlay.jpg)
 
-![hunt-and-peck demo: the hint overlay appears over the window and taskbar](screenshots/demo.mp4)
+<video controls muted width="960" src="screenshots/demo.mp4" poster="screenshots/hint-overlay.jpg"></video>
 
 *The overlay is click-through, so your real clicks always reach the app beneath.*
 
