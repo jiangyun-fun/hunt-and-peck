@@ -1,0 +1,144 @@
+# CLAUDE.md — hunt-and-peck
+
+A Vimium-style mouseless-clicking tool for Windows. Press a hotkey → an overlay of
+labeled "hints" appears over the active window → type a label to move/click the
+target without the mouse. Forked from `zsims/hunt-and-peck`; we develop on our own
+fork (`$HAP_FORK_REPO`, see `.env`).
+
+## Tech stack & build reality
+
+- **WPF + .NET Framework 4.5.1, C#** — Windows-only. Uses COM interop
+  (`UIAutomationClient`) and Win32 P/Invoke (`src/NativeMethods`).
+- **You CANNOT build or run this on Linux/macOS.** The dev box is Linux; the only
+  compile/test gate is **GitHub Actions CI** (`.github/workflows/build.yml`,
+  `windows-latest`: MSBuild + vstest). Runtime testing happens on the Windows box.
+- Tests: xUnit 2.2.0 in `src/HuntAndPeck.Tests`. Only pure logic is unit-tested;
+  UI/P-Invoke behavior is verified by CI compile + manual testing on Windows.
+- Non-SDK csprojs with **explicit `<Compile Include>` lists** — every new `.cs`
+  file must be added to the relevant `.csproj` or it won't compile.
+
+## Repo layout
+
+```
+src/
+  HuntAndPeck/                 the app (WPF)
+    Services/
+      UiAutomationHintProviderService.cs   hint enumeration (Grid + Automation)
+      HintLabelService.cs                  vimium hint-string generation
+      OverlayActionConfig.cs               App.config readers (click modes, nudge, font, hotkey, timing)
+      KeyListenerService.cs                global hotkeys (RegisterHotKey)
+      TimingLog.cs                         optional latency log (gated by TimingLogEnabled)
+    ViewModels/
+      ShellViewModel.cs         hotkey → enumerate → merge taskbar → show overlay
+      OverlayViewModel.cs        hint state machine, pan offset, click-mode cycle
+      HintViewModel.cs           per-hint label/active/font
+    Views/
+      OverlayView.xaml(.cs)      the overlay window (click-through, key handling)
+      HintCanvas.cs              single-DrawingVisual renderer for all labels
+      ForegroundWindow.cs        base window: forces foreground, closes on deactivate
+    Models/                      Hint (abstract), PointHint (grid), UiAutomation*Hint, HintSession
+    App.config                   shipped defaults (hot-reload + restart-only settings)
+  HuntAndPeck.Tests/            xUnit
+  NativeMethods/                User32, KeyModifier, POINT, RECT
+docs/superpowers/{specs,plans}/ design docs (some superseded — read the banners)
+```
+
+## Architecture
+
+- **Hint sources** (`HintSource` in App.config):
+  - `Grid` (default): a synthetic grid of cursor-jump points over the window —
+    instant, no UI Automation walk, works on any app (incl. Chromium).
+  - `Automation`: enumerates the window's real UI Automation controls (precise,
+    slow on huge trees — Chromium walks ~600+ elements cross-process).
+- **Overlay lifecycle** (`ShellViewModel`): hotkey → capture foreground window →
+  `EnumHints` off-thread → always **merge the taskbar** in → `OverlayViewModel` →
+  `OverlayView.ShowDialog()`. The overlay is `Topmost`, `AllowsTransparency`, and
+  click-through (`WS_EX_TRANSPARENT`) so real clicks and synthesized clicks reach
+  the app beneath; `ForegroundWindow` auto-closes it on deactivation.
+- **Rendering**: `HintCanvas` draws every label in one `OnRender` pass (one
+  `DrawingVisual`), not one `TextBlock` per hint. `FormattedText` is cached per
+  label; `InvalidateVisual` re-runs (cheaply) when a hint's `Active` flips.
+- **Pan vs jump**: arrow keys pan ALL labels together (a `TranslateTransform` bound
+  to `OffsetX`/`OffsetY`); typing a label's chars jumps the cursor to its moved
+  position.
+
+## Dev workflow (Linux edit → CI → Windows test)
+
+This is the core loop — see the `ship-drop` skill for the automated version.
+
+1. **Edit** C#/XAML/App.config on the dev box (`$HAP_REPO`).
+2. **Commit + push** to `master` on `$HAP_FORK_REPO`. We commit directly to
+   `master`; **no PRs** (this is our fork).
+3. **CI builds** the Release drop and uploads artifact `HuntAndPeck-Release`
+   (`src/HuntAndPeck/bin/Release`). Watch it green:
+   `gh run watch <id> --repo $HAP_FORK_REPO --exit-status`.
+4. **Download + rsync** the artifact to the Windows box into a **fresh folder**
+   under `$HAP_WIN_TEST_DIR` (never overwrite a running `hap.exe` — Windows file lock):
+   `gh run download <id> --repo $HAP_FORK_REPO --name HuntAndPeck-Release --dir <tmp>`
+   then `rsync -az <tmp>/ $HAP_WIN_USER@$HAP_WIN_HOST:$HAP_WIN_TEST_DIR/<folder>/`.
+5. **Manual test** on the Windows box (the user runs it; you cannot drive the GUI).
+   For latency work, use the `measure-latency` skill.
+
+## Configuration (`src/HuntAndPeck/App.config`)
+
+Two kinds of settings:
+
+- **Hot-reload** (read each trigger; edit `hap.exe.config`, save, re-trigger):
+  `HintSource`, `GridEdgeStep`, `GridCenterStep`, `GridDenseRegions`, `GridInset`,
+  `GridEdgeBandPercent`, `HintCharacters`, `HintFontSize`, `NudgeStep`,
+  `NudgeStepFast`, `ClickModeOrder`, `MaxEnumerationDepth`, `TimingLogEnabled`.
+- **Startup-only** (the global hotkey is registered once; **restart** to apply):
+  `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+Alt+F`).
+
+`HintCharacters` accepts any chars (letters **and** digits); the matching input
+allows `A–Z` and `D0–D9`.
+
+## Runtime behavior (current)
+
+- **Hotkey** `Ctrl+Shift+Alt+F` → overlay (foreground window + taskbar merged).
+- **Arrows** pan all labels (3 px; `Shift` = 15 px).
+- **Space** cycles the click mode (badge top-right): `Left → Right → Double → Move`
+  (`ClickModeOrder`, wraps; resets each trigger). `Move` positions without clicking.
+- **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
+  current mode (left / right / double click via `mouse_event`, or move-only).
+- **Esc** cancels. The taskbar is always merged (no separate taskbar hotkey).
+
+## Performance (hard-won notes)
+
+- **Never re-read App.config per hint.** A previous version called
+  `ConfigurationManager.RefreshSection` inside `HintViewModel`'s ctor — that re-read
+  the config file from disk N times per overlay (~0.85 ms × N → ~1 s at 1281 labels).
+  Read config **once per overlay** (see `OverlayViewModel` ctor) and pass it down.
+- **Label count drives everything else.** Even with the `HintCanvas` renderer, very
+  dense grids (1000+ labels) take longer to build `FormattedText` for. Lower
+  `GridEdgeStep`/`GridCenterStep` density or `HintCharacters` count to go faster.
+- **Overlay timing**: set `TimingLogEnabled=true` to log `enum+merge` and `render`
+  phases to `%TEMP%\hap-timing.log` (see `measure-latency` skill).
+
+## Environment variables (local; values live in `.env`, gitignored)
+
+| Var | Meaning |
+|-----|---------|
+| `HAP_REPO` | absolute path to this repo on the dev box |
+| `HAP_FORK_REPO` | GitHub fork `owner/repo` (CI + push target) |
+| `HAP_WIN_HOST` | Windows test box host |
+| `HAP_WIN_USER` | SSH user on the Windows box |
+| `HAP_WIN_TEST_DIR` | WSL-mount path where build drops are rsync'd |
+| `HAP_WIN_TEMP` | WSL-mount path of Windows `%TEMP%` (timing log) |
+
+`.env.example` documents each; `.env` holds the real values. **Do not hardcode
+these in code, docs, or skills** — read them from the environment.
+
+## Conventions
+
+- Commit directly to `master` on the fork; no PRs, no upstream PRs.
+- Conventional Commits (`feat:`, `fix:`, `perf:`, `chore:`, `docs:`).
+- No `Co-Authored-By` trailer.
+- `App.config` is XML — never put `--` inside an XML comment (MSBuild MSB3249).
+
+## Skills (`.claude/skills/`)
+
+- `ship-drop` — push, watch CI, download the Release artifact, rsync to the
+  Windows box into a fresh folder, report the path.
+- `measure-latency` — clear the timing log, have the user run scenarios, read
+  `%TEMP%\hap-timing.log`, report per-phase timings + the layout gap.

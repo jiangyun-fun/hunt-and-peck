@@ -197,3 +197,7 @@ FakesAssemblies/
 src/tools/*
 !src/tools/packages.config
 src/Dist
+
+# Local environment (personal/local values - never commit)
+.env
+.env.local
