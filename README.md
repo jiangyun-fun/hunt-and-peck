@@ -18,10 +18,9 @@ Press the hotkey and a grid of labeled hints appears over the active window **an
 taskbar**; pan with the arrows, cycle the click mode with `Space`, then type a label's
 two characters to move or click its target — no mouse needed.
 
-[![hunt-and-peck: a grid of yellow labeled hints over a browser window and the Windows taskbar, with the click-mode badge in the top-right](screenshots/hint-overlay.jpg)](screenshots/demo.mp4)
+[![hunt-and-peck demo: the labeled hint overlay appears over the window and taskbar](screenshots/demo.gif)](screenshots/demo.mp4)
 
-*Click the image to play the demo video. The overlay is click-through, so your real
-clicks always reach the app beneath.*
+*The overlay is click-through, so your real clicks always reach the app beneath.*
 
 ## Download
 
