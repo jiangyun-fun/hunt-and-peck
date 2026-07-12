@@ -123,6 +123,18 @@ namespace HuntAndPeck.ViewModels
                 return foreground;
             }
 
+            // Only merge the taskbar when it shares a monitor with the foreground window.
+            // Shell_traywnd lives on the primary monitor; merging it when the target is on
+            // a secondary monitor would union the two monitors and stretch the overlay
+            // across both displays.
+            var fgScreen = Screen.FromHandle(foreground.OwningWindow);
+            var taskbarScreen = Screen.FromHandle(taskbarHWnd);
+            if (fgScreen == null || taskbarScreen == null ||
+                !fgScreen.Bounds.Equals(taskbarScreen.Bounds))
+            {
+                return foreground;
+            }
+
             var taskbar = _hintProviderService.EnumHints(taskbarHWnd);
             if (taskbar == null || taskbar.Hints == null || taskbar.Hints.Count == 0)
             {
