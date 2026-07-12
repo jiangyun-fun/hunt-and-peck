@@ -8,10 +8,10 @@
                     IconSource="/Resources/originalbird.ico"
                     MenuActivation="LeftOrRightClick">
         <tb:TaskbarIcon.ContextMenu>
-            <ContextMenu>
-                <MenuItem Header="Options" Command="{Binding ShowOptionsCommand}"></MenuItem>
+            <ContextMenu Opened="ContextMenu_Opened">
+                <MenuItem Header="_Options" Command="{Binding ShowOptionsCommand}"></MenuItem>
                 <Separator />
-                <MenuItem Header="Exit" Command="{Binding ExitCommand}"></MenuItem>
+                <MenuItem Header="_Exit" Command="{Binding ExitCommand}"></MenuItem>
             </ContextMenu>
         </tb:TaskbarIcon.ContextMenu>
     </tb:TaskbarIcon>
