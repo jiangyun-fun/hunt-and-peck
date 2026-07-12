@@ -90,5 +90,18 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal(HintBounds.Window, OverlayActionConfig.ParseHintBounds("???", HintBounds.Window));
             Assert.Equal(HintBounds.Window, OverlayActionConfig.ParseHintBounds(null, HintBounds.Window));
         }
+
+        [Theory]
+        [InlineData("Grid", HintBounds.Screen, false)]       // duplicating combo -> skip
+        [InlineData(null, HintBounds.Screen, false)]         // Grid default + Screen -> skip
+        [InlineData("", HintBounds.Screen, false)]
+        [InlineData("grid", HintBounds.Screen, false)]       // case-insensitive Grid
+        [InlineData("Grid", HintBounds.Window, true)]        // window grid doesn't reach taskbar
+        [InlineData("Automation", HintBounds.Screen, true)]  // taskbar's own real controls
+        [InlineData("Automation", HintBounds.Window, true)]
+        public void ShouldMergeTaskbar_SkipsOnlyForGridPlusScreen(string hintSource, HintBounds bounds, bool expected)
+        {
+            Assert.Equal(expected, OverlayActionConfig.ShouldMergeTaskbar(hintSource, bounds));
+        }
     }
 }

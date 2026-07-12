@@ -69,6 +69,21 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Whether MergeWithTaskbar should merge the taskbar session into the foreground
+        /// session. In Grid + Screen mode the foreground grid already spans the full
+        /// monitor (taskbar strip included), so a second full-screen taskbar grid would
+        /// stack two labels at every cell; skip it. Window mode (grid is window-sized,
+        /// does not reach the taskbar) and Automation mode (taskbar contributes its own
+        /// real controls) still merge.
+        /// </summary>
+        public static bool ShouldMergeTaskbar(string hintSource, HintBounds bounds)
+        {
+            bool grid = string.IsNullOrWhiteSpace(hintSource) ||
+                        string.Equals(hintSource, "Grid", StringComparison.OrdinalIgnoreCase);
+            return !(grid && bounds == HintBounds.Screen);
+        }
+
+        /// <summary>
         /// Parses a comma/semicolon/pipe separated list of ClickActions (case-insensitive,
         /// duplicates dropped). Falls back to the default order when empty or all-invalid.
         /// </summary>
@@ -180,6 +195,21 @@ namespace HuntAndPeck.Services
             {
                 // Deliberate fallback so a malformed config keeps the app usable.
                 return HintBounds.Screen;
+            }
+        }
+
+        /// <summary>The hint source name (hot-reload): "Grid" or "Automation".</summary>
+        public static string ReadHintSource()
+        {
+            try
+            {
+                ConfigurationManager.RefreshSection("appSettings");
+                return ConfigurationManager.AppSettings["HintSource"];
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return null;
             }
         }
 

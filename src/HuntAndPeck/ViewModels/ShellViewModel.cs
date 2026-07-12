@@ -105,6 +105,18 @@ namespace HuntAndPeck.ViewModels
                 return null;
             }
 
+            // Grid + Screen: the foreground grid already spans the full monitor (taskbar
+            // strip included), so enumerating the taskbar would generate a SECOND
+            // full-screen grid and stack two labels at every cell. Skip it. Window mode
+            // (window grid does not reach the taskbar) and Automation mode (the taskbar
+            // adds its own real controls the foreground walk misses) still merge.
+            if (!OverlayActionConfig.ShouldMergeTaskbar(
+                    OverlayActionConfig.ReadHintSource(),
+                    OverlayActionConfig.ReadHintBounds()))
+            {
+                return foreground;
+            }
+
             var taskbarHWnd = User32.FindWindow("Shell_traywnd", "");
             if (taskbarHWnd == IntPtr.Zero || taskbarHWnd == foreground.OwningWindow)
             {
