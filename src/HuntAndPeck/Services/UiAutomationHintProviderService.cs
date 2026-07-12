@@ -328,7 +328,7 @@ namespace HuntAndPeck.Services
             {
                 // Refresh so edits to hap.exe.config take effect on the next hotkey
                 // press without restarting (hot-reload).
-                ConfigurationManager.RefreshSection("appSettings");
+                OverlayActionConfig.EnsureFresh();
                 var raw = ConfigurationManager.AppSettings["MaxEnumerationDepth"];
                 if (int.TryParse(raw, out var depth) && depth > 0)
                 {
@@ -457,7 +457,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                OverlayActionConfig.EnsureFresh();
                 var raw = ConfigurationManager.AppSettings["HintCharacters"];
                 if (!string.IsNullOrWhiteSpace(raw))
                 {
@@ -565,7 +565,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                OverlayActionConfig.EnsureFresh();
                 return ConfigurationManager.AppSettings[key];
             }
             catch (Exception)
@@ -578,7 +578,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                OverlayActionConfig.EnsureFresh();
                 var raw = ConfigurationManager.AppSettings[key];
                 if (int.TryParse(raw, out var value) && value > 0)
                 {

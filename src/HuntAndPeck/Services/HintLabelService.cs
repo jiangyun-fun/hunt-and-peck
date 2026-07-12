@@ -68,7 +68,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                OverlayActionConfig.EnsureFresh();
                 var raw = ConfigurationManager.AppSettings["HintCharacters"];
                 if (!string.IsNullOrWhiteSpace(raw))
                 {

@@ -103,5 +103,15 @@ namespace HuntAndPeck.Tests.Services
         {
             Assert.Equal(expected, OverlayActionConfig.ShouldMergeTaskbar(hintSource, bounds));
         }
+
+        [Fact]
+        public void EnsureFresh_IsSafeToCallRepeatedly()
+        {
+            // Stat-and-cache path must not throw whether or not a real config file is
+            // present (test host usually has none). Idempotent across calls.
+            OverlayActionConfig.EnsureFresh();
+            OverlayActionConfig.EnsureFresh();
+            OverlayActionConfig.EnsureFresh();
+        }
     }
 }

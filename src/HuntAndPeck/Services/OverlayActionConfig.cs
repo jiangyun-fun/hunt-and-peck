@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.IO;
 using System.Windows.Forms;
 using HuntAndPeck.NativeMethods;
 
@@ -42,6 +43,64 @@ namespace HuntAndPeck.Services
         /// <summary>Legend shown on the overlay so the gestures are discoverable.</summary>
         public const string OverlayLegend =
             "arrows = move all labels  |  space = cycle click mode  |  type 2 chars = fire  |  Esc = cancel";
+
+        // --- config freshness: avoid re-parsing hap.exe.config on every read ---
+        private static DateTime _configMtimeUtc = DateTime.MinValue;
+        private static readonly object _configRefreshLock = new object();
+
+        /// <summary>
+        /// Keeps the appSettings section fresh without re-parsing the file on every read.
+        /// ConfigurationManager.RefreshSection forces a full disk re-parse; the overlay
+        /// path reads many settings per trigger, which used to mean one re-parse per read
+        /// (the same anti-pattern as the old per-hint refresh, ~0.85ms each). Instead, stat
+        /// the config file's last-write time and only re-parse when it actually changed
+        /// (i.e. the user edited hap.exe.config for hot-reload). Within a trigger, and
+        /// across triggers with no edit, reads are served from memory. Best-effort: any
+        /// stat failure falls through to a refresh so settings are never served stale.
+        /// </summary>
+        public static void EnsureFresh()
+        {
+            DateTime mtime;
+            try
+            {
+                var path = AppDomain.CurrentDomain.SetupInformation.ConfigurationFile;
+                if (string.IsNullOrEmpty(path))
+                {
+                    RefreshAppSettings();
+                    return;
+                }
+                mtime = File.GetLastWriteTimeUtc(path);
+            }
+            catch (Exception)
+            {
+                // Stat failed (locked/missing/unauthorized): refresh rather than risk stale.
+                RefreshAppSettings();
+                return;
+            }
+
+            lock (_configRefreshLock)
+            {
+                if (mtime == _configMtimeUtc)
+                {
+                    return; // cached section is still current
+                }
+                _configMtimeUtc = mtime;
+            }
+            RefreshAppSettings();
+        }
+
+        /// <summary>Re-parses appSettings from disk; best-effort (never throws).</summary>
+        private static void RefreshAppSettings()
+        {
+            try
+            {
+                ConfigurationManager.RefreshSection("appSettings");
+            }
+            catch (Exception)
+            {
+                // A failed refresh leaves the prior values; reads still work.
+            }
+        }
 
         /// <summary>Parses an integer; returns defaultValue when blank, non-numeric, or non-positive.</summary>
         public static int ParseInt(string raw, int defaultValue)
@@ -146,7 +205,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                EnsureFresh();
                 var raw = ConfigurationManager.AppSettings["HintFontSize"];
                 int v;
                 return int.TryParse(raw, out v) && v > 0 ? raw : null;
@@ -169,7 +228,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                EnsureFresh();
                 return ParseClickActionOrder(ConfigurationManager.AppSettings["ClickModeOrder"]);
             }
             catch (Exception)
@@ -188,7 +247,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                EnsureFresh();
                 return ParseHintBounds(ConfigurationManager.AppSettings["HintBoundsSource"], HintBounds.Screen);
             }
             catch (Exception)
@@ -203,7 +262,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                EnsureFresh();
                 return ConfigurationManager.AppSettings["HintSource"];
             }
             catch (Exception)
@@ -218,7 +277,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                EnsureFresh();
                 return ParseKeys(ConfigurationManager.AppSettings["HotkeyKey"], fallback);
             }
             catch (Exception)
@@ -232,7 +291,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                EnsureFresh();
                 return ParseKeyModifiers(ConfigurationManager.AppSettings["HotkeyModifier"], fallback);
             }
             catch (Exception)
@@ -245,7 +304,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                EnsureFresh();
                 return ParseInt(ConfigurationManager.AppSettings[key], defaultValue);
             }
             catch (Exception)

@@ -35,7 +35,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                ConfigurationManager.RefreshSection("appSettings");
+                OverlayActionConfig.EnsureFresh();
                 bool enabled;
                 return bool.TryParse(ConfigurationManager.AppSettings["TimingLogEnabled"], out enabled) && enabled;
             }
