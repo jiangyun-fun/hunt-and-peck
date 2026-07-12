@@ -126,6 +126,13 @@ allows `A–Z` and `D0–D9`.
   `ConfigurationManager.RefreshSection` inside `HintViewModel`'s ctor — that re-read
   the config file from disk N times per overlay (~0.85 ms × N → ~1 s at 1281 labels).
   Read config **once per overlay** (see `OverlayViewModel` ctor) and pass it down.
+- **Config reads go through `OverlayActionConfig.EnsureFresh`.** A trigger reads ~12
+  settings, and each used to `RefreshSection` (one disk re-parse per read, ~10 ms
+  total per press). `EnsureFresh` stats `hap.exe.config`'s last-write time and only
+  re-parses when the file changed, so a press costs one parse, not twelve (a Grid +
+  Screen press dropped from ~12 ms to ~2 ms `enum+merge`, measured). Never call
+  `ConfigurationManager.RefreshSection` directly — use `EnsureFresh` so hot-reload
+  still works and reads stay cached.
 - **Label count drives everything else.** Even with the `HintCanvas` renderer, very
   dense grids (1000+ labels) take longer to build `FormattedText` for. Lower
   `GridEdgeStep`/`GridCenterStep` density or `HintCharacters` count to go faster.
