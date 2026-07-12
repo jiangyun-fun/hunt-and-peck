@@ -280,6 +280,45 @@ namespace HuntAndPeck.Services
             }
         }
 
+        /// <summary>
+        /// Reads a raw appSetting string (no parsing, no default). Used by the Options
+        /// dialog to display the current value.
+        /// </summary>
+        public static string ReadRawString(string key)
+        {
+            try
+            {
+                EnsureFresh();
+                return ConfigurationManager.AppSettings[key];
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Writes an appSetting to hap.exe.config and saves, so the change hot-reloads on
+        /// the next trigger (EnsureFresh sees the updated file mtime). Best-effort: a
+        /// failed write leaves the prior value rather than crashing the caller.
+        /// </summary>
+        public static void WriteSetting(string key, string value)
+        {
+            try
+            {
+                var cfg = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+                cfg.AppSettings.Settings.Remove(key);
+                cfg.AppSettings.Settings.Add(key, value ?? string.Empty);
+                cfg.Save(ConfigurationSaveMode.Modified);
+                ConfigurationManager.RefreshSection("appSettings");
+                _configMtimeUtc = DateTime.MinValue; // force the next EnsureFresh to re-stat
+            }
+            catch (Exception)
+            {
+                // Best-effort: leave the prior value so the app stays usable.
+            }
+        }
+
         /// <summary>The main overlay hotkey key (read once at startup). Fallback when missing/invalid.</summary>
         public static Keys ReadHotkeyKey(Keys fallback)
         {

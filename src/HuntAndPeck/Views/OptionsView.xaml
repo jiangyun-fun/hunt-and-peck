@@ -1,25 +1,73 @@
-﻿<Window x:Class="HuntAndPeck.Views.OptionsView"
+<Window x:Class="HuntAndPeck.Views.OptionsView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="OptionsView" Height="300" Width="300"
+        Title="Hunt-and-Peck Options" Height="560" Width="380"
         WindowStartupLocation="CenterScreen">
     <TabControl TabStripPlacement="Left">
         <TabItem Header="Overlay">
             <TabItem.Content>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1"></ColumnDefinition>
-                    </Grid.ColumnDefinitions>
-                </Grid>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10">
+                        <TextBlock Text="Hint source" FontWeight="Bold" />
+                        <ComboBox SelectedValue="{Binding HintSource}" SelectedValuePath="Content" Margin="0,2,0,10">
+                            <ComboBoxItem>Grid</ComboBoxItem>
+                            <ComboBoxItem>Automation</ComboBoxItem>
+                        </ComboBox>
+
+                        <TextBlock Text="Overlay bounds" FontWeight="Bold" />
+                        <ComboBox SelectedValue="{Binding HintBoundsSource}" SelectedValuePath="Content" Margin="0,2,0,10">
+                            <ComboBoxItem>Screen</ComboBoxItem>
+                            <ComboBoxItem>Window</ComboBoxItem>
+                        </ComboBox>
+
+                        <TextBlock Text="Hint characters" FontWeight="Bold" />
+                        <TextBox Text="{Binding HintCharacters}" Margin="0,2,0,10" />
+
+                        <TextBlock Text="Grid edge step (px)" FontWeight="Bold" />
+                        <TextBox Text="{Binding GridEdgeStep}" Margin="0,2,0,10" />
+
+                        <TextBlock Text="Grid center step (px)" FontWeight="Bold" />
+                        <TextBox Text="{Binding GridCenterStep}" Margin="0,2,0,10" />
+
+                        <TextBlock Text="Grid inset (px)" FontWeight="Bold" />
+                        <TextBox Text="{Binding GridInset}" Margin="0,2,0,10" />
+
+                        <TextBlock Text="Edge band (%)" FontWeight="Bold" />
+                        <TextBox Text="{Binding GridEdgeBandPercent}" Margin="0,2,0,10" />
+
+                        <TextBlock Text="Max enumeration depth (0 = unlimited)" FontWeight="Bold" />
+                        <TextBox Text="{Binding MaxEnumerationDepth}" Margin="0,2,0,10" />
+
+                        <TextBlock Text="Dense regions" FontWeight="Bold" />
+                        <TextBox Text="{Binding GridDenseRegions}" Margin="0,2,0,10" />
+
+                        <TextBlock Text="Click-mode order" FontWeight="Bold" />
+                        <TextBox Text="{Binding ClickModeOrder}" Margin="0,2,0,10" />
+
+                        <CheckBox Content="Log overlay timings to %TEMP%\hap-timing.log" IsChecked="{Binding TimingLogEnabled}" Margin="0,4,0,10" />
+
+                        <TextBlock Text="Changes apply on the next trigger (hot-reload)." FontStyle="Italic" Foreground="Gray" />
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem.Content>
         </TabItem>
         <TabItem Header="Keyboard">
             <TabItem.Content>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1"></ColumnDefinition>
-                    </Grid.ColumnDefinitions>
-                </Grid>
+                <StackPanel Margin="10">
+                    <TextBlock Text="Nudge step (px)" FontWeight="Bold" />
+                    <TextBox Text="{Binding NudgeStep}" Margin="0,2,0,10" />
+
+                    <TextBlock Text="Fast nudge step (Shift+arrows, px)" FontWeight="Bold" />
+                    <TextBox Text="{Binding NudgeStepFast}" Margin="0,2,0,10" />
+
+                    <TextBlock Text="Hotkey key (System.Windows.Forms.Keys name)" FontWeight="Bold" />
+                    <TextBox Text="{Binding HotkeyKey}" Margin="0,2,0,10" />
+
+                    <TextBlock Text="Hotkey modifier (comma-separated: Alt, Control, Shift, Windows)" FontWeight="Bold" />
+                    <TextBox Text="{Binding HotkeyModifier}" Margin="0,2,0,10" />
+
+                    <TextBlock Text="Hotkey changes need a hap.exe restart; everything else hot-reloads." FontStyle="Italic" Foreground="Gray" />
+                </StackPanel>
             </TabItem.Content>
         </TabItem>
         <TabItem Header="FontSize">
