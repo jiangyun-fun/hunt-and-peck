@@ -1,74 +1,66 @@
 using System;
+using System.Drawing;
 using System.Windows;
-using System.Windows.Interop;
-using HuntAndPeck.NativeMethods;
 using HuntAndPeck.ViewModels;
+using WinForms = System.Windows.Forms;
 
 namespace HuntAndPeck.Views
 {
     /// <summary>
-    /// Interaction logic for ShellView.xaml — hosts the tray TaskbarIcon. The tray
-    /// menu is a native Win32 popup (not a WPF ContextMenu): WPF menus opened from the
-    /// shell tray never receive keyboard focus, so arrows/mnemonics don't work. A native
-    /// menu runs its own modal loop and is fully keyboard-navigable (arrows, mnemonics,
-    /// Enter), matching how AutoHotkey's tray menu behaves.
+    /// Hidden window hosting the tray icon. The tray uses a WinForms NotifyIcon with a
+    /// ContextMenuStrip (not a WPF ContextMenu): WPF context menus opened from the shell
+    /// tray never receive keyboard focus, so arrow keys and mnemonics did not work. The
+    /// WinForms ContextMenuStrip is a native-menu wrapper, so on both right-click and the
+    /// shell's Shift+F10 context-menu request it is fully keyboard-navigable (arrows,
+    /// mnemonics O/E, Enter).
     /// </summary>
     public partial class ShellView : Window
     {
-        private const uint CmdOptions = 1;
-        private const uint CmdExit = 2;
+        private WinForms.NotifyIcon _notifyIcon;
 
         public ShellView()
         {
             InitializeComponent();
+            Loaded += ShellView_Loaded;
         }
 
-        /// <summary>
-        /// Shows a native popup menu (Options / Exit) at the cursor and dispatches the
-        /// selection. Invoked on both right-click and the shell's keyboard context-menu
-        /// request (Shift+F10). Mnemonics: O = Options, E = Exit.
-        /// </summary>
-        private void TaskbarIcon_ContextMenuOpen(object sender, RoutedEventArgs e)
+        private void ShellView_Loaded(object sender, RoutedEventArgs e)
         {
             var vm = DataContext as ShellViewModel;
-            var hwnd = new WindowInteropHelper(this).Handle;
 
-            var hMenu = User32.CreatePopupMenu();
-            if (hMenu == IntPtr.Zero)
+            var strip = new WinForms.ContextMenuStrip();
+            strip.Items.Add("&Options", null, (s, a) => vm.ShowOptionsCommand.Execute(null));
+            strip.Items.Add(new WinForms.ToolStripSeparator());
+            strip.Items.Add("&Exit", null, (s, a) => vm.ExitCommand.Execute(null));
+
+            _notifyIcon = new WinForms.NotifyIcon
             {
-                return;
-            }
+                Icon = LoadEmbeddedIcon(),
+                Visible = true,
+                Text = "Hunt and Peck",
+                ContextMenuStrip = strip,
+            };
+        }
 
-            try
+        /// <summary>Loads the embedded Resources/originalbird.ico as a System.Drawing.Icon.</summary>
+        private static Icon LoadEmbeddedIcon()
+        {
+            var uri = new Uri("pack://application:,,,/Resources/originalbird.ico", UriKind.Absolute);
+            using (var stream = Application.GetResourceStream(uri).Stream)
             {
-                User32.AppendMenu(hMenu, User32.MF_STRING, CmdOptions, "&Options");
-                User32.AppendMenu(hMenu, User32.MF_SEPARATOR, 0, null);
-                User32.AppendMenu(hMenu, User32.MF_STRING, CmdExit, "&Exit");
-
-                User32.GetCursorPos(out var pt);
-
-                // MSDN KB135788: SetForegroundWindow before TrackPopupMenuEx and
-                // PostMessage(WM_NULL) after, so the menu dismisses on an outside click.
-                // Keyboard navigation works regardless (the menu runs its own loop).
-                User32.SetForegroundWindow(hwnd);
-                int selected = User32.TrackPopupMenuEx(hMenu,
-                    User32.TPM_RETURNCMD | User32.TPM_NONOTIFY | User32.TPM_RIGHTALIGN | User32.TPM_BOTTOMALIGN,
-                    pt.X, pt.Y, hwnd, IntPtr.Zero);
-                User32.PostMessage(hwnd, User32.WM_NULL, IntPtr.Zero, IntPtr.Zero);
-
-                if (selected == CmdOptions && vm != null)
-                {
-                    vm.ShowOptionsCommand.Execute(null);
-                }
-                else if (selected == CmdExit && vm != null)
-                {
-                    vm.ExitCommand.Execute(null);
-                }
+                return new Icon(stream);
             }
-            finally
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            if (_notifyIcon != null)
             {
-                User32.DestroyMenu(hMenu);
+                _notifyIcon.Visible = false;
+                _notifyIcon.Dispose();
+                _notifyIcon = null;
             }
+            base.OnClosed(e);
         }
     }
 }
