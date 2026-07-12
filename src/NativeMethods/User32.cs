@@ -68,5 +68,34 @@ namespace HuntAndPeck.NativeMethods
 
         public const int GWL_EXSTYLE = -20;
         public const int WS_EX_TRANSPARENT = 0x00000020;
+
+        // --- native popup menu (keyboard-navigable tray menu) ---
+        [DllImport("user32.dll")]
+        public static extern IntPtr CreatePopupMenu();
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool DestroyMenu(IntPtr hMenu);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool AppendMenu(IntPtr hMenu, uint uFlags, uint uIDNewItem, string lpNewItem);
+
+        [DllImport("user32.dll")]
+        public static extern int TrackPopupMenuEx(IntPtr hmenu, uint fuFlags, int x, int y, IntPtr hwnd, IntPtr lptpm);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        public const uint MF_STRING = 0x00000000;
+        public const uint MF_SEPARATOR = 0x00000800;
+        public const uint TPM_NONOTIFY = 0x00000080;
+        public const uint TPM_RETURNCMD = 0x00000100;
+        public const uint TPM_LEFTALIGN = 0x00000000;
+        public const uint TPM_TOPALIGN = 0x00000000;
+        public const uint TPM_RIGHTALIGN = 0x00000008;
+        public const uint TPM_BOTTOMALIGN = 0x00000020;
+        public const uint WM_NULL = 0x0000;
     }
 }

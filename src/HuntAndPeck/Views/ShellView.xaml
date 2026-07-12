@@ -6,14 +6,8 @@
         Visibility="Hidden">
     <tb:TaskbarIcon Visibility="Visible"
                     IconSource="/Resources/originalbird.ico"
-                    MenuActivation="LeftOrRightClick">
-        <tb:TaskbarIcon.ContextMenu>
-            <ContextMenu Opened="ContextMenu_Opened">
-                <MenuItem Header="_Options" Command="{Binding ShowOptionsCommand}"></MenuItem>
-                <Separator />
-                <MenuItem Header="_Exit" Command="{Binding ExitCommand}"></MenuItem>
-            </ContextMenu>
-        </tb:TaskbarIcon.ContextMenu>
+                    MenuActivation="LeftOrRightClick"
+                    TrayContextMenuOpen="TaskbarIcon_ContextMenuOpen">
     </tb:TaskbarIcon>
         
 </Window>
