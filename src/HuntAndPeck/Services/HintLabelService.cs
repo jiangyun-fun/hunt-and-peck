@@ -49,7 +49,14 @@ namespace HuntAndPeck.Services
                 }
             }
 
-            return hintStrings.ToList();
+            // Sort ordinally so consecutive labels share their FIRST character
+            // (AA, AB, AC, ..., BA, BB, ...). The Vimium order emitted above alternates
+            // the first char fastest (AA, BA, CA, ...), grouping by the LAST char, which
+            // reads as messy and scatters each first-char group across the whole screen.
+            // Sorting is a pure permutation of the prefix-free Vimium set, so uniqueness
+            // and the no-label-is-a-prefix-of-another property are both preserved.
+            hintStrings.Sort(StringComparer.Ordinal);
+            return hintStrings;
         }
 
         /// <summary>
