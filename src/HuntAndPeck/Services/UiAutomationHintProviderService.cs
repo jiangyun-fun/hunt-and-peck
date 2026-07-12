@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using System.Windows;
+using System.Windows.Forms;
 using UIAutomationClient;
 
 namespace HuntAndPeck.Services
@@ -89,9 +90,7 @@ namespace HuntAndPeck.Services
         {
             try
             {
-                var rawWindowBounds = new RECT();
-                User32.GetWindowRect(hWnd, ref rawWindowBounds);
-                Rect windowBounds = rawWindowBounds;
+                Rect windowBounds = ResolveOwningBounds(hWnd);
                 session.OwningWindowBounds = windowBounds;
 
                 foreach (var hint in session.Hints)
@@ -153,10 +152,8 @@ namespace HuntAndPeck.Services
             var result = new List<Hint>();
             var elements = EnumElements(hWnd);
 
-            // Window bounds
-            var rawWindowBounds = new RECT();
-            User32.GetWindowRect(hWnd, ref rawWindowBounds);
-            Rect windowBounds = rawWindowBounds;
+            // Bounds the overlay covers: full monitor or window rect (HintBoundsSource).
+            Rect windowBounds = ResolveOwningBounds(hWnd);
 
             foreach (var element in elements)
             {
@@ -347,6 +344,35 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Resolves the rectangle the overlay should cover, in physical screen coordinates.
+        /// HintBoundsSource=Screen (default) returns the full monitor the window is on so
+        /// labels fill the screen; Window returns the foreground window rect (the previous
+        /// behavior). Grid PointHints store absolute screen coords (see PointHint), so
+        /// enlarging the overlay never breaks cursor targeting.
+        /// </summary>
+        private static Rect ResolveOwningBounds(IntPtr hWnd)
+        {
+            if (OverlayActionConfig.ReadHintBounds() == HintBounds.Window)
+            {
+                var raw = new RECT();
+                User32.GetWindowRect(hWnd, ref raw);
+                return raw;
+            }
+
+            // Full monitor the window is on. Screen.FromHandle falls back to the primary
+            // monitor in practice; guard anyway so a degenerate box never crashes the app.
+            var screen = Screen.FromHandle(hWnd) ?? Screen.PrimaryScreen;
+            if (screen == null)
+            {
+                var raw = new RECT();
+                User32.GetWindowRect(hWnd, ref raw);
+                return raw;
+            }
+            var b = screen.Bounds;
+            return new Rect(b.X, b.Y, b.Width, b.Height);
+        }
+
+        /// <summary>
         /// Generates a grid of synthetic PointHints covering the window, denser in the
         /// edge bands (tabs/sidebars/widgets) and sparser in the center. Each point's
         /// label, when typed, jumps the cursor there so the user can nudge to a target.
@@ -354,9 +380,7 @@ namespace HuntAndPeck.Services
         /// </summary>
         private HintSession EnumGridHints(IntPtr hWnd)
         {
-            var rawBounds = new RECT();
-            User32.GetWindowRect(hWnd, ref rawBounds);
-            Rect windowBounds = rawBounds;
+            Rect windowBounds = ResolveOwningBounds(hWnd);
 
             var inset = ReadIntSetting("GridInset", 10);
             var bandPct = ReadIntSetting("GridEdgeBandPercent", 15) / 100.0;

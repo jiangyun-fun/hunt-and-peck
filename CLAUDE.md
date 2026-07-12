@@ -50,6 +50,12 @@ docs/superpowers/{specs,plans}/ design docs (some superseded — read the banner
     instant, no UI Automation walk, works on any app (incl. Chromium).
   - `Automation`: enumerates the window's real UI Automation controls (precise,
     slow on huge trees — Chromium walks ~600+ elements cross-process).
+- **Overlay bounds** (`HintBoundsSource` in App.config, default `Screen`): the area
+  the overlay and its grid cover. `Screen` = the full monitor the foreground window
+  is on, so labels fill the screen regardless of window size; `Window` = the
+  foreground window rect (the previous behavior). Cursor targeting uses absolute
+  screen coords, so enlarging the overlay never breaks clicks. Grid `PointHint`s
+  store absolute screen points (`UiAutomationHintProviderService.ResolveOwningBounds`).
 - **Overlay lifecycle** (`ShellViewModel`): hotkey → capture foreground window →
   `EnumHints` off-thread → always **merge the taskbar** in → `OverlayViewModel` →
   `OverlayView.ShowDialog()`. The overlay is `Topmost`, `AllowsTransparency`, and
@@ -94,9 +100,10 @@ is for tagged public releases.
 Two kinds of settings:
 
 - **Hot-reload** (read each trigger; edit `hap.exe.config`, save, re-trigger):
-  `HintSource`, `GridEdgeStep`, `GridCenterStep`, `GridDenseRegions`, `GridInset`,
-  `GridEdgeBandPercent`, `HintCharacters`, `HintFontSize`, `NudgeStep`,
-  `NudgeStepFast`, `ClickModeOrder`, `MaxEnumerationDepth`, `TimingLogEnabled`.
+  `HintSource`, `HintBoundsSource`, `GridEdgeStep`, `GridCenterStep`,
+  `GridDenseRegions`, `GridInset`, `GridEdgeBandPercent`, `HintCharacters`,
+  `HintFontSize`, `NudgeStep`, `NudgeStepFast`, `ClickModeOrder`,
+  `MaxEnumerationDepth`, `TimingLogEnabled`.
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+Alt+F`).
 

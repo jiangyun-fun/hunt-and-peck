@@ -18,6 +18,17 @@ namespace HuntAndPeck.Services
     }
 
     /// <summary>
+    /// What rectangle the overlay and its hint grid cover.
+    /// </summary>
+    public enum HintBounds
+    {
+        /// <summary>Full monitor the foreground window is on; labels fill the screen.</summary>
+        Screen,
+        /// <summary>The foreground window rect (the previous, per-window behavior).</summary>
+        Window
+    }
+
+    /// <summary>
     /// Reads overlay and hotkey settings from hap.exe.config. Parsing is split
     /// into pure methods (unit-tested) and ConfigurationManager wrappers.
     /// Unknown or missing values fall back to safe defaults so a bad config
@@ -37,6 +48,20 @@ namespace HuntAndPeck.Services
         {
             int v;
             if (int.TryParse(raw, out v) && v > 0)
+            {
+                return v;
+            }
+            return defaultValue;
+        }
+
+        /// <summary>
+        /// Parses a HintBounds name (case-insensitive). Returns defaultValue when blank
+        /// or unrecognized so a bad config never breaks the app.
+        /// </summary>
+        public static HintBounds ParseHintBounds(string raw, HintBounds defaultValue)
+        {
+            HintBounds v;
+            if (!string.IsNullOrWhiteSpace(raw) && Enum.TryParse(raw.Trim(), true, out v))
             {
                 return v;
             }
@@ -136,6 +161,25 @@ namespace HuntAndPeck.Services
             {
                 // Deliberate fallback so a malformed config keeps the app usable.
                 return new List<ClickAction>(DefaultClickOrder);
+            }
+        }
+
+        /// <summary>
+        /// What the overlay covers (hot-reload): Screen = full monitor the foreground
+        /// window is on (labels fill the screen); Window = the foreground window rect.
+        /// Default Screen.
+        /// </summary>
+        public static HintBounds ReadHintBounds()
+        {
+            try
+            {
+                ConfigurationManager.RefreshSection("appSettings");
+                return ParseHintBounds(ConfigurationManager.AppSettings["HintBoundsSource"], HintBounds.Screen);
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return HintBounds.Screen;
             }
         }
 

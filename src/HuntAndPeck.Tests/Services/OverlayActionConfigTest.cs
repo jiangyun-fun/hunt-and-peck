@@ -70,5 +70,25 @@ namespace HuntAndPeck.Tests.Services
         {
             Assert.Equal(expected, OverlayActionConfig.ParseKeyModifiers(raw, KeyModifier.Alt));
         }
+
+        [Theory]
+        [InlineData("Screen", HintBounds.Screen)]
+        [InlineData("screen", HintBounds.Screen)]   // case-insensitive
+        [InlineData("WINDOW", HintBounds.Window)]
+        [InlineData("junk", HintBounds.Screen)]     // invalid -> default (Screen)
+        [InlineData("", HintBounds.Screen)]         // blank -> default
+        [InlineData(null, HintBounds.Screen)]
+        public void ParseHintBounds_ParsesOrDefaultsToScreen(string raw, HintBounds expected)
+        {
+            Assert.Equal(expected, OverlayActionConfig.ParseHintBounds(raw, HintBounds.Screen));
+        }
+
+        [Fact]
+        public void ParseHintBounds_UsesProvidedDefaultWhenUnrecognized()
+        {
+            // The caller picks the default; here Window is the fallback for junk input.
+            Assert.Equal(HintBounds.Window, OverlayActionConfig.ParseHintBounds("???", HintBounds.Window));
+            Assert.Equal(HintBounds.Window, OverlayActionConfig.ParseHintBounds(null, HintBounds.Window));
+        }
     }
 }
