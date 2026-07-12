@@ -10,10 +10,11 @@ using HuntAndPeck.ViewModels;
 namespace HuntAndPeck.Views
 {
     /// <summary>
-    /// Draws ALL hint labels in a single OnRender pass (one visual) instead of one
-    /// TextBlock per hint, so overlay layout cost stays ~constant regardless of
-    /// label count. FormattedText is built once per label (cached); OnRender is
-    /// cheap and re-runs whenever a hint's Active state flips (typing).
+    /// Draws each hint label as its own <see cref="DrawingVisual"/> child, so an
+    /// <c>Active</c> flip (typing) re-renders only that one label instead of the whole
+    /// overlay. <see cref="FormattedText"/> is still built once per label and cached; a
+    /// keystroke just re-opens the changed visual's drawing context. DrawingVisuals
+    /// bypass measure/arrange, so layout cost stays flat regardless of label count.
     /// </summary>
     public class HintCanvas : FrameworkElement
     {
@@ -23,9 +24,18 @@ namespace HuntAndPeck.Views
         private static readonly Typeface LabelTypeface =
             new Typeface(new FontFamily("Helvetica, Arial"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
 
+        private readonly VisualCollection _visuals;
+
+        // Parallel by index: the view-model, its cached text, and the visual that draws it.
         private List<HintViewModel> _hints;
         private FormattedText[] _formatted;
+        private List<DrawingVisual> _visualByHint;
         private double _fontSize = 14;
+
+        public HintCanvas()
+        {
+            _visuals = new VisualCollection(this);
+        }
 
         public static readonly DependencyProperty HintsSourceProperty =
             DependencyProperty.Register("HintsSource", typeof(IList), typeof(HintCanvas),
@@ -37,17 +47,30 @@ namespace HuntAndPeck.Views
             set { SetValue(HintsSourceProperty, value); }
         }
 
+        protected override int VisualChildrenCount
+        {
+            get { return _visuals.Count; }
+        }
+
+        protected override Visual GetVisualChild(int index)
+        {
+            return _visuals[index];
+        }
+
         private static void OnHintsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var c = (HintCanvas)d;
             c.DetachAll();
+            c._visuals.Clear();
             c._hints = null;
             c._formatted = null;
+            c._visualByHint = null;
 
             var list = e.NewValue as IList;
             if (list != null && list.Count > 0)
             {
                 c._hints = new List<HintViewModel>(list.Count);
+                c._visualByHint = new List<DrawingVisual>(list.Count);
                 foreach (var item in list)
                 {
                     var h = item as HintViewModel;
@@ -58,8 +81,15 @@ namespace HuntAndPeck.Views
                     }
                 }
                 c.BuildFormatted();
+
+                for (int i = 0; i < c._hints.Count; i++)
+                {
+                    var dv = new DrawingVisual();
+                    c._visuals.Add(dv);
+                    c._visualByHint.Add(dv);
+                    c.RenderHint(i);
+                }
             }
-            c.InvalidateVisual();
         }
 
         private void DetachAll()
@@ -76,10 +106,21 @@ namespace HuntAndPeck.Views
 
         private void Hint_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            // Only Active changes during an overlay; redraw is cheap (cached text).
-            if (string.IsNullOrEmpty(e.PropertyName) || e.PropertyName == "Active")
+            // Only Active changes during an overlay; re-render just this hint's visual
+            // (not the whole overlay, as the old InvalidateVisual approach did).
+            if (!string.IsNullOrEmpty(e.PropertyName) && e.PropertyName != "Active")
             {
-                InvalidateVisual();
+                return;
+            }
+            var h = sender as HintViewModel;
+            if (h == null || _hints == null)
+            {
+                return;
+            }
+            int idx = _hints.IndexOf(h);
+            if (idx >= 0)
+            {
+                RenderHint(idx);
             }
         }
 
@@ -103,23 +144,24 @@ namespace HuntAndPeck.Views
             }
         }
 
-        protected override void OnRender(DrawingContext drawingContext)
+        /// <summary>
+        /// Re-renders hint <paramref name="i"/> into its own DrawingVisual: a colored
+        /// background rect plus the cached label text, positioned at the hint's bounds.
+        /// </summary>
+        private void RenderHint(int i)
         {
-            if (_hints == null || _formatted == null)
-            {
-                return;
-            }
+            var ft = _formatted[i];
+            var h = _hints[i];
+            var br = h.Hint.BoundingRectangle;
+            double x = br.Left;
+            double y = br.Top;
             const double pad = 1.0;
-            for (int i = 0; i < _hints.Count; i++)
+
+            using (var dc = _visualByHint[i].RenderOpen())
             {
-                var h = _hints[i];
-                var ft = _formatted[i];
-                var br = h.Hint.BoundingRectangle;
-                double x = br.Left;
-                double y = br.Top;
-                drawingContext.DrawRectangle(h.Active ? ActiveBg : InactiveBg, null,
+                dc.DrawRectangle(h.Active ? ActiveBg : InactiveBg, null,
                     new Rect(x, y, ft.Width + pad * 2, ft.Height + pad * 2));
-                drawingContext.DrawText(ft, new Point(x + pad, y + pad));
+                dc.DrawText(ft, new Point(x + pad, y + pad));
             }
         }
     }
