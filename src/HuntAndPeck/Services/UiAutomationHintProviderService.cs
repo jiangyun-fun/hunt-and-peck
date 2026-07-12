@@ -378,10 +378,23 @@ namespace HuntAndPeck.Services
         /// label, when typed, jumps the cursor there so the user can nudge to a target.
         /// Instant -- no UI Automation walk.
         /// </summary>
+        /// <summary>
+        /// Builds a Grid-mode session over explicit bounds (physical screen coordinates),
+        /// for monitor cycling. Bypasses HintBoundsSource so each monitor can be targeted
+        /// regardless of where the foreground window is.
+        /// </summary>
+        public HintSession EnumGridHintsForBounds(IntPtr hWnd, Rect bounds)
+        {
+            return EnumGridHints(hWnd, bounds);
+        }
+
         private HintSession EnumGridHints(IntPtr hWnd)
         {
-            Rect windowBounds = ResolveOwningBounds(hWnd);
+            return EnumGridHints(hWnd, ResolveOwningBounds(hWnd));
+        }
 
+        private HintSession EnumGridHints(IntPtr hWnd, Rect windowBounds)
+        {
             var inset = ReadIntSetting("GridInset", 10);
             var bandPct = ReadIntSetting("GridEdgeBandPercent", 15) / 100.0;
             var edgeStep = (double)ReadIntSetting("GridEdgeStep", 60);

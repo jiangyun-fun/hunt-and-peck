@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Windows;
 using HuntAndPeck.Models;
 
 namespace HuntAndPeck.Services.Interfaces
@@ -15,5 +16,12 @@ namespace HuntAndPeck.Services.Interfaces
         HintSession EnumHints();
 
         HintSession EnumHints(IntPtr handle);
+
+        /// <summary>
+        /// Build a Grid-mode hint session covering the given bounds (physical screen
+        /// coordinates), regardless of which monitor the foreground window is on. Used to
+        /// generate one grid per monitor for monitor cycling.
+        /// </summary>
+        HintSession EnumGridHintsForBounds(IntPtr handle, Rect bounds);
     }
 }

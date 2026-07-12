@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
@@ -16,6 +17,8 @@ namespace HuntAndPeck.Views
     public partial class OverlayView
     {
         private Stopwatch _renderSw;
+        private double _scaleX = 1.0;
+        private double _scaleY = 1.0;
 
         public OverlayView()
         {
@@ -25,18 +28,28 @@ namespace HuntAndPeck.Views
         private void OverlayView_OnLoaded(object sender, RoutedEventArgs e)
         {
             var m = PresentationSource.FromVisual(this).CompositionTarget.TransformToDevice;
-            var scaleX = m.M11;
-            var scaleY = m.M22;
+            _scaleX = m.M11;
+            _scaleY = m.M22;
 
             // scale the items for non-96 DPIs
-            layoutGrid.LayoutTransform = new ScaleTransform(1/scaleX, 1/scaleY);
+            layoutGrid.LayoutTransform = new ScaleTransform(1/_scaleX, 1/_scaleY);
 
-            // resize the window for non-96 DPIs
             var vm = DataContext as OverlayViewModel;
-            Left = vm.Bounds.Left / scaleX;
-            Top = vm.Bounds.Top / scaleY;
-            Width = vm.Bounds.Width / scaleX;
-            Height = vm.Bounds.Height / scaleY;
+            ApplyBounds(vm);
+
+            // Reposition + resize when the user cycles to another monitor (Tab), so the
+            // overlay always covers the current session's bounds.
+            var inpc = vm as INotifyPropertyChanged;
+            if (inpc != null)
+            {
+                inpc.PropertyChanged += (s, ev) =>
+                {
+                    if (string.IsNullOrEmpty(ev.PropertyName) || ev.PropertyName == nameof(OverlayViewModel.Bounds))
+                    {
+                        ApplyBounds(vm);
+                    }
+                };
+            }
 
             // Click-through from the start so synthesized clicks (left/right/
             // double) and a manual click all reach the app beneath; keyboard
@@ -46,6 +59,23 @@ namespace HuntAndPeck.Views
             // Measure window-load to content-rendered (the label layout/render cost).
             _renderSw = Stopwatch.StartNew();
             ContentRendered += OverlayView_OnContentRendered;
+        }
+
+        /// <summary>
+        /// Positions and sizes the overlay window to the view-model's current Bounds,
+        /// dividing by the device scale (Bounds is in physical pixels; the window is in
+        /// WPF device-independent units). Called on load and on every monitor switch.
+        /// </summary>
+        private void ApplyBounds(OverlayViewModel vm)
+        {
+            if (vm == null)
+            {
+                return;
+            }
+            Left = vm.Bounds.Left / _scaleX;
+            Top = vm.Bounds.Top / _scaleY;
+            Width = vm.Bounds.Width / _scaleX;
+            Height = vm.Bounds.Height / _scaleY;
         }
 
         private void OverlayView_OnContentRendered(object sender, EventArgs e)
@@ -73,6 +103,16 @@ namespace HuntAndPeck.Views
             {
                 vm.CycleMode();
                 e.Handled = true;   // never let Space enter the TextBox
+                return;
+            }
+
+            if (e.Key == Key.Tab && vm != null)
+            {
+                // Cycle the overlay to the next (Tab) or previous (Shift+Tab) monitor.
+                int delta = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ? -1 : 1;
+                vm.CycleMonitor(delta);
+                MatchStringControl.Text = "";   // clear the typed prefix for the new monitor
+                e.Handled = true;
                 return;
             }
 

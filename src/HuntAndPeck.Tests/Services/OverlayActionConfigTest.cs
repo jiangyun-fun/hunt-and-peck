@@ -104,6 +104,17 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal(expected, OverlayActionConfig.ShouldMergeTaskbar(hintSource, bounds));
         }
 
+        [Theory]
+        [InlineData("Grid", true)]
+        [InlineData(null, true)]      // default source is Grid
+        [InlineData("", true)]
+        [InlineData("grid", true)]    // case-insensitive
+        [InlineData("Automation", false)]
+        public void IsGridHintSource_DetectsGridOrDefault(string raw, bool expected)
+        {
+            Assert.Equal(expected, OverlayActionConfig.IsGridHintSource(raw));
+        }
+
         [Fact]
         public void EnsureFresh_IsSafeToCallRepeatedly()
         {

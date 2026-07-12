@@ -128,6 +128,16 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// True when the hint source is Grid (case-insensitive), or blank/unset (Grid is
+        /// the default).
+        /// </summary>
+        public static bool IsGridHintSource(string hintSource)
+        {
+            return string.IsNullOrWhiteSpace(hintSource) ||
+                   string.Equals(hintSource, "Grid", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Whether MergeWithTaskbar should merge the taskbar session into the foreground
         /// session. In Grid + Screen mode the foreground grid already spans the full
         /// monitor (taskbar strip included), so a second full-screen taskbar grid would
@@ -137,9 +147,7 @@ namespace HuntAndPeck.Services
         /// </summary>
         public static bool ShouldMergeTaskbar(string hintSource, HintBounds bounds)
         {
-            bool grid = string.IsNullOrWhiteSpace(hintSource) ||
-                        string.Equals(hintSource, "Grid", StringComparison.OrdinalIgnoreCase);
-            return !(grid && bounds == HintBounds.Screen);
+            return !(IsGridHintSource(hintSource) && bounds == HintBounds.Screen);
         }
 
         /// <summary>

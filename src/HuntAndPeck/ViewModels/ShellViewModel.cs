@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using HuntAndPeck.Models;
@@ -77,18 +78,73 @@ namespace HuntAndPeck.ViewModels
                 return;
             }
 
-            // Enumerate the foreground window and always merge the taskbar in, so the
-            // taskbar's buttons are reachable from the main overlay (no separate key).
+            // Grid + Screen: build one grid per monitor so Tab can cycle between them.
+            // Otherwise (Automation, Grid + Window) use a single session + taskbar merge.
+            var cycleCapable = OverlayActionConfig.IsGridHintSource(OverlayActionConfig.ReadHintSource())
+                               && OverlayActionConfig.ReadHintBounds() == HintBounds.Screen;
+
             var sw = Stopwatch.StartNew();
-            var session = await Task.Run(() => MergeWithTaskbar(_hintProviderService.EnumHints(hWnd)));
-            sw.Stop();
-            TimingLog.Log("enum+merge " + sw.ElapsedMilliseconds + "ms  hints="
-                + (session != null && session.Hints != null ? session.Hints.Count : 0));
-            if (session != null)
+            if (cycleCapable)
             {
-                var vm = new OverlayViewModel(session, _hintLabelService);
-                _showOverlay(vm);
+                var built = await Task.Run(() => BuildMonitorSessions(hWnd));
+                sw.Stop();
+                var cur = built.Sessions.Count > 0 ? built.Sessions[built.Current] : null;
+                TimingLog.Log("enum+merge " + sw.ElapsedMilliseconds + "ms  monitors="
+                    + built.Sessions.Count + "  hints="
+                    + (cur != null && cur.Hints != null ? cur.Hints.Count : 0));
+                if (built.Sessions.Count > 0)
+                {
+                    var vm = new OverlayViewModel(built.Sessions, built.Current, _hintLabelService);
+                    _showOverlay(vm);
+                }
             }
+            else
+            {
+                var session = await Task.Run(() => MergeWithTaskbar(_hintProviderService.EnumHints(hWnd)));
+                sw.Stop();
+                TimingLog.Log("enum+merge " + sw.ElapsedMilliseconds + "ms  hints="
+                    + (session != null && session.Hints != null ? session.Hints.Count : 0));
+                if (session != null)
+                {
+                    var vm = new OverlayViewModel(session, _hintLabelService);
+                    _showOverlay(vm);
+                }
+            }
+        }
+
+        private struct MonitorSessions
+        {
+            public List<HintSession> Sessions;
+            public int Current;
+        }
+
+        /// <summary>
+        /// Builds one Grid session per monitor, sorted left-to-right then top-to-bottom,
+        /// starting on the monitor the foreground window is on. For monitor cycling
+        /// (Grid + Screen). No taskbar merge: each monitor's full-screen grid already
+        /// covers its own taskbar strip, and secondary monitors have no taskbar.
+        /// </summary>
+        private MonitorSessions BuildMonitorSessions(IntPtr hWnd)
+        {
+            var screens = Screen.AllScreens
+                .OrderBy(s => s.Bounds.X).ThenBy(s => s.Bounds.Y)
+                .ToList();
+
+            var fgScreen = Screen.FromHandle(hWnd);
+            var current = screens.FindIndex(s => fgScreen != null && s.Bounds.Equals(fgScreen.Bounds));
+            if (current < 0)
+            {
+                current = 0;
+            }
+
+            var sessions = new List<HintSession>(screens.Count);
+            foreach (var screen in screens)
+            {
+                var b = screen.Bounds;
+                sessions.Add(_hintProviderService.EnumGridHintsForBounds(
+                    hWnd, new System.Windows.Rect(b.X, b.Y, b.Width, b.Height)));
+            }
+            return new MonitorSessions { Sessions = sessions, Current = current };
         }
 
         /// <summary>

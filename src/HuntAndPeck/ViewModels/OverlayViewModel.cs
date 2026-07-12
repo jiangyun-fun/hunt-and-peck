@@ -20,30 +20,84 @@ namespace HuntAndPeck.ViewModels
         private readonly IList<ClickAction> _modeOrder;
         private int _modeIndex;
 
-        public OverlayViewModel(
-            HintSession session,
-            IHintLabelService hintLabelService)
+        private readonly IHintLabelService _hintLabelService;
+        private readonly string _fontSizeRaw;
+        private readonly IList<HintSession> _sessions;
+        private int _currentSession;
+
+        /// <summary>
+        /// Single-session ctor: Automation, Grid+Window, and the headless /hint and
+        /// /tray entry points. Wraps the session as a one-element list (Tab is a no-op).
+        /// </summary>
+        public OverlayViewModel(HintSession session, IHintLabelService hintLabelService)
+            : this(new List<HintSession> { session }, 0, hintLabelService) { }
+
+        /// <summary>
+        /// Multi-session ctor for monitor cycling (Grid + Screen): one session per
+        /// monitor, starting at <paramref name="current"/>. Tab/Shift+Tab cycle the
+        /// displayed monitor.
+        /// </summary>
+        public OverlayViewModel(IList<HintSession> sessions, int current, IHintLabelService hintLabelService)
         {
-            _bounds = session.OwningWindowBounds;
+            _hintLabelService = hintLabelService;
+            _sessions = sessions ?? new List<HintSession>();
+            _currentSession = _sessions.Count == 0
+                ? 0
+                : ((current % _sessions.Count) + _sessions.Count) % _sessions.Count;
             _modeOrder = OverlayActionConfig.ReadClickActionOrder();
             _modeIndex = 0; // start on the first mode (Left, by default)
 
             // Read the font size ONCE for the whole overlay. Re-reading the config
             // file per hint (via ReadHintFontSize) made overlay build O(N) in disk
             // reads and dominated latency at high label counts.
-            var fontSize = OverlayActionConfig.ReadHintFontSize()
+            _fontSizeRaw = OverlayActionConfig.ReadHintFontSize()
                 ?? HuntAndPeck.Properties.Settings.Default.FontSize;
 
-            var labels = hintLabelService.GetHintStrings(session.Hints.Count());
+            if (_sessions.Count > 0)
+            {
+                LoadSession(_sessions[_currentSession]);
+            }
+        }
+
+        /// <summary>
+        /// Loads a session: sets Bounds and rebuilds the hint labels. Each monitor has
+        /// its own point count, so labels are regenerated per monitor. Replacing the
+        /// Hints collection (rather than clearing in place) makes HintCanvas rebuild its
+        /// cached visuals.
+        /// </summary>
+        private void LoadSession(HintSession session)
+        {
+            _bounds = session.OwningWindowBounds;
+            var labels = _hintLabelService.GetHintStrings(session.Hints.Count);
+            var fresh = new ObservableCollection<HintViewModel>();
             for (int i = 0; i < labels.Count; ++i)
             {
                 var hint = session.Hints[i];
-                _hints.Add(new HintViewModel(hint, fontSize)
+                fresh.Add(new HintViewModel(hint, _fontSizeRaw)
                 {
                     Label = labels[i],
                     Active = false
                 });
             }
+            Hints = fresh;
+            NotifyOfPropertyChange(nameof(Bounds));
+        }
+
+        /// <summary>
+        /// Cycles to the next (delta = +1, Tab) or previous (delta = -1, Shift+Tab)
+        /// monitor's session, wrapping around. No-op when there is only one session.
+        /// Resets the pan offset; the caller clears the typed prefix.
+        /// </summary>
+        public void CycleMonitor(int delta)
+        {
+            if (_sessions == null || _sessions.Count <= 1)
+            {
+                return;
+            }
+            _currentSession = (_currentSession + delta + _sessions.Count) % _sessions.Count;
+            LoadSession(_sessions[_currentSession]);
+            OffsetX = 0;
+            OffsetY = 0;
         }
 
         /// <summary>
