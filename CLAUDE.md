@@ -112,13 +112,22 @@ allows `A–Z` and `D0–D9`.
 
 ## Runtime behavior (current)
 
-- **Hotkey** `Ctrl+Shift+Alt+F` → overlay (foreground window + taskbar merged).
+- **Hotkey** `Ctrl+Shift+Alt+F` → overlay. By default (`HintBoundsSource=Screen`) it
+  fills the whole monitor the foreground window is on; in Grid mode one grid is built
+  per monitor. **Tab** cycles to the next monitor (wraps), **Shift+Tab** to the
+  previous; each monitor shows its own labels and the typed prefix + pan reset on
+  switch. (Cycling is Grid + Screen only; Automation / Grid+Window stay
+  single-session.)
 - **Arrows** pan all labels (3 px; `Shift` = 15 px).
 - **Space** cycles the click mode (badge top-right): `Left → Right → Double → Move`
   (`ClickModeOrder`, wraps; resets each trigger). `Move` positions without clicking.
 - **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
   current mode (left / right / double click via `mouse_event`, or move-only).
-- **Esc** cancels. The taskbar is always merged (no separate taskbar hotkey).
+- **Esc** cancels.
+- **Tray icon** (WinForms `NotifyIcon` + `ContextMenuStrip` in `ShellView`):
+  right-click or `Shift+F10` opens a keyboard-navigable menu (arrows, `O` Options,
+  `E` Exit). The **Options** dialog exposes every hot-reload setting, so there is no
+  need to hand-edit `hap.exe.config`.
 
 ## Performance (hard-won notes)
 
