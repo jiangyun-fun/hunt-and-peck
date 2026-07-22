@@ -87,6 +87,11 @@ namespace HuntAndPeck.ViewModels
         public string HotkeyKey { get { return Get("HotkeyKey", "M"); } set { Set("HotkeyKey", value); OnPropertyChanged("HotkeyKey"); } }
         public string HotkeyModifier { get { return Get("HotkeyModifier", "Control,Shift"); } set { Set("HotkeyModifier", value); OnPropertyChanged("HotkeyModifier"); } }
 
+        // One-shot hotkey: opens the overlay in ONE-SHOT mode regardless of OverlayTriggerMode.
+        // Also read once at startup (needs a restart). Default Ctrl+Shift+, (Oemcomma).
+        public string OneShotHotkeyKey { get { return Get("OneShotHotkeyKey", "Oemcomma"); } set { Set("OneShotHotkeyKey", value); OnPropertyChanged("OneShotHotkeyKey"); } }
+        public string OneShotHotkeyModifier { get { return Get("OneShotHotkeyModifier", "Control,Shift"); } set { Set("OneShotHotkeyModifier", value); OnPropertyChanged("OneShotHotkeyModifier"); } }
+
         private static string Get(string key, string fallback)
         {
             return OverlayActionConfig.ReadRawString(key) ?? fallback;

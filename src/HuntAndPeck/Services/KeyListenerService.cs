@@ -10,6 +10,7 @@ namespace HuntAndPeck.Services
         public event EventHandler OnHotKeyActivated;
         public event EventHandler OnTaskbarHotKeyActivated;
         public event EventHandler OnDebugHotKeyActivated;
+        public event EventHandler OnOneShotHotKeyActivated;
 
         /// <summary>
         /// Global counter for assigning ids to identiy the hot key registration
@@ -19,6 +20,7 @@ namespace HuntAndPeck.Services
         private HotKey _hotKey;
         private HotKey _taskbarHotKey;
         private HotKey _debugHotKey;
+        private HotKey _oneShotHotKey;
 
         /// <summary>
         /// Re-registers the current hotkey, unregistering any previous key
@@ -82,6 +84,23 @@ namespace HuntAndPeck.Services
             }
         }
 
+        /// <summary>
+        /// Gets/sets the one-shot hotkey (opens the overlay in one-shot mode). Changing this
+        /// unregisters the previous key first.
+        /// </summary>
+        public HotKey OneShotHotKey
+        {
+            get
+            {
+                return _oneShotHotKey;
+            }
+            set
+            {
+                _oneShotHotKey = value;
+                ReRegisterHotKey(_oneShotHotKey);
+            }
+        }
+
         protected override void WndProc(ref Message m)
         {
             if (m.Msg == Constants.WM_HOTKEY)
@@ -113,6 +132,15 @@ namespace HuntAndPeck.Services
                     OnDebugHotKeyActivated != null)
                 {
                     OnDebugHotKeyActivated(this, new EventArgs());
+                }
+
+                // One-shot hotkey (opens the overlay in one-shot mode)
+                if (_oneShotHotKey != null &&
+                    e.Key == _oneShotHotKey.Keys &&
+                    e.Modifiers == _oneShotHotKey.Modifier &&
+                    OnOneShotHotKeyActivated != null)
+                {
+                    OnOneShotHotKeyActivated(this, new EventArgs());
                 }
             }
 

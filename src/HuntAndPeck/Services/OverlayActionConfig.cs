@@ -165,6 +165,20 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Whether a freshly opened overlay should start in continuous mode. Pure + unit-tested.
+        /// Continuous requires Grid (Automation labels go stale on navigation) AND the configured
+        /// default Continuous -- UNLESS the opener forces one-shot (the dedicated one-shot hotkey),
+        /// which always wins. <paramref name="gridSource"/> is whether the hint source is Grid;
+        /// <paramref name="configMode"/> is the <see cref="ReadTriggerMode"/> default.
+        /// </summary>
+        public static bool ComputeIsContinuous(bool forceOneShot, bool gridSource, TriggerMode configMode)
+        {
+            if (forceOneShot) return false;
+            if (!gridSource) return false;
+            return configMode == TriggerMode.Continuous;
+        }
+
+        /// <summary>
         /// True when the hint source is Grid (case-insensitive), or blank/unset (Grid is
         /// the default).
         /// </summary>
@@ -435,6 +449,39 @@ namespace HuntAndPeck.Services
             {
                 EnsureFresh();
                 return ParseKeyModifiers(ConfigurationManager.AppSettings["HotkeyModifier"], fallback);
+            }
+            catch (Exception)
+            {
+                return fallback;
+            }
+        }
+
+        /// <summary>
+        /// The dedicated one-shot hotkey key (read once at startup). Opens the overlay in ONE-SHOT
+        /// mode regardless of <see cref="ReadTriggerMode"/>. Default Oemcomma (the "," key).
+        /// Fallback when missing/invalid.
+        /// </summary>
+        public static Keys ReadOneShotHotkeyKey(Keys fallback)
+        {
+            try
+            {
+                EnsureFresh();
+                return ParseKeys(ConfigurationManager.AppSettings["OneShotHotkeyKey"], fallback);
+            }
+            catch (Exception)
+            {
+                return fallback;
+            }
+        }
+
+        /// <summary>The one-shot hotkey modifiers (read once at startup). Default Control|Shift.
+        /// Fallback when missing/invalid.</summary>
+        public static KeyModifier ReadOneShotHotkeyModifier(KeyModifier fallback)
+        {
+            try
+            {
+                EnsureFresh();
+                return ParseKeyModifiers(ConfigurationManager.AppSettings["OneShotHotkeyModifier"], fallback);
             }
             catch (Exception)
             {

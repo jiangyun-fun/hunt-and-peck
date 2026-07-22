@@ -23,9 +23,11 @@ namespace HuntAndPeck.Services.Interfaces
         event EventHandler OnHotKeyActivated;
         event EventHandler OnTaskbarHotKeyActivated;
         event EventHandler OnDebugHotKeyActivated;
+        event EventHandler OnOneShotHotKeyActivated;
 
         HotKey TaskbarHotKey { get; set; }
         HotKey HotKey { get; set; }
         HotKey DebugHotKey { get; set; }
+        HotKey OneShotHotKey { get; set; }
     }
 }

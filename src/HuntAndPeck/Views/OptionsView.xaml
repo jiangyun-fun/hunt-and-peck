@@ -79,6 +79,12 @@
                     <TextBlock Text="Hotkey modifier (comma-separated: Alt, Control, Shift, Windows)" FontWeight="Bold" />
                     <TextBox Text="{Binding HotkeyModifier}" Margin="0,2,0,10" />
 
+                    <TextBlock Text="One-shot hotkey key (opens a one-shot overlay; System.Windows.Forms.Keys name, e.g. Oemcomma)" FontWeight="Bold" />
+                    <TextBox Text="{Binding OneShotHotkeyKey}" Margin="0,2,0,10" />
+
+                    <TextBlock Text="One-shot hotkey modifier (comma-separated: Alt, Control, Shift, Windows)" FontWeight="Bold" />
+                    <TextBox Text="{Binding OneShotHotkeyModifier}" Margin="0,2,0,10" />
+
                     <TextBlock Text="Hotkey changes need a hap.exe restart; everything else hot-reloads." FontStyle="Italic" Foreground="Gray" />
                 </StackPanel>
             </TabItem.Content>

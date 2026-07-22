@@ -1,0 +1,87 @@
+---
+title: "Second hotkey that opens in one-shot mode (default Ctrl+Shift+,) — plan/report"
+author: "Yun Jiang"
+date: "2026-07-22"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⌨️</text></svg>">
+---
+
+# Goal
+
+Add a second global hotkey, default `Ctrl+Shift+,` (comma), that opens the overlay in
+**one-shot** mode regardless of the configured `OverlayTriggerMode` (which now defaults to
+`Continuous`). The main hotkey (`Ctrl+Shift+M`) keeps opening in the configured mode.
+
+Use case: when the default is Continuous, you sometimes just want one quick click —
+`Ctrl+Shift+,` gives it without first opening Continuous and then toggling.
+
+# Design decisions
+
+1. **Configurable, default `Ctrl+Shift+,`** — mirrors the existing `HotkeyKey` /
+   `HotkeyModifier` pattern (read once at startup, restart to apply, exposed in the
+   Options dialog). New keys `OneShotHotkeyKey` (default `Oemcomma`) / `OneShotHotkeyModifier`
+   (default `Control,Shift`). Hardcoding was considered and rejected: the project makes every
+   other setting configurable, and symmetry with the main hotkey is low extra cost.
+
+2. **Forces one-shot on the open path.** Thread a `bool forceOneShot` through the
+   hotkey→open logic; `forceOneShot=true` overrides `OverlayTriggerMode=Continuous`.
+   Extracted as a pure, unit-tested `OverlayActionConfig.ComputeIsContinuous(...)` so the
+   decision rule is testable without the VM/hook plumbing.
+
+3. **Both hotkeys toggle one-click ⇄ continuous when the overlay is already up**
+   (existing `_toggleOverlayMode` path). Side benefit: cross-hotkey use lands on the right
+   mode — open Continuous via `Ctrl+Shift+M`, then press `Ctrl+Shift+,` to flip to one-shot.
+
+# Verification of the key code (Rule #0)
+
+The config value is a `System.Windows.Forms.Keys` name parsed via `Enum.TryParse`, and the
+C# fallback constant must be a real enum member. Confirmed against the authoritative source:
+**`Oemcomma` = 188 (0xBC), "The OEM comma key on any country/region keyboard"**, present in
+`netframework-4.5.1` ([Microsoft Learn — Keys Enum](
+https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.keys)). C# identifier:
+`Keys.Oemcomma` (lowercase `c`). `Ctrl+Shift+,` reaches the OS while the overlay is up because
+the LL hook passes through any key with Ctrl held (`ctrlAltWin` gate), so the global hotkey
+still fires. Comma is not a label char (letters + digits only), so there is no capture
+conflict.
+
+# Files to change (all edits to existing files — no new .cs, no csproj churn)
+
+- `Services/OverlayActionConfig.cs` — add `ReadOneShotHotkeyKey` / `ReadOneShotHotkeyModifier`
+  (mirror the main-hotkey readers) and the pure `ComputeIsContinuous(forceOneShot, gridSource,
+  configMode)`.
+- `Services/Interfaces/IKeyListenerService.cs` — add `event EventHandler
+  OnOneShotHotKeyActivated` + `HotKey OneShotHotKey { get; set; }`.
+- `Services/KeyListenerService.cs` — add the `_oneShotHotKey` field, the `OneShotHotKey`
+  property (re-register on set, mirroring `HotKey`), and a dispatch block in `WndProc`.
+- `ViewModels/ShellViewModel.cs` — register `OneShotHotKey` (default
+  `Oemcomma` / `Control|Shift`), subscribe `OnOneShotHotKeyActivated`, refactor the open body
+  of `_keyListener_OnHotKeyActivated` into `OpenOverlayAsync(bool forceOneShot)`, and have two
+  thin `async void` handlers call it with `false` / `true`.
+- `ViewModels/OptionsViewModel.cs` — `OneShotHotkeyKey` / `OneShotHotkeyModifier` props.
+- `Views/OptionsView.xaml` — two TextBox rows in the Keyboard tab.
+- `App.config` — `OneShotHotkeyKey` / `OneShotHotkeyModifier` with comments.
+- `HuntAndPeck.Tests/Services/OverlayActionConfigTest.cs` — theory for `ComputeIsContinuous`.
+- `CLAUDE.md`, `CHANGELOG.md` — document the second hotkey.
+
+# Risks / assumptions
+
+- **Registered hotkeys are assumed distinct** (matches the existing implicit contract —
+  `WndProc` uses separate `if`s, so a duplicate combo would fire both). If a user sets the
+  one-shot hotkey equal to the main one, both events fire; not guarded, matching current
+  behavior. Low risk (defaults differ).
+- `RegisterHotKey` with an OEM key works on standard layouts; a non-US layout where comma is
+  a different physical key still sends `VK_OEM_COMMA` for the `,` position, so the hotkey is
+  positional. Acceptable.
+- Restart required to apply (startup-only), same as the main hotkey.
+
+# Verification
+
+CI compile + xUnit green (new `ComputeIsContinuous` theory covers the forceOneShot override,
+Automation one-shot, and config OneClick cases). Runtime (Windows): `Ctrl+Shift+,` opens a
+one-shot overlay that closes after one click even when `OverlayTriggerMode=Continuous`;
+`Ctrl+Shift+M` still opens in the configured mode; pressing `Ctrl+Shift+,` while a Continuous
+overlay is up flips it to one-shot.

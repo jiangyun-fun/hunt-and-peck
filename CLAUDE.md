@@ -116,7 +116,10 @@ Two kinds of settings:
   `NudgeStepFast`, `ClickModeOrder`, `MaxEnumerationDepth`, `TimingLogEnabled`.
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
-  dismisses open context menus even inside a chord).
+  dismisses open context menus even inside a chord); and the dedicated one-shot
+  hotkey `OneShotHotkeyKey`, `OneShotHotkeyModifier` (default `Ctrl+Shift+,` /
+  `Oemcomma`, which opens the overlay in one-shot mode regardless of
+  `OverlayTriggerMode`).
 
 `HintCharacters` accepts any chars (letters **and** digits); the matching input
 allows `A–Z` and `D0–D9`.
@@ -129,6 +132,10 @@ allows `A–Z` and `D0–D9`.
   cycles to the next monitor (wraps), **Shift+Tab** to the previous; each monitor shows
   its own labels and the typed prefix + pan reset on switch. (Cycling is Grid + Screen
   only; Automation / Grid+Window stay single-session.)
+- **One-shot hotkey** `Ctrl+Shift+,` (`OneShotHotkeyKey`/`OneShotHotkeyModifier`,
+  startup-only) → opens the overlay in **one-shot** mode regardless of `OverlayTriggerMode`
+  — handy for a quick single click when the default is Continuous. Pressing either hotkey
+  while the overlay is already up toggles one-click ⇄ continuous.
 - **Labels are all highlighted (yellow) at start**; typing narrows the highlight to the
   matching labels; a unique match fires. (In continuous mode the highlight resets to
   all-yellow after each click.)

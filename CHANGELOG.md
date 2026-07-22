@@ -6,6 +6,16 @@ built `HuntAndPeck-<tag>.zip`.
 
 ## [Unreleased]
 
+### Added
+- **Second hotkey that opens in one-shot mode** (`OneShotHotkeyKey` /
+  `OneShotHotkeyModifier`, startup-only; default `Ctrl+Shift+,` / `Oemcomma`). Opens the
+  overlay in one-shot mode regardless of the configured `OverlayTriggerMode` — handy for a
+  quick single click when the default is Continuous (so you don't have to open Continuous and
+  then toggle). The main hotkey (`Ctrl+Shift+M`) still honors the configured mode. Pressing
+  either hotkey while the overlay is already up toggles one-click ⇄ continuous (Grid only).
+  Exposed in the Options dialog. The trigger-mode decision was extracted into a pure,
+  unit-tested `OverlayActionConfig.ComputeIsContinuous(forceOneShot, gridSource, configMode)`.
+
 ## [v2.2.0] — 2026-07-22
 
 ### Added

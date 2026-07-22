@@ -126,6 +126,18 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Theory]
+        [InlineData(false, true, TriggerMode.Continuous, true)]   // Grid + config Continuous -> continuous
+        [InlineData(true, true, TriggerMode.Continuous, false)]   // forced one-shot overrides Continuous
+        [InlineData(false, false, TriggerMode.Continuous, false)] // Automation stays one-shot
+        [InlineData(false, true, TriggerMode.OneClick, false)]    // config OneClick
+        [InlineData(true, false, TriggerMode.Continuous, false)]  // forced + Automation
+        [InlineData(true, true, TriggerMode.OneClick, false)]     // forced + config OneClick
+        public void ComputeIsContinuous_RespectsForceOneShotAndGrid(bool forceOneShot, bool gridSource, TriggerMode configMode, bool expected)
+        {
+            Assert.Equal(expected, OverlayActionConfig.ComputeIsContinuous(forceOneShot, gridSource, configMode));
+        }
+
+        [Theory]
         [InlineData("Grid", HintBounds.Screen, false)]       // duplicating combo -> skip
         [InlineData(null, HintBounds.Screen, false)]         // Grid default + Screen -> skip
         [InlineData("", HintBounds.Screen, false)]

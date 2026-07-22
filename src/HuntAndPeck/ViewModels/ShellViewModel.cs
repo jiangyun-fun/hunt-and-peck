@@ -55,6 +55,16 @@ namespace HuntAndPeck.ViewModels
                     KeyModifier.Control | KeyModifier.Shift)
             };
 
+            // Dedicated one-shot hotkey: opens the overlay in ONE-SHOT mode regardless of the
+            // configured OverlayTriggerMode (handy for a quick single click when the default is
+            // Continuous). Read once at startup; restart to apply. Default Ctrl+Shift+, (Oemcomma).
+            keyListener1.OneShotHotKey = new HotKey
+            {
+                Keys = OverlayActionConfig.ReadOneShotHotkeyKey(Keys.Oemcomma),
+                Modifier = OverlayActionConfig.ReadOneShotHotkeyModifier(
+                    KeyModifier.Control | KeyModifier.Shift)
+            };
+
 #if DEBUG
             keyListener1.DebugHotKey = new HotKey
             {
@@ -64,6 +74,7 @@ namespace HuntAndPeck.ViewModels
 #endif
 
             keyListener1.OnHotKeyActivated += _keyListener_OnHotKeyActivated;
+            keyListener1.OnOneShotHotKeyActivated += _keyListener_OnOneShotHotKeyActivated;
             keyListener1.OnDebugHotKeyActivated += _keyListener_OnDebugHotKeyActivated;
 
             ShowOptionsCommand = new DelegateCommand(ShowOptions);
@@ -74,6 +85,18 @@ namespace HuntAndPeck.ViewModels
         public DelegateCommand ExitCommand { get; }
 
         private async void _keyListener_OnHotKeyActivated(object sender, EventArgs e)
+            => await OpenOverlayAsync(forceOneShot: false);
+
+        private async void _keyListener_OnOneShotHotKeyActivated(object sender, EventArgs e)
+            => await OpenOverlayAsync(forceOneShot: true);
+
+        /// <summary>
+        /// Opens the overlay. <paramref name="forceOneShot"/> (the dedicated one-shot hotkey)
+        /// forces one-shot mode regardless of the configured <c>OverlayTriggerMode</c>; the main
+        /// hotkey passes <c>false</c> and honors the config. If the overlay is already up, either
+        /// hotkey toggles one-click &lt;-&gt; continuous (Grid only).
+        /// </summary>
+        private async Task OpenOverlayAsync(bool forceOneShot)
         {
             // Overlay already up: a 2nd hotkey press toggles one-click <-> continuous
             // (Grid only; Automation stays one-shot). Esc / a mouse click closes it.
@@ -99,9 +122,10 @@ namespace HuntAndPeck.ViewModels
             // Otherwise (Automation, Grid + Window) use a single session + taskbar merge.
             var cycleCapable = gridSource && OverlayActionConfig.ReadHintBounds() == HintBounds.Screen;
             // Continuous mode is meaningful only for Grid (its labels are fixed screen
-            // points that survive navigation); Automation stays one-shot.
-            var continuous = gridSource
-                             && OverlayActionConfig.ReadTriggerMode() == TriggerMode.Continuous;
+            // points that survive navigation); Automation stays one-shot. forceOneShot
+            // (the one-shot hotkey) overrides a Continuous config default.
+            var continuous = OverlayActionConfig.ComputeIsContinuous(
+                forceOneShot, gridSource, OverlayActionConfig.ReadTriggerMode());
 
             var sw = Stopwatch.StartNew();
             if (cycleCapable)
