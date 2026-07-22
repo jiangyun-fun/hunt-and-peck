@@ -67,6 +67,10 @@ built `HuntAndPeck-<tag>.zip`.
   `OverlayView` opts out of both, `DebugOverlayView` keeps the old behavior.
 
 ### Fixed
+- **Esc clears the typed prefix instead of exiting.** If at least one label char has been
+  typed, Esc now clears the prefix (cancel the selection, re-highlight all labels, stay
+  up) so a mistyped char can be retyped from scratch; Esc on an empty prefix still closes
+  the overlay. Pan and click-mode are preserved on a clear.
 - **Numpad keys no longer captured by the overlay.** With NumLock off, the numpad arrow
   keys reuse the arrow VK codes (numpad 6 → `VK_RIGHT`, etc.), so the overlay was
   swallowing them as label pan — breaking numpad-mouse tools (e.g. an AutoHotkey

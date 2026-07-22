@@ -300,6 +300,24 @@ namespace HuntAndPeck.ViewModels
             ApplyMatch(_match);
         }
 
+        /// <summary>
+        /// Esc behavior: if a prefix has been typed, clear it (cancel the selection, stay
+        /// up) so the user can retype from scratch; if nothing is typed, close the overlay.
+        /// This matches the fuzzy-finder convention (Esc clears, Esc-on-empty exits) and
+        /// forgives a mistyped char without losing the overlay. Pan/click-mode are kept.
+        /// </summary>
+        public void HandleEscape()
+        {
+            if (!string.IsNullOrEmpty(_match))
+            {
+                ClearMatch();
+            }
+            else
+            {
+                CloseOverlay?.Invoke();
+            }
+        }
+
         private void ApplyMatch(string value)
         {
             var matching = Hints.Where(x => x.Label.StartsWith(value, StringComparison.OrdinalIgnoreCase)).ToList();

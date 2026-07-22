@@ -169,7 +169,9 @@ allows `A–Z` and `D0–D9`.
   item, then `Esc`. `OneClick` closes the overlay after one click. Press the hotkey
   again while the overlay is up to toggle one-click ⇄ continuous (badge bottom-center).
   Automation ignores this and stays one-shot.
-- **Esc** cancels. Any **mouse click** also dismisses the overlay (and still reaches
+- **Esc** clears the typed prefix if any has been typed (cancel the selection, stay up
+  so you can retype from scratch); if nothing is typed, it closes the overlay. Pan and
+  click-mode are kept on a clear. Any **mouse click** also dismisses the overlay (and still reaches
   the app beneath).
 - **Doesn't dismiss open menus**: the overlay shows non-activated, so an open context
   menu / popup stays open when you press the hotkey — you can label-click items inside

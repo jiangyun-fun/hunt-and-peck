@@ -258,7 +258,7 @@ namespace HuntAndPeck.Services
             switch (act.Kind)
             {
                 case OverlayKeyActionKind.Escape:
-                    return _close;
+                    return () => _vm.HandleEscape();
                 case OverlayKeyActionKind.CycleMode:
                     return () => _vm.CycleMode();
                 case OverlayKeyActionKind.CycleMonitorNext:
