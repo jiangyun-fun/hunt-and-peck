@@ -24,13 +24,18 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal(OverlayKeyActionKind.CycleMode, act.Kind);
         }
 
-        [Theory]
-        [InlineData(false, OverlayKeyActionKind.CycleMonitorNext)]
-        [InlineData(true, OverlayKeyActionKind.CycleMonitorPrev)]
-        public void Tab_CyclesMonitorByShift(bool shift, OverlayKeyActionKind expected)
+        [Fact]
+        public void Tab_NoShift_CyclesNextMonitor()
         {
-            var act = OverlayKeyboardHook.Classify(User32.VK_TAB, shift, false);
-            Assert.Equal(expected, act.Kind);
+            var act = OverlayKeyboardHook.Classify(User32.VK_TAB, false, false);
+            Assert.Equal(OverlayKeyActionKind.CycleMonitorNext, act.Kind);
+        }
+
+        [Fact]
+        public void Tab_WithShift_CyclesPrevMonitor()
+        {
+            var act = OverlayKeyboardHook.Classify(User32.VK_TAB, true, false);
+            Assert.Equal(OverlayKeyActionKind.CycleMonitorPrev, act.Kind);
         }
 
         [Theory]
