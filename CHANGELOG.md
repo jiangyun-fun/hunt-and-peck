@@ -6,6 +6,8 @@ built `HuntAndPeck-<tag>.zip`.
 
 ## [Unreleased]
 
+## [v2.2.0] — 2026-07-22
+
 ### Added
 - **Label dim (backtick)**: drops label opacity to ~20% so the text behind is readable;
   press backtick again to restore. Keys stay captured, so labels remain typeable while
