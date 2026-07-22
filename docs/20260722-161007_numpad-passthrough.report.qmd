@@ -1,0 +1,37 @@
+---
+title: "Numpad keys pass through (numpad-mouse compatible) — report"
+author: "Yun Jiang"
+date: "2026-07-22"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖱️</text></svg>">
+---
+
+# Status
+
+Done and shipped. CI green (Build ✓, Test ✓). Plan:
+[`20260722-161007_numpad-passthrough.plan.qmd`](20260722-161007_numpad-passthrough.plan.qmd).
+
+# What was done
+
+Numpad arrow keys (NumLock off) no longer get captured by the overlay, so the user's
+AutoHotkey numpad-mouse script works while labels are showing. The `WH_KEYBOARD_LL`
+extended-key flag (`LLKHF_EXTENDED`) distinguishes the dedicated arrow cluster (extended
+→ still pans) from the numpad keys (not extended → pass through). `Classify` gained an
+`extended` param; the 3-arg overload (tests) defaults true. Numpad digit/operator keys
+were already not captured.
+
+# Verification
+
+- CI run 29902984006: Build ✓, Test ✓ (new `NumpadArrows_NotExtended_PassThrough`;
+  existing arrow tests still nudge via the 3-arg default).
+- Drop: `…/hap-numpad/hap.exe`.
+- Runtime (pending, Windows): overlay up + NumLock off → numpad arrows move the mouse via
+  the AHK script; real arrow keys still pan labels.
+
+# Commit
+
+`41cc03c` on `master`.
