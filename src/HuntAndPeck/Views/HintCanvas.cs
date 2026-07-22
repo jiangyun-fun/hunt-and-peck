@@ -18,11 +18,6 @@ namespace HuntAndPeck.Views
     /// </summary>
     public class HintCanvas : FrameworkElement
     {
-        // Semi-transparent pill fills (alpha 0xCC ~= 0.8): softens the vivid yellow and
-        // lets a hint of the background show through. The text brush stays fully opaque,
-        // so the label stays crisp (dimming the whole canvas would also dull the text).
-        private static readonly Brush ActiveBg = SemiBrush(0xCC, 0xFF, 0xFF, 0x00);   // yellow
-        private static readonly Brush InactiveBg = SemiBrush(0xCC, 0xFF, 0xFA, 0xCD); // light yellow
         private static readonly Brush TextBrush = Brushes.Black;
         private static readonly Typeface LabelTypeface =
             new Typeface(new FontFamily("Helvetica, Arial"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
@@ -35,16 +30,62 @@ namespace HuntAndPeck.Views
         private List<DrawingVisual> _visualByHint;
         private double _fontSize = 14;
 
+        // Pill fill brushes, rebuilt when PillOpacity changes. Semi-transparent so the
+        // vivid yellow softens and background peeks through; the text stays fully opaque
+        // (crisp). Opacity is configurable via HintPillOpacity (default 0.8).
+        private Brush _activeBg;
+        private Brush _inactiveBg;
+
         // Padding between the label text and the edge of its pill.
         private const double Pad = 2.0;
+        private const double DefaultPillOpacity = 0.8;
 
         public HintCanvas()
         {
             _visuals = new VisualCollection(this);
+            BuildBrushes();
         }
 
-        private static Brush SemiBrush(byte a, byte r, byte g, byte b)
+        /// <summary>
+        /// Pill fill opacity (0-1), bound from the view-model. Softens the vivid yellow;
+        /// the text stays fully opaque regardless. Changing it rebuilds the brushes and
+        /// re-renders every label.
+        /// </summary>
+        public static readonly DependencyProperty PillOpacityProperty =
+            DependencyProperty.Register("PillOpacity", typeof(double), typeof(HintCanvas),
+                new FrameworkPropertyMetadata(DefaultPillOpacity, OnPillOpacityChanged));
+
+        public double PillOpacity
         {
+            get { return (double)GetValue(PillOpacityProperty); }
+            set { SetValue(PillOpacityProperty, value); }
+        }
+
+        private static void OnPillOpacityChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var c = (HintCanvas)d;
+            c.BuildBrushes();
+            if (c._hints != null)
+            {
+                for (int i = 0; i < c._hints.Count; i++)
+                {
+                    c.RenderHint(i);
+                }
+            }
+        }
+
+        private void BuildBrushes()
+        {
+            double alpha = PillOpacity;
+            if (alpha < 0) alpha = 0;
+            else if (alpha > 1) alpha = 1;
+            _activeBg = SemiBrush(alpha, 0xFF, 0xFF, 0x00);    // yellow
+            _inactiveBg = SemiBrush(alpha, 0xFF, 0xFA, 0xCD);  // light yellow
+        }
+
+        private static Brush SemiBrush(double alpha, byte r, byte g, byte b)
+        {
+            byte a = (byte)Math.Round(alpha * 255.0);
             var br = new SolidColorBrush(Color.FromArgb(a, r, g, b));
             br.Freeze();
             return br;
@@ -173,7 +214,7 @@ namespace HuntAndPeck.Views
 
             using (var dc = _visualByHint[i].RenderOpen())
             {
-                dc.DrawRoundedRectangle(h.Active ? ActiveBg : InactiveBg, null,
+                dc.DrawRoundedRectangle(h.Active ? _activeBg : _inactiveBg, null,
                     new Rect(x, y, ft.Width + Pad * 2, ft.Height + Pad * 2), 3, 3);
                 dc.DrawText(ft, new Point(x + Pad, y + Pad));
             }

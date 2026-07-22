@@ -112,7 +112,7 @@ Two kinds of settings:
 - **Hot-reload** (read each trigger; edit `hap.exe.config`, save, re-trigger):
   `HintSource`, `HintBoundsSource`, `OverlayTriggerMode`, `GridEdgeStep`,
   `GridCenterStep`, `GridDenseRegions`, `GridInset`, `GridEdgeBandPercent`,
-  `HintCharacters`, `HintFontSize`, `NudgeStep`, `NudgeStepFast`,
+  `HintCharacters`, `HintFontSize`, `HintPillOpacity`, `NudgeStep`, `NudgeStepFast`,
   `ClickModeOrder`, `MaxEnumerationDepth`, `TimingLogEnabled`.
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
@@ -156,9 +156,10 @@ allows `A–Z` and `D0–D9`.
   collision. Clicks pass through (no dismiss). Resume by pressing the **main hotkey**
   (`Ctrl+Shift+M` / `Capslock+f`) again; `Esc` closes. Per-session (resets each new
   overlay).
-- **Labels are slightly transparent by design**: the pill fill is α≈0.8 (softened
-  yellow, background peeks through) while the text stays fully opaque (crisp). Base
-  mode is NOT dimmed canvas-wide, so it stays readable on dark backgrounds.
+- **Labels are slightly transparent by design**: the pill fill is α≈0.8 by default
+  (softened yellow, background peeks through) while the text stays fully opaque
+  (crisp). Configurable via `HintPillOpacity` (0-100 percent; hot-reload). Base mode
+  is NOT dimmed canvas-wide, so it stays readable on dark backgrounds.
 - **Trigger mode** (`OverlayTriggerMode`, hot-reload; Grid only): `OneClick` (default)
   closes the overlay after one click; `Continuous` keeps it up for repeated clicks
   until `Esc` / a mouse click — e.g. `af`→navigate, `bd`→click again, `Space`→

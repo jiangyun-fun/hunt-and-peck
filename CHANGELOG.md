@@ -17,9 +17,12 @@ built `HuntAndPeck-<tag>.zip`.
   so you can type into the app beneath (vimium, Excel) with zero key collision; clicks
   pass through (no dismiss). Resume by pressing the main hotkey again; Esc closes.
   Per-session.
-- **Softer label pills**: the pill fill is now α≈0.8 (less vivid yellow, background
-  peeks through) while the text stays fully opaque, so labels are crisp yet less
-  glaring. Base mode is not dimmed canvas-wide.
+- **Softer label pills**: the pill fill is now α≈0.8 by default (less vivid yellow,
+  background peeks through) while the text stays fully opaque, so labels are crisp yet
+  less glaring. Base mode is not dimmed canvas-wide.
+- **Configurable pill opacity** (`HintPillOpacity`, hot-reload): percent 0-100 (default
+  80) controlling the pill fill alpha; the label text stays fully opaque regardless.
+  Exposed in the Options dialog.
 - **Decluttered overlay**: removed the top-left gesture legend; moved the click-mode and
   trigger-mode badges into one bottom-center status strip (over the empty taskbar
   middle). The click-mode badge hides while suspended so only `SUSPENDED` shows.
@@ -56,6 +59,13 @@ built `HuntAndPeck-<tag>.zip`.
   `OverlayView` opts out of both, `DebugOverlayView` keeps the old behavior.
 
 ### Fixed
+- **Alt+Tab works again.** While the overlay was up, `Alt+Tab` stopped switching
+  windows (Tab was swallowed as "cycle monitor"). Root cause: the low-level hook
+  delivers Alt as `VK_LMENU`/`VK_RMENU`, not the `VK_MENU` the event tracker checked,
+  so the held-Alt passthrough never armed; and Tab is classified before the Ctrl/Alt/
+  Win gate, so it was eaten. Now Alt is also recognized as `VK_LMENU`/`VK_RMENU` and
+  backstopped with `GetAsyncKeyState(VK_MENU)`, so Alt+Tab (and Alt+anything) passes
+  through. Capslock stays event-only (its OS state can be neutralized by AutoHotkey).
 - **Open context menus / popups survive the hotkey.** Pressing the hotkey no longer
   dismisses an open right-click menu (File Manager, Edge, etc.). The overlay used to
   force itself to the foreground to capture typed label chars via WPF focus, and that

@@ -30,6 +30,9 @@
                         <TextBlock Text="Hint characters" FontWeight="Bold" />
                         <TextBox Text="{Binding HintCharacters}" Margin="0,2,0,10" />
 
+                        <TextBlock Text="Pill opacity (0-100; lower = more see-through, text stays crisp)" FontWeight="Bold" />
+                        <TextBox Text="{Binding HintPillOpacity}" Margin="0,2,0,10" />
+
                         <TextBlock Text="Grid edge step (px)" FontWeight="Bold" />
                         <TextBox Text="{Binding GridEdgeStep}" Margin="0,2,0,10" />
 

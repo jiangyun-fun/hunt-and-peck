@@ -20,6 +20,20 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Theory]
+        [InlineData("80", 50, 80)]
+        [InlineData("0", 50, 0)]       // 0 is a valid percent (fully transparent pill)
+        [InlineData("100", 50, 100)]
+        [InlineData("150", 50, 100)]   // clamped to 100
+        [InlineData("-5", 50, 0)]      // clamped to 0
+        [InlineData("", 50, 50)]       // blank -> default
+        [InlineData("not-a-number", 80, 80)]
+        [InlineData(null, 80, 80)]
+        public void ParsePercent_ParsesOrClampsOrDefault(string raw, int defaultValue, int expected)
+        {
+            Assert.Equal(expected, OverlayActionConfig.ParsePercent(raw, defaultValue));
+        }
+
+        [Theory]
         [InlineData("Left,Right,Double,Move", 4)]
         [InlineData("", 4)]          // empty -> default order (4)
         [InlineData(null, 4)]

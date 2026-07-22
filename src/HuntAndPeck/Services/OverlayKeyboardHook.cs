@@ -146,7 +146,7 @@ namespace HuntAndPeck.Services
             // see the physical keydown before AHK suppresses it -- GetAsyncKeyState
             // misses a Capslock AHK has neutralized for a custom combo (Capslock & f),
             // but the raw event still reaches us. Update on both down and up.
-            if (vk == User32.VK_MENU)
+            if (vk == User32.VK_MENU || vk == User32.VK_LMENU || vk == User32.VK_RMENU)
             {
                 _altHeld = down;
             }
@@ -158,7 +158,16 @@ namespace HuntAndPeck.Services
             // Suspend overlay key-capture while Alt or Capslock is held, OR while the
             // user has toggled persistent suspend: pass everything straight through so
             // system / AHK combos and normal app typing reach the foreground app.
-            if (_altHeld || _capsHeld || (_vm != null && _vm.Suspended))
+            //
+            // Alt is also checked via GetAsyncKeyState(VK_MENU) as a backstop. The LL
+            // hook delivers Alt as VK_LMENU/VK_RMENU (tracked above), but Tab is always
+            // classified as cycle-monitor BEFORE the Ctrl/Alt/Win check below -- so
+            // without this Alt gate the Tab in Alt+Tab would be swallowed and never reach
+            // the OS window switcher. GetAsyncKeyState(VK_MENU) reads Alt reliably here.
+            // (Capslock stays event-only: GetAsyncKeyState(VK_CAPITAL) misses a Capslock
+            // AutoHotkey has neutralized for a custom combo.)
+            bool altHeld = _altHeld || IsDown(User32.VK_MENU);
+            if (altHeld || _capsHeld || (_vm != null && _vm.Suspended))
             {
                 return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
             }

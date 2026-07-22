@@ -62,6 +62,8 @@ namespace HuntAndPeck.ViewModels
             set { Set("HintCharacters", value); OnPropertyChanged("HintCharacters"); }
         }
 
+        public string HintPillOpacity { get { return Get("HintPillOpacity", "80"); } set { Set("HintPillOpacity", value); OnPropertyChanged("HintPillOpacity"); } }
+
         public string GridEdgeStep { get { return Get("GridEdgeStep", "30"); } set { Set("GridEdgeStep", value); OnPropertyChanged("GridEdgeStep"); } }
         public string GridCenterStep { get { return Get("GridCenterStep", "50"); } set { Set("GridCenterStep", value); OnPropertyChanged("GridCenterStep"); } }
         public string GridInset { get { return Get("GridInset", "10"); } set { Set("GridInset", value); OnPropertyChanged("GridInset"); } }

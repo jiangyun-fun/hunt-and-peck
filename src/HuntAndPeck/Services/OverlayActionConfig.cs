@@ -122,6 +122,21 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Parses a percent (0-100, clamped). Returns defaultValue when blank or non-numeric.
+        /// </summary>
+        public static int ParsePercent(string raw, int defaultValue)
+        {
+            int v;
+            if (int.TryParse(raw, out v))
+            {
+                if (v < 0) return 0;
+                if (v > 100) return 100;
+                return v;
+            }
+            return defaultValue;
+        }
+
+        /// <summary>
         /// Parses a HintBounds name (case-insensitive). Returns defaultValue when blank
         /// or unrecognized so a bad config never breaks the app.
         /// </summary>
@@ -244,6 +259,25 @@ namespace HuntAndPeck.Services
             {
                 // Deliberate fallback so a malformed config keeps the app usable.
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Hint pill fill opacity as 0.0-1.0 (hot-reload). Configured as a percent
+        /// (0-100, default 80): softens the vivid yellow so background peeks through,
+        /// while the label text stays fully opaque. Bad/missing values fall back to 0.8.
+        /// </summary>
+        public static double ReadHintPillOpacity()
+        {
+            try
+            {
+                EnsureFresh();
+                return ParsePercent(ConfigurationManager.AppSettings["HintPillOpacity"], 80) / 100.0;
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return 0.8;
             }
         }
 

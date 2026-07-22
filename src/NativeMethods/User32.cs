@@ -143,7 +143,9 @@ namespace HuntAndPeck.NativeMethods
         // Virtual key codes
         public const int VK_SHIFT = 0x10;
         public const int VK_CONTROL = 0x11;
-        public const int VK_MENU = 0x12;       // ALT
+        public const int VK_MENU = 0x12;       // ALT (generic -- what GetAsyncKeyState reports)
+        public const int VK_LMENU = 0xA4;      // Left ALT (what the LL hook delivers Alt as)
+        public const int VK_RMENU = 0xA5;      // Right ALT
         public const int VK_CAPITAL = 0x14;    // Capslock (held => suspend overlay capture)
         public const int VK_LWIN = 0x5B;
         public const int VK_RWIN = 0x5C;

@@ -1,0 +1,61 @@
+---
+title: "Alt+Tab fix + HintPillOpacity config — plan/report"
+author: "Yun Jiang"
+date: "2026-07-22"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
+---
+
+# Two changes in one drop
+
+## 1. Fix: Alt+Tab no longer switched windows (regression)
+
+**Symptom:** with the overlay up, `Alt+Tab` did not switch windows; the next keystrokes
+(e.g. "tag") were captured by the overlay.
+
+**Root cause** (`src/HuntAndPeck/Services/OverlayKeyboardHook.cs`): `Tab` is *always*
+classified as `CycleMonitorNext` in `Classify` — that branch runs **before** the
+Ctrl/Alt/Win gate, so Tab is swallowed (`return 1`) unless the early held-modifier
+passthrough fires. That passthrough checked only `_altHeld`, which was set on
+`vk == VK_MENU (0x12)`. But the `WH_KEYBOARD_LL` hook delivers Alt as
+`VK_LMENU (0xA4)` / `VK_RMENU (0xA5)` (you can distinguish left/right Alt *because* the
+raw hook gives the specific codes), so `_altHeld` never became true → Tab was eaten →
+Alt+Tab never reached the OS.
+
+**Fix** (robust either way):
+
+- Track Alt on `VK_MENU || VK_LMENU || VK_RMENU` (added the two codes to `User32`).
+- Backstop the passthrough with `IsDown(VK_MENU)` (`GetAsyncKeyState` reads the generic
+  Alt state reliably — unlike Capslock, which AHK can neutralize, so Capslock stays
+  event-only).
+
+## 2. Feat: configurable pill opacity (`HintPillOpacity`)
+
+The base pill's α=0.8 was hardcoded. Make it a hot-reload config key (percent 0-100,
+default 80): `App.config` → `OverlayActionConfig.ReadHintPillOpacity` /
+`ParsePercent` → `OverlayViewModel.PillOpacity` (read once per overlay) → bound to a new
+`HintCanvas.PillOpacity` DP that rebuilds the semi-transparent brushes + re-renders.
+Exposed in the Options dialog. The label **text** stays fully opaque regardless (crisp).
+
+# Files
+
+`NativeMethods/User32.cs` (VK_LMENU/VK_RMENU),
+`Services/OverlayKeyboardHook.cs` (Alt tracking + passthrough backstop),
+`Services/OverlayActionConfig.cs` (`ParsePercent`, `ReadHintPillOpacity`),
+`ViewModels/OverlayViewModel.cs` (`_pillOpacity`/`PillOpacity`),
+`Views/HintCanvas.cs` (`PillOpacity` DP, instance brushes, `BuildBrushes`),
+`Views/OverlayView.xaml` (`PillOpacity` binding),
+`ViewModels/OptionsViewModel.cs` + `Views/OptionsView.xaml` (dialog row),
+`App.config` (`HintPillOpacity=80`),
+`HuntAndPeck.Tests/Services/OverlayActionConfigTest.cs` (`ParsePercent` theory),
+`CLAUDE.md`, `CHANGELOG.md`.
+
+# Verification
+
+CI compile + xUnit green (incl. new `ParsePercent` theory). Runtime (Windows): Alt+Tab
+switches windows while the overlay is up; pill opacity follows `HintPillOpacity`
+(hot-reload on next trigger), text stays crisp.

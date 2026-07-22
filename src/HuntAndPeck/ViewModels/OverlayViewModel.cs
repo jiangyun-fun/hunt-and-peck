@@ -22,6 +22,7 @@ namespace HuntAndPeck.ViewModels
 
         private readonly IHintLabelService _hintLabelService;
         private readonly string _fontSizeRaw;
+        private readonly double _pillOpacity;
         private readonly IList<HintSession> _sessions;
         private int _currentSession;
         private string _match = "";
@@ -57,6 +58,8 @@ namespace HuntAndPeck.ViewModels
             // reads and dominated latency at high label counts.
             _fontSizeRaw = OverlayActionConfig.ReadHintFontSize()
                 ?? HuntAndPeck.Properties.Settings.Default.FontSize;
+            // Pill fill opacity (0-1) read once per overlay; bound to HintCanvas.
+            _pillOpacity = OverlayActionConfig.ReadHintPillOpacity();
 
             if (_sessions.Count > 0)
             {
@@ -129,6 +132,12 @@ namespace HuntAndPeck.ViewModels
             get { return _offsetY; }
             set { _offsetY = value; NotifyOfPropertyChange(); }
         }
+
+        /// <summary>
+        /// Pill fill opacity (0-1), bound to HintCanvas. Softens the vivid yellow; the
+        /// text stays fully opaque. Hot-reload via the HintPillOpacity config key.
+        /// </summary>
+        public double PillOpacity => _pillOpacity;
 
         private ClickAction CurrentAction
         {
