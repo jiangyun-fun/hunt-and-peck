@@ -1,0 +1,70 @@
+---
+title: "Label read-mode (two-tone outline) — report"
+author: "Yun Jiang"
+date: "2026-07-22"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
+---
+
+# Status
+
+Done and shipped. CI green (Build ✓, Test ✓). Plan:
+[`20260722-143930_label-read-mode.plan.qmd`](20260722-143930_label-read-mode.plan.qmd).
+
+# What was done
+
+Replaced the backtick **global-opacity dim** (which coupled label contrast to the
+background and vanished on dark surfaces) with a **render-style switch**:
+
+- **Read-mode (backtick)** drops the pill and draws each label as a **two-tone
+  outline** — yellow fill + black stroke — at **full opacity**. Stroke gives the
+  edge on light backgrounds; fill pops on dark ones → crisp on any background,
+  while the missing pill lets the text behind show through.
+- **Base pill mode unchanged** (already legible on dark backgrounds).
+
+Files:
+
+- `src/HuntAndPeck/Views/HintCanvas.cs` — caches a `BuildGeometry` outline per
+  label (once, like the existing `FormattedText` cache), a frozen `_outlinePen`
+  (thickness `max(1, fontSize/9)`), a new `ReadMode` DP whose change callback
+  re-renders every visual, and a `RenderHint` branch (base = `DrawRoundedRectangle`
+  pill + `DrawText`; read = `DrawGeometry(fill, pen, geom)`).
+- `src/HuntAndPeck/ViewModels/OverlayViewModel.cs` — `ReadMode`/`ToggleReadMode`;
+  `LabelOpacity` now reflects **only** suspend (suspend still dims, by design).
+- `src/HuntAndPeck/Services/OverlayKeyboardHook.cs` — enum `ToggleOpacity` →
+  `ToggleReadMode`; `VK_OEM_3` → `ToggleReadMode`; dispatch → `ToggleReadMode()`.
+- `src/HuntAndPeck/Views/OverlayView.xaml` — `ReadMode="{Binding ReadMode}"`.
+- `src/HuntAndPeck.Tests/Services/OverlayKeyboardHookTest.cs` —
+  `Backtick_TogglesReadMode`.
+- `src/HuntAndPeck/Services/OverlayActionConfig.cs` — legend mentions
+  `` ` `` = read-through, `\` = suspend.
+- `CLAUDE.md`, `CHANGELOG.md` — behavior docs updated.
+
+# Key correctness note
+
+A literal single-color **hollow** outline cannot be crisp on both light and dark
+backgrounds (black stroke vanishes on dark, white on light). Read-mode is therefore
+**two-tone** — the evidence basis ([NN/g, 2015](https://www.nngroup.com/articles/text-over-images/))
+and the WPF API used
+([Microsoft, "Create Outlined Text"](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/how-to-create-outlined-text)).
+
+# Verification
+
+- **CI** (`.github/workflows/build.yml`, run 29897928460): Build ✓, Test ✓ (xUnit,
+  incl. `Backtick_TogglesReadMode`), artifact uploaded.
+- **No stale refs**: `grep` for `LabelsOpaque`/`ToggleOpacity`/`_labelsOpaque` in
+  `src/` returns none; `LabelOpacity` remains only for the suspend dim.
+- **Perf**: outline geometry cached once per label (not per render); no `Effect`.
+  No regression to the 1000+ label budget.
+- **Runtime (pending, Windows box)**: drop at
+  `…/hap-read-mode/hap.exe` — backtick on a dark background should keep labels
+  crisp (yellow fill + black stroke, no pill) with the text behind readable;
+  backtick again restores pills. Base mode unchanged. Suspend still dims.
+
+# Commit
+
+`a26325d` on `master` (jiangyun-fun/hunt-and-peck).
