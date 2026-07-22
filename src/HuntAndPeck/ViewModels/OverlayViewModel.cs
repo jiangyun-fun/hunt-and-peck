@@ -27,7 +27,7 @@ namespace HuntAndPeck.ViewModels
         private string _match = "";
         private bool _continuousCapable;
         private bool _isContinuous;
-        private bool _labelsOpaque = true;
+        private bool _readMode;
         private bool _suspended;
 
         /// <summary>
@@ -227,19 +227,28 @@ namespace HuntAndPeck.ViewModels
             }
         }
 
-        /// <summary>True = labels fully opaque; false = dimmed so text behind is readable.</summary>
-        public bool LabelsOpaque
+        /// <summary>
+        /// Read-mode (backtick): labels switch from a solid pill to a two-tone outline
+        /// (yellow fill + black stroke) with no backing, at full opacity -- crisp on any
+        /// background (incl. dark) while the text behind stays readable. A global-opacity
+        /// dim (the old behavior) coupled label contrast to the background and vanished
+        /// on dark surfaces; switching render style decouples them.
+        /// </summary>
+        public bool ReadMode
         {
-            get { return _labelsOpaque; }
-            set { _labelsOpaque = value; NotifyOfPropertyChange(nameof(LabelOpacity)); }
+            get { return _readMode; }
+            set { _readMode = value; NotifyOfPropertyChange(nameof(ReadMode)); }
         }
 
-        /// <summary>Render opacity for the label canvas. Dim when suspended or toggled transparent.</summary>
-        public double LabelOpacity => (_suspended || !_labelsOpaque) ? DimOpacity : 1.0;
+        /// <summary>
+        /// Render opacity for the label canvas. Only suspend dims now (to get labels out
+        /// of the way while typing into the app beneath); read-mode keeps full opacity.
+        /// </summary>
+        public double LabelOpacity => _suspended ? DimOpacity : 1.0;
         private const double DimOpacity = 0.2;
 
-        /// <summary>Toggles label opacity (backtick).</summary>
-        public void ToggleOpacity() { LabelsOpaque = !LabelsOpaque; }
+        /// <summary>Toggles read-mode (backtick): pill &lt;-&gt; two-tone outline.</summary>
+        public void ToggleReadMode() { ReadMode = !ReadMode; }
 
         /// <summary>Enters persistent suspend (backslash). Resume via the main hotkey.</summary>
         public void EnterSuspend() { Suspended = true; }

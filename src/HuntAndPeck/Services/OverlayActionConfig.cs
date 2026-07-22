@@ -54,7 +54,7 @@ namespace HuntAndPeck.Services
 
         /// <summary>Legend shown on the overlay so the gestures are discoverable.</summary>
         public const string OverlayLegend =
-            "arrows = move all labels  |  space = cycle click mode  |  type 2 chars = fire  |  Esc = cancel";
+            "type 2 chars = fire  |  space = click mode  |  arrows = move  |  ` = read-through  |  \\ = suspend  |  Esc = cancel";
 
         // --- config freshness: avoid re-parsing hap.exe.config on every read ---
         private static DateTime _configMtimeUtc = DateTime.MinValue;

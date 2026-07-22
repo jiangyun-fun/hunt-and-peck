@@ -18,7 +18,7 @@ namespace HuntAndPeck.Services
         CycleMonitorNext,
         CycleMonitorPrev,
         Nudge,
-        ToggleOpacity,
+        ToggleReadMode,
         SuspendNow
     }
 
@@ -209,7 +209,7 @@ namespace HuntAndPeck.Services
 
             if (!ctrlAltWin)
             {
-                if (vkCode == User32.VK_OEM_3) return Action(OverlayKeyActionKind.ToggleOpacity);
+                if (vkCode == User32.VK_OEM_3) return Action(OverlayKeyActionKind.ToggleReadMode);
                 if (vkCode == User32.VK_OEM_5) return Action(OverlayKeyActionKind.SuspendNow);
                 if (vkCode >= User32.VK_0 && vkCode <= User32.VK_9)
                 {
@@ -238,8 +238,8 @@ namespace HuntAndPeck.Services
                 case OverlayKeyActionKind.AppendChar:
                     char c = act.Char;
                     return () => _vm.AppendLabelChar(c);
-                case OverlayKeyActionKind.ToggleOpacity:
-                    return () => _vm.ToggleOpacity();
+                case OverlayKeyActionKind.ToggleReadMode:
+                    return () => _vm.ToggleReadMode();
                 case OverlayKeyActionKind.SuspendNow:
                     return () => _vm.EnterSuspend();
                 case OverlayKeyActionKind.Nudge:

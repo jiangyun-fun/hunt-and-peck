@@ -144,9 +144,16 @@ allows `A–Z` and `D0–D9`.
   is tracked from the raw hook events (not `GetAsyncKeyState`), so it still detects a
   Capslock AutoHotkey has neutralized for a custom combo — letting `Capslock+f` toggle
   continuous mode on the 2nd press. Also lets you Alt+Tab between apps mid-overlay.
-- **Backtick toggles label opacity**: dims labels to ~20% (see-through) so you can read
-  the text passage behind; press again to restore. Keys stay captured, so labels stay
-  typeable in either state.
+- **Backtick toggles label read-mode**: labels switch from a solid pill to a
+  **two-tone outline** (yellow fill + black stroke) with **no backing, full opacity**
+  — so they stay crisp on *any* background (incl. dark) while you read the text
+  passage behind, then press again to restore the pills. Keys stay captured, so labels
+  stay typeable in either state. (The old behavior was a global-opacity dim to ~20%,
+  which coupled label contrast to the background and vanished on dark surfaces. A
+  literal single-color hollow outline also fails on one background extreme, so
+  read-mode keeps a thin fill — the stroke gives the edge on light backgrounds, the
+  fill pops on dark ones. Base pill mode is already legible on dark backgrounds, so it
+  is unchanged.)
 - **Backslash suspends the overlay**: enters persistent suspend — the overlay stops
   capturing keys AND dims its labels, so you can type into the app beneath (vimium,
   Excel shortcuts) with zero key collision. Clicks pass through (no dismiss). Resume by

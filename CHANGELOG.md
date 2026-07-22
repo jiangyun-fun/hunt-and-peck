@@ -7,9 +7,15 @@ built `HuntAndPeck-<tag>.zip`.
 ## [Unreleased]
 
 ### Added
-- **Label opacity toggle (backtick)**: dims labels to ~20% (see-through) so the text
-  behind is readable; press backtick again to restore. Keys stay captured, so labels
-  remain typeable while dim.
+- **Label read-mode (backtick)**: labels switch from a solid pill to a **two-tone
+  outline** (yellow fill + black stroke) with no backing, at full opacity — so they
+  stay crisp on any background (including dark) while the text behind stays readable;
+  press backtick again to restore the pills. Keys stay captured, so labels remain
+  typeable in either state. (Replaces the old global-opacity dim to ~20%, which
+  coupled label contrast to the background and vanished on dark surfaces. A literal
+  single-color hollow outline also fails on one background extreme, so read-mode keeps
+  a thin fill: the stroke gives the edge on light backgrounds, the fill pops on dark
+  ones. Base pill mode is unchanged — already legible on dark backgrounds.)
 - **Suspend mode (backslash)**: persistent suspend — the overlay stops capturing keys
   and dims its labels, so you can type into the app beneath (vimium, Excel) with zero
   key collision; clicks pass through (no dismiss). Resume by pressing the main hotkey

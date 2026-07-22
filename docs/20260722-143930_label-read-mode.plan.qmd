@@ -1,0 +1,90 @@
+---
+title: "Label read-mode (two-tone outline) — plan"
+author: "Yun Jiang"
+date: "2026-07-22"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
+---
+
+# Goal
+
+The dimmed-label (backtick) mode is hard to see on **dark** backgrounds. Root
+cause is structural: `LabelOpacity` is bound to the *whole* `HintCanvas`
+(`OverlayView.xaml:18`), so dimming multiplies alpha on the pill **and** the text
+together — a 20%-opacity yellow pill + 20%-opacity black text vanishes into dark
+content (`OverlayViewModel.cs:238`, `DimOpacity = 0.2`).
+
+The chosen design (user pick, scheme 1): a **read-mode** that drops the pill and
+renders **two-tone outlined glyphs** (yellow fill + black stroke) at **full
+opacity**. Crisp on any background *and* occludes almost nothing → you read the
+text behind. Backtick toggles it.
+
+# Key correctness note (evidence)
+
+A *literally hollow* (single-color, stroke-only) outline **cannot** be crisp on
+both light and dark backgrounds — black stroke vanishes on dark, white on light,
+no single color wins both. This is why subtitles / map labels use two-tone fill +
+stroke ([NN/g, 2015](https://www.nngroup.com/articles/text-over-images/)). So
+read-mode is **two-tone**, not hollow. The thin fill occludes far less than a
+solid pill, satisfying the read-through intent.
+
+Base mode (pill + black text) is **already legible on dark backgrounds** (the
+bright pill provides contrast), so it is left unchanged — low risk.
+
+WPF feasibility confirmed: `FormattedText.BuildGeometry` →
+`DrawingContext.DrawGeometry(brush, pen, geometry)`
+([Microsoft, WPF docs](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/how-to-create-outlined-text)).
+Cached once per label (same pattern as the existing `_formatted` cache in
+`HintCanvas.cs:127-145`), so no per-render cost and no `Effect` — the 1000+-label
+perf budget is untouched.
+
+# Scope / files
+
+1. `src/HuntAndPeck/Views/HintCanvas.cs`
+   - Cache a `Geometry[]` (`BuildGeometry` at absolute `(x+pad, y+pad)`) alongside
+     `_formatted`, in `BuildFormatted`.
+   - Instance `_outlinePen` (black, thickness `max(1, fontSize/9)`, frozen).
+   - New `ReadMode` DependencyProperty (bool, default false); `OnReadModeChanged`
+     re-renders every visual.
+   - `RenderHint` branches: base = current pill + `DrawText`; read-mode =
+     `DrawGeometry(active?Yellow:LightYellow, OutlinePen, geom)` (no pill).
+2. `src/HuntAndPeck/ViewModels/OverlayViewModel.cs`
+   - Replace `_labelsOpaque`/`LabelsOpaque`/`ToggleOpacity` with
+     `_readMode`/`ReadMode`/`ToggleReadMode`.
+   - `LabelOpacity` now reflects **only** suspend: `=> _suspended ? 0.2 : 1.0`.
+     (Suspend still dims — its goal is to get labels out of the way while typing
+     into the app beneath; unchanged.)
+3. `src/HuntAndPeck/Services/OverlayKeyboardHook.cs`
+   - Rename enum `ToggleOpacity` → `ToggleReadMode`; `VK_OEM_3` maps to it;
+     dispatch calls `_vm.ToggleReadMode()`.
+4. `src/HuntAndPeck/Views/OverlayView.xaml`
+   - `HintCanvas`: add `ReadMode="{Binding ReadMode}"` (keep `Opacity`).
+5. `src/HuntAndPeck.Tests/Services/OverlayKeyboardHookTest.cs`
+   - Rename the backtick test → `ToggleReadMode`.
+6. `src/HuntAndPeck/Services/OverlayActionConfig.cs`
+   - Append `` ` `` = read / `\` = suspend to `OverlayLegend`.
+7. `CLAUDE.md`, `CHANGELOG.md` — update the backtick behavior description.
+
+No new `.cs` files → no `.csproj` edits. No `App.config` change (read-mode is a
+runtime toggle, not a setting).
+
+# Risks
+
+- `BuildGeometry` is heavier than `FormattedText` creation, but runs **once per
+  label per overlay** (cached) — same order as today; render path is one
+  `DrawGeometry` per label (cheap). No regression expected at high label counts.
+- Pen thickness fixed per-overlay from fontSize; acceptable for the default 14.
+- If the user actually wanted base mode restyled too, it's a follow-up — not
+  needed to fix the reported bug.
+
+# Verification
+
+- CI: MSBuild compile + xUnit green (`.github/workflows/build.yml`).
+- Unit: `Backtick_TogglesReadMode` asserts the new action kind.
+- Runtime (Windows box, manual): backtick on a **dark** background → labels stay
+  crisp (yellow fill + black stroke, no pill) and the text behind is readable;
+  backtick again → back to pills. Base mode unchanged. Suspend still dims.

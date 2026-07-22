@@ -100,10 +100,10 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Fact]
-        public void Backtick_TogglesOpacity()
+        public void Backtick_TogglesReadMode()
         {
             var act = OverlayKeyboardHook.Classify(User32.VK_OEM_3, false, false);
-            Assert.Equal(OverlayKeyActionKind.ToggleOpacity, act.Kind);
+            Assert.Equal(OverlayKeyActionKind.ToggleReadMode, act.Kind);
         }
 
         [Fact]
