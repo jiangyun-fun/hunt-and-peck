@@ -6,6 +6,28 @@ built `HuntAndPeck-<tag>.zip`.
 
 ## [Unreleased]
 
+### Added
+- **Continuous trigger mode** (`OverlayTriggerMode`, hot-reload; Grid only): the
+  overlay can stay up for repeated clicks until Esc / a mouse click, instead of closing
+  after one. `OneClick` (default) is the old behavior; `Continuous` keeps labels on
+  screen across clicks — e.g. `af`→navigate to a page, `bd`→click another button,
+  `Space`→right-click mode, `aa`→open a context menu, `bb`→click a menu item, then
+  `Esc`. Press the hotkey again while the overlay is up to toggle one-click ⇄
+  continuous (badge bottom-left). In continuous mode the click mode reverts to Left
+  after every click. Automation stays one-shot (its labels go stale on navigation).
+
+### Changed
+- **Default hotkey is now `Ctrl+Shift+M`** (was `Ctrl+Shift+Alt+F`). Alt is removed on
+  purpose: pressing Alt — even inside a chord — dismisses an open context menu, so the
+  old Alt-containing hotkey was closing the very menu you wanted to label-click.
+  Startup-only; restart to apply. (`Alt`/`F10` are still not swallowed globally.)
+- **Overlay input model**: label typing, Esc, Space, Tab and arrows are captured by
+  `OverlayKeyboardHook` (a global LL keyboard hook), not by a focused `TextBox` /
+  WPF `PreviewKeyDown`. A LL mouse hook restores click-to-dismiss. The overlay is now
+  modeless (`Show()`), one at a time, and dismisses on match / Esc / any mouse click.
+- `ForegroundWindow` exposes `ForceForegroundOnRender` / `CloseOnDeactivate` virtuals;
+  `OverlayView` opts out of both, `DebugOverlayView` keeps the old behavior.
+
 ### Fixed
 - **Open context menus / popups survive the hotkey.** Pressing the hotkey no longer
   dismisses an open right-click menu (File Manager, Edge, etc.). The overlay used to
@@ -14,14 +36,9 @@ built `HuntAndPeck-<tag>.zip`.
   (`ShowActivated=False`, no force-foreground) and reads typed input through a global
   low-level **keyboard hook** (`WH_KEYBOARD_LL`) instead of WPF focus, so it never
   steals foreground — you can even label-click items inside an open context menu.
-
-### Changed
-- **Overlay input model**: label typing, Esc, Space, Tab and arrows are captured by
-  `OverlayKeyboardHook` (a global LL keyboard hook), not by a focused `TextBox` /
-  WPF `PreviewKeyDown`. A LL mouse hook restores click-to-dismiss. The overlay is now
-  modeless (`Show()`), one at a time, and dismisses on match / Esc / any mouse click.
-- `ForegroundWindow` exposes `ForceForegroundOnRender` / `CloseOnDeactivate` virtuals;
-  `OverlayView` opts out of both, `DebugOverlayView` keeps the old behavior.
+- **Label highlight at start.** All labels are highlighted (yellow) when the overlay
+  appears, narrowing as you type — restoring the behavior lost when input moved to the
+  keyboard hook. (Re-highlighted again after each continuous-mode click.)
 
 ## [v2.1.0] — 2026-07-13
 

@@ -35,6 +35,11 @@
              keyboard hook (not a focused TextBox), so the overlay can stay
              non-activated and not dismiss an open context menu. -->
         <TextBox Text="{Binding MatchString, Mode=OneWay}" Width="50" VerticalAlignment="Bottom" Background="Transparent" Foreground="White" IsReadOnly="True" Focusable="False" />
+        <TextBlock Text="{Binding TriggerModeLabel}"
+                   FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
+                   Foreground="White" Background="DarkSlateBlue"
+                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="4"
+                   Visibility="Visible" />
         </Grid>
 </local:ForegroundWindow>
 

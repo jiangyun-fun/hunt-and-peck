@@ -50,6 +50,12 @@ namespace HuntAndPeck.ViewModels
             set { Set("HintBoundsSource", value); OnPropertyChanged("HintBoundsSource"); }
         }
 
+        public string OverlayTriggerMode
+        {
+            get { return Get("OverlayTriggerMode", "OneClick"); }
+            set { Set("OverlayTriggerMode", value); OnPropertyChanged("OverlayTriggerMode"); }
+        }
+
         public string HintCharacters
         {
             get { return Get("HintCharacters", "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"); }
@@ -74,8 +80,8 @@ namespace HuntAndPeck.ViewModels
         }
 
         // Hotkey is read once at startup, so editing it here needs a hap.exe restart.
-        public string HotkeyKey { get { return Get("HotkeyKey", "F"); } set { Set("HotkeyKey", value); OnPropertyChanged("HotkeyKey"); } }
-        public string HotkeyModifier { get { return Get("HotkeyModifier", "Control,Alt,Shift"); } set { Set("HotkeyModifier", value); OnPropertyChanged("HotkeyModifier"); } }
+        public string HotkeyKey { get { return Get("HotkeyKey", "M"); } set { Set("HotkeyKey", value); OnPropertyChanged("HotkeyKey"); } }
+        public string HotkeyModifier { get { return Get("HotkeyModifier", "Control,Shift"); } set { Set("HotkeyModifier", value); OnPropertyChanged("HotkeyModifier"); } }
 
         private static string Get(string key, string fallback)
         {

@@ -92,6 +92,26 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Theory]
+        [InlineData("Continuous", TriggerMode.Continuous)]
+        [InlineData("continuous", TriggerMode.Continuous)]   // case-insensitive
+        [InlineData("OneClick", TriggerMode.OneClick)]
+        [InlineData("ONECLICK", TriggerMode.OneClick)]
+        [InlineData("", TriggerMode.OneClick)]               // blank -> default
+        [InlineData(null, TriggerMode.OneClick)]
+        [InlineData("junk", TriggerMode.OneClick)]           // invalid -> default
+        public void ParseTriggerMode_ParsesOrDefaultsToOneClick(string raw, TriggerMode expected)
+        {
+            Assert.Equal(expected, OverlayActionConfig.ParseTriggerMode(raw, TriggerMode.OneClick));
+        }
+
+        [Fact]
+        public void ParseTriggerMode_UsesProvidedDefaultWhenUnrecognized()
+        {
+            Assert.Equal(TriggerMode.Continuous, OverlayActionConfig.ParseTriggerMode("???", TriggerMode.Continuous));
+            Assert.Equal(TriggerMode.Continuous, OverlayActionConfig.ParseTriggerMode(null, TriggerMode.Continuous));
+        }
+
+        [Theory]
         [InlineData("Grid", HintBounds.Screen, false)]       // duplicating combo -> skip
         [InlineData(null, HintBounds.Screen, false)]         // Grid default + Screen -> skip
         [InlineData("", HintBounds.Screen, false)]

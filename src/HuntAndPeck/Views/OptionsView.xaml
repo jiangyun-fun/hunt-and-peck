@@ -8,6 +8,13 @@
             <TabItem.Content>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="10">
+                        <TextBlock Text="Trigger mode" FontWeight="Bold" />
+                        <ComboBox SelectedValue="{Binding OverlayTriggerMode}" SelectedValuePath="Content" Margin="0,2,0,4">
+                            <ComboBoxItem>OneClick</ComboBoxItem>
+                            <ComboBoxItem>Continuous</ComboBoxItem>
+                        </ComboBox>
+                        <TextBlock Text="OneClick closes after one click; Continuous stays up for repeated clicks until Esc (Grid only). Press the hotkey again to toggle." FontStyle="Italic" Foreground="Gray" Margin="0,0,0,10" TextWrapping="Wrap" />
+
                         <TextBlock Text="Hint source" FontWeight="Bold" />
                         <ComboBox SelectedValue="{Binding HintSource}" SelectedValuePath="Content" Margin="0,2,0,10">
                             <ComboBoxItem>Grid</ComboBoxItem>

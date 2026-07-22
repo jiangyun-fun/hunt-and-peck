@@ -110,29 +110,40 @@ is for tagged public releases.
 Two kinds of settings:
 
 - **Hot-reload** (read each trigger; edit `hap.exe.config`, save, re-trigger):
-  `HintSource`, `HintBoundsSource`, `GridEdgeStep`, `GridCenterStep`,
-  `GridDenseRegions`, `GridInset`, `GridEdgeBandPercent`, `HintCharacters`,
-  `HintFontSize`, `NudgeStep`, `NudgeStepFast`, `ClickModeOrder`,
-  `MaxEnumerationDepth`, `TimingLogEnabled`.
+  `HintSource`, `HintBoundsSource`, `OverlayTriggerMode`, `GridEdgeStep`,
+  `GridCenterStep`, `GridDenseRegions`, `GridInset`, `GridEdgeBandPercent`,
+  `HintCharacters`, `HintFontSize`, `NudgeStep`, `NudgeStepFast`,
+  `ClickModeOrder`, `MaxEnumerationDepth`, `TimingLogEnabled`.
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
-  `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+Alt+F`).
+  `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
+  dismisses open context menus even inside a chord).
 
 `HintCharacters` accepts any chars (letters **and** digits); the matching input
 allows `A–Z` and `D0–D9`.
 
 ## Runtime behavior (current)
 
-- **Hotkey** `Ctrl+Shift+Alt+F` → overlay. By default (`HintBoundsSource=Screen`) it
-  fills the whole monitor the foreground window is on; in Grid mode one grid is built
-  per monitor. **Tab** cycles to the next monitor (wraps), **Shift+Tab** to the
-  previous; each monitor shows its own labels and the typed prefix + pan reset on
-  switch. (Cycling is Grid + Screen only; Automation / Grid+Window stay
-  single-session.)
+- **Hotkey** `Ctrl+Shift+M` → overlay (no `Alt`: Alt dismisses open context menus even
+  inside a chord). By default (`HintBoundsSource=Screen`) it fills the whole monitor
+  the foreground window is on; in Grid mode one grid is built per monitor. **Tab**
+  cycles to the next monitor (wraps), **Shift+Tab** to the previous; each monitor shows
+  its own labels and the typed prefix + pan reset on switch. (Cycling is Grid + Screen
+  only; Automation / Grid+Window stay single-session.)
+- **Labels are all highlighted (yellow) at start**; typing narrows the highlight to the
+  matching labels; a unique match fires. (In continuous mode the highlight resets to
+  all-yellow after each click.)
 - **Arrows** pan all labels (3 px; `Shift` = 15 px).
 - **Space** cycles the click mode (badge top-right): `Left → Right → Double → Move`
-  (`ClickModeOrder`, wraps; resets each trigger). `Move` positions without clicking.
+  (`ClickModeOrder`, wraps). `Move` positions without clicking. In continuous mode the
+  mode reverts to the first (Left) after every click.
 - **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
   current mode (left / right / double click via `mouse_event`, or move-only).
+- **Trigger mode** (`OverlayTriggerMode`, hot-reload; Grid only): `OneClick` (default)
+  closes the overlay after one click; `Continuous` keeps it up for repeated clicks
+  until `Esc` / a mouse click — e.g. `af`→navigate, `bd`→click again, `Space`→
+  right-click, `aa`→open a menu, `bb`→click a menu item, then `Esc`. Press the hotkey
+  again while the overlay is up to toggle one-click ⇄ continuous (badge bottom-left).
+  Automation ignores this and stays one-shot.
 - **Esc** cancels. Any **mouse click** also dismisses the overlay (and still reaches
   the app beneath).
 - **Doesn't dismiss open menus**: the overlay shows non-activated, so an open context

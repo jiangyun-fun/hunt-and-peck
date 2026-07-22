@@ -25,6 +25,8 @@ namespace HuntAndPeck.ViewModels
         private readonly IList<HintSession> _sessions;
         private int _currentSession;
         private string _match = "";
+        private bool _continuousCapable;
+        private bool _isContinuous;
 
         /// <summary>
         /// Single-session ctor: Automation, Grid+Window, and the headless /hint and
@@ -77,10 +79,12 @@ namespace HuntAndPeck.ViewModels
                 fresh.Add(new HintViewModel(hint, _fontSizeRaw)
                 {
                     Label = labels[i],
-                    Active = false
+                    Active = true    // all highlighted (yellow) at init / on monitor switch
                 });
             }
             Hints = fresh;
+            _match = "";
+            NotifyOfPropertyChange(nameof(MatchString));
             NotifyOfPropertyChange(nameof(Bounds));
         }
 
@@ -99,7 +103,6 @@ namespace HuntAndPeck.ViewModels
             LoadSession(_sessions[_currentSession]);
             OffsetX = 0;
             OffsetY = 0;
-            ClearMatch();
         }
 
         /// <summary>
@@ -172,6 +175,40 @@ namespace HuntAndPeck.ViewModels
         public Action CloseOverlay { get; set; }
 
         /// <summary>
+        /// True when the hint source is Grid (continuous mode is meaningful). Automation
+        /// stays one-shot because its labels go stale on navigation.
+        /// </summary>
+        public bool ContinuousCapable
+        {
+            get { return _continuousCapable; }
+            set { _continuousCapable = value; }
+        }
+
+        /// <summary>
+        /// Continuous mode: the overlay stays up after each click (reset for the next
+        /// label) until Esc / a mouse click. One-click (default): closes after the first
+        /// click. Toggled at runtime by pressing the hotkey again (Grid only).
+        /// </summary>
+        public bool IsContinuous
+        {
+            get { return _isContinuous; }
+            set { _isContinuous = value; NotifyOfPropertyChange(nameof(TriggerModeLabel)); }
+        }
+
+        /// <summary>Overlay badge: the current trigger mode.</summary>
+        public string TriggerModeLabel => _isContinuous ? "CONTINUOUS" : "ONE-SHOT";
+
+        /// <summary>Flips one-click &lt;-&gt; continuous. No-op for non-Grid (Automation).</summary>
+        public void ToggleContinuous()
+        {
+            if (!_continuousCapable)
+            {
+                return;
+            }
+            IsContinuous = !_isContinuous;
+        }
+
+        /// <summary>
         /// The typed label prefix, for display (bound one-way to the TextBox). Input
         /// arrives via the global keyboard hook (OverlayKeyboardHook.AppendLabelChar),
         /// not via a focused TextBox, so the overlay can stay non-activated and not
@@ -188,20 +225,17 @@ namespace HuntAndPeck.ViewModels
         }
 
         /// <summary>
-        /// Clears the typed prefix and any active highlighting. Called when cycling
-        /// to another monitor (the new monitor starts un-highlighted).
+        /// Clears the typed prefix and re-highlights every label (yellow) so the next
+        /// label is typeable. Used by the continuous-mode reset after a click;
+        /// LoadSession handles the initial state and the per-monitor reset itself.
         /// </summary>
         public void ClearMatch()
         {
             _match = "";
             NotifyOfPropertyChange(nameof(MatchString));
-            foreach (var x in Hints)
-            {
-                if (x.Active)
-                {
-                    x.Active = false;
-                }
-            }
+            // Re-highlight every label (yellow) so the next label is typeable. This is
+            // the reset after each continuous-mode click (LoadSession also starts here).
+            ApplyMatch(_match);
         }
 
         private void ApplyMatch(string value)
@@ -240,8 +274,29 @@ namespace HuntAndPeck.ViewModels
                     case ClickAction.Move: break;
                 }
 
-                CloseOverlay?.Invoke();
+                if (_isContinuous)
+                {
+                    // Stay up: reset for the next label (mode back to the first / Left
+                    // by default, and every label re-highlighted).
+                    ResetForNextClick();
+                }
+                else
+                {
+                    CloseOverlay?.Invoke();
+                }
             }
+        }
+
+        /// <summary>
+        /// Continuous mode: reset for the next label after a click -- click mode back to
+        /// the first in the order (Left by default) and every label re-highlighted.
+        /// </summary>
+        private void ResetForNextClick()
+        {
+            _modeIndex = 0;
+            NotifyOfPropertyChange(nameof(CurrentModeName));
+            NotifyOfPropertyChange(nameof(CurrentModeBrush));
+            ClearMatch();
         }
 
         /// <summary>

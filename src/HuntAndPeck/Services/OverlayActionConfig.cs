@@ -30,6 +30,18 @@ namespace HuntAndPeck.Services
     }
 
     /// <summary>
+    /// What the hotkey opens: a one-shot overlay that closes after one click, or a
+    /// persistent overlay that stays up for repeated clicks until Esc / a mouse click.
+    /// Pressing the hotkey again while the overlay is up toggles between the two
+    /// (Grid only; Automation stays one-shot because its labels go stale on navigation).
+    /// </summary>
+    public enum TriggerMode
+    {
+        OneClick,
+        Continuous
+    }
+
+    /// <summary>
     /// Reads overlay and hotkey settings from hap.exe.config. Parsing is split
     /// into pure methods (unit-tested) and ConfigurationManager wrappers.
     /// Unknown or missing values fall back to safe defaults so a bad config
@@ -120,6 +132,20 @@ namespace HuntAndPeck.Services
         public static HintBounds ParseHintBounds(string raw, HintBounds defaultValue)
         {
             HintBounds v;
+            if (!string.IsNullOrWhiteSpace(raw) && Enum.TryParse(raw.Trim(), true, out v))
+            {
+                return v;
+            }
+            return defaultValue;
+        }
+
+        /// <summary>
+        /// Parses a TriggerMode name (case-insensitive). Returns defaultValue when blank
+        /// or unrecognized so a bad config never breaks the app.
+        /// </summary>
+        public static TriggerMode ParseTriggerMode(string raw, TriggerMode defaultValue)
+        {
+            TriggerMode v;
             if (!string.IsNullOrWhiteSpace(raw) && Enum.TryParse(raw.Trim(), true, out v))
             {
                 return v;
@@ -262,6 +288,26 @@ namespace HuntAndPeck.Services
             {
                 // Deliberate fallback so a malformed config keeps the app usable.
                 return HintBounds.Screen;
+            }
+        }
+
+        /// <summary>
+        /// The default trigger mode (hot-reload): OneClick closes the overlay after one
+        /// click; Continuous keeps it up for repeated clicks until Esc / a mouse click.
+        /// At runtime Continuous applies to Grid only (Automation stays one-shot). Default
+        /// OneClick.
+        /// </summary>
+        public static TriggerMode ReadTriggerMode()
+        {
+            try
+            {
+                EnsureFresh();
+                return ParseTriggerMode(ConfigurationManager.AppSettings["OverlayTriggerMode"], TriggerMode.OneClick);
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return TriggerMode.OneClick;
             }
         }
 

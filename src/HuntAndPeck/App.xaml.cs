@@ -18,6 +18,23 @@ namespace HuntAndPeck
         private readonly HintLabelService _hintLabelService = new HintLabelService();
         private KeyListenerService _keyListenerService;
         private OverlayView _currentOverlayView;
+        private OverlayViewModel _currentVm;
+
+        /// <summary>True while the hint overlay is showing (a 2nd hotkey press then toggles mode).</summary>
+        private bool IsOverlayActive()
+        {
+            return _currentOverlayView != null;
+        }
+
+        /// <summary>2nd hotkey press with the overlay up toggles one-click &lt;-&gt; continuous.</summary>
+        private void ToggleOverlayMode()
+        {
+            var vm = _currentVm;
+            if (vm != null)
+            {
+                vm.ToggleContinuous();
+            }
+        }
 
         private void ShowOverlay(OverlayViewModel vm)
         {
@@ -35,6 +52,7 @@ namespace HuntAndPeck
                 DataContext = vm
             };
             _currentOverlayView = view;
+            _currentVm = vm;
 
             var hook = new OverlayKeyboardHook();
             bool closed = false;
@@ -59,6 +77,7 @@ namespace HuntAndPeck
                     hook.Disarm();
                 }
                 _currentOverlayView = null;
+                _currentVm = null;
             };
 
             view.Show();
@@ -113,6 +132,8 @@ namespace HuntAndPeck
                     ShowOverlay,
                     ShowDebugOverlay,
                     ShowOptions,
+                    IsOverlayActive,
+                    ToggleOverlayMode,
                     _hintLabelService,
                     _hintProviderService,
                     _hintProviderService,

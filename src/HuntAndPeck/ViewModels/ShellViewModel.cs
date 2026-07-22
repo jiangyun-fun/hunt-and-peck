@@ -17,6 +17,8 @@ namespace HuntAndPeck.ViewModels
         private readonly Action<OverlayViewModel> _showOverlay;
         private readonly Action<DebugOverlayViewModel> _showDebugOverlay;
         private readonly Action<OptionsViewModel> _showOptions;
+        private readonly Func<bool> _isOverlayActive;
+        private readonly Action _toggleOverlayMode;
         private readonly IHintLabelService _hintLabelService;
         private readonly IHintProviderService _hintProviderService;
         private readonly IDebugHintProviderService _debugHintProviderService;
@@ -25,6 +27,8 @@ namespace HuntAndPeck.ViewModels
             Action<OverlayViewModel> showOverlay,
             Action<DebugOverlayViewModel> showDebugOverlay,
             Action<OptionsViewModel> showOptions,
+            Func<bool> isOverlayActive,
+            Action toggleOverlayMode,
             IHintLabelService hintLabelService,
             IHintProviderService hintProviderService,
             IDebugHintProviderService debugHintProviderService,
@@ -33,6 +37,8 @@ namespace HuntAndPeck.ViewModels
             _showOverlay = showOverlay;
             _showDebugOverlay = showDebugOverlay;
             _showOptions = showOptions;
+            _isOverlayActive = isOverlayActive;
+            _toggleOverlayMode = toggleOverlayMode;
             _hintLabelService = hintLabelService;
             var keyListener1 = keyListener;
             _hintProviderService = hintProviderService;
@@ -40,12 +46,13 @@ namespace HuntAndPeck.ViewModels
 
             // Main overlay hotkey. Read once at startup from hap.exe.config
             // (HotkeyKey / HotkeyModifier); restart to apply a change, since the
-            // global hotkey is registered once. Default: Ctrl+Shift+Alt+F.
+            // global hotkey is registered once. Default: Ctrl+Shift+M (no Alt -- Alt
+            // dismisses open context menus even inside a chord).
             keyListener1.HotKey = new HotKey
             {
-                Keys = OverlayActionConfig.ReadHotkeyKey(Keys.F),
+                Keys = OverlayActionConfig.ReadHotkeyKey(Keys.M),
                 Modifier = OverlayActionConfig.ReadHotkeyModifier(
-                    KeyModifier.Control | KeyModifier.Alt | KeyModifier.Shift)
+                    KeyModifier.Control | KeyModifier.Shift)
             };
 
 #if DEBUG
@@ -68,6 +75,14 @@ namespace HuntAndPeck.ViewModels
 
         private async void _keyListener_OnHotKeyActivated(object sender, EventArgs e)
         {
+            // Overlay already up: a 2nd hotkey press toggles one-click <-> continuous
+            // (Grid only; Automation stays one-shot). Esc / a mouse click closes it.
+            if (_isOverlayActive())
+            {
+                _toggleOverlayMode();
+                return;
+            }
+
             // Capture the foreground window on the UI thread, then enumerate off-thread.
             // The per-window cache (in the service) makes repeat presses on the same
             // window instant; the first press on a large tree (e.g. Chromium apps) still
@@ -78,10 +93,15 @@ namespace HuntAndPeck.ViewModels
                 return;
             }
 
+            var source = OverlayActionConfig.ReadHintSource();
+            var gridSource = OverlayActionConfig.IsGridHintSource(source);
             // Grid + Screen: build one grid per monitor so Tab can cycle between them.
             // Otherwise (Automation, Grid + Window) use a single session + taskbar merge.
-            var cycleCapable = OverlayActionConfig.IsGridHintSource(OverlayActionConfig.ReadHintSource())
-                               && OverlayActionConfig.ReadHintBounds() == HintBounds.Screen;
+            var cycleCapable = gridSource && OverlayActionConfig.ReadHintBounds() == HintBounds.Screen;
+            // Continuous mode is meaningful only for Grid (its labels are fixed screen
+            // points that survive navigation); Automation stays one-shot.
+            var continuous = gridSource
+                             && OverlayActionConfig.ReadTriggerMode() == TriggerMode.Continuous;
 
             var sw = Stopwatch.StartNew();
             if (cycleCapable)
@@ -95,6 +115,7 @@ namespace HuntAndPeck.ViewModels
                 if (built.Sessions.Count > 0)
                 {
                     var vm = new OverlayViewModel(built.Sessions, built.Current, _hintLabelService);
+                    ConfigureTriggerMode(vm, gridSource, continuous);
                     _showOverlay(vm);
                 }
             }
@@ -107,9 +128,20 @@ namespace HuntAndPeck.ViewModels
                 if (session != null)
                 {
                     var vm = new OverlayViewModel(session, _hintLabelService);
+                    ConfigureTriggerMode(vm, gridSource, continuous);
                     _showOverlay(vm);
                 }
             }
+        }
+
+        /// <summary>
+        /// Sets the overlay's trigger-mode capability/initial state. Continuous only when
+        /// the source is Grid and the config default is Continuous.
+        /// </summary>
+        private static void ConfigureTriggerMode(OverlayViewModel vm, bool gridSource, bool continuous)
+        {
+            vm.ContinuousCapable = gridSource;
+            vm.IsContinuous = continuous;
         }
 
         private struct MonitorSessions
