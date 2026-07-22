@@ -15,7 +15,7 @@
     </local:ForegroundWindow.Background>
     <Grid x:Name="layoutGrid">
         <local:HintCanvas Width="{Binding Bounds.Width}" Height="{Binding Bounds.Height}"
-                          HintsSource="{Binding Hints}">
+                          HintsSource="{Binding Hints}" Opacity="{Binding LabelOpacity}">
             <local:HintCanvas.RenderTransform>
                 <TranslateTransform X="{Binding OffsetX}" Y="{Binding OffsetY}" />
             </local:HintCanvas.RenderTransform>

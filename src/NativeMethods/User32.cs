@@ -156,5 +156,7 @@ namespace HuntAndPeck.NativeMethods
         public const int VK_9 = 0x39;
         public const int VK_A = 0x41;
         public const int VK_Z = 0x5A;
+        public const int VK_OEM_3 = 0xC0;  // ` ~ (backtick) -- toggle label opacity
+        public const int VK_OEM_5 = 0xDC;  // \ | (backslash) -- enter suspend
     }
 }

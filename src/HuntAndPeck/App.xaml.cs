@@ -26,11 +26,22 @@ namespace HuntAndPeck
             return _currentOverlayView != null;
         }
 
-        /// <summary>2nd hotkey press with the overlay up toggles one-click &lt;-&gt; continuous.</summary>
+        /// <summary>
+        /// Main hotkey while the overlay is up: resume if suspended, else toggle
+        /// one-click &lt;-&gt; continuous.
+        /// </summary>
         private void ToggleOverlayMode()
         {
             var vm = _currentVm;
-            if (vm != null)
+            if (vm == null)
+            {
+                return;
+            }
+            if (vm.Suspended)
+            {
+                vm.Suspended = false;
+            }
+            else
             {
                 vm.ToggleContinuous();
             }

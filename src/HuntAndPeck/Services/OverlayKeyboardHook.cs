@@ -17,7 +17,9 @@ namespace HuntAndPeck.Services
         CycleMode,
         CycleMonitorNext,
         CycleMonitorPrev,
-        Nudge
+        Nudge,
+        ToggleOpacity,
+        SuspendNow
     }
 
     /// <summary>
@@ -64,6 +66,11 @@ namespace HuntAndPeck.Services
         private Action _close;
         private readonly Dispatcher _dispatcher;
 
+        // Physical held-state for Alt / Capslock, tracked from raw key events (not
+        // GetAsyncKeyState, which misses a Capslock AutoHotkey has neutralized).
+        private bool _altHeld;
+        private bool _capsHeld;
+
         // The delegates MUST be kept in fields: if they are garbage-collected
         // while Windows still holds the callback pointer, the process crashes.
         private readonly User32.HookProc _kbProc;
@@ -88,6 +95,9 @@ namespace HuntAndPeck.Services
         {
             _vm = vm;
             _close = close;
+            // Seed held-state in case a modifier is already down when the overlay opens.
+            _altHeld = IsDown(User32.VK_MENU);
+            _capsHeld = IsDown(User32.VK_CAPITAL);
 
             var hMod = Kernel32.GetModuleHandle(null);
             _kbHook = User32.SetWindowsHookEx(User32.WH_KEYBOARD_LL, _kbProc, hMod, 0);
@@ -122,7 +132,8 @@ namespace HuntAndPeck.Services
 
             int msg = wParam.ToInt32();
             bool down = msg == User32.WM_KEYDOWN || msg == User32.WM_SYSKEYDOWN;
-            if (!down)
+            bool up = msg == User32.WM_KEYUP || msg == User32.WM_SYSKEYUP;
+            if (!down && !up)
             {
                 return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
             }
@@ -130,17 +141,29 @@ namespace HuntAndPeck.Services
             var k = (User32.KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(User32.KBDLLHOOKSTRUCT));
             int vk = (int)k.vkCode;
 
-            // Suspend overlay key-capture while Alt or Capslock is held, so system and
-            // AutoHotkey combos pass through:
-            //  - Alt+Tab opens the window switcher and Alt+arrows navigate it (instead
-            //    of Tab cycling monitors / arrows panning labels).
-            //  - Capslock-based AHK mappings (e.g. Capslock+f -> Ctrl+Shift+M) reach
-            //    AutoHotkey. Without this our hook (installed on top of AHK's when the
-            //    overlay opens) would swallow the physical key before AHK sees it, so
-            //    the 2nd press could never toggle continuous mode.
-            // Capslock is only "held" while physically pressed; its toggle state is
-            // ignored, so this never interferes with normal label typing.
-            if (IsDown(User32.VK_MENU) || IsDown(User32.VK_CAPITAL))
+            // Track physical held-state for Alt and Capslock from the raw key events.
+            // Our hook sits ABOVE AutoHotkey's in the chain (installed later), so we
+            // see the physical keydown before AHK suppresses it -- GetAsyncKeyState
+            // misses a Capslock AHK has neutralized for a custom combo (Capslock & f),
+            // but the raw event still reaches us. Update on both down and up.
+            if (vk == User32.VK_MENU)
+            {
+                _altHeld = down;
+            }
+            else if (vk == User32.VK_CAPITAL)
+            {
+                _capsHeld = down;
+            }
+
+            // Suspend overlay key-capture while Alt or Capslock is held, OR while the
+            // user has toggled persistent suspend: pass everything straight through so
+            // system / AHK combos and normal app typing reach the foreground app.
+            if (_altHeld || _capsHeld || (_vm != null && _vm.Suspended))
+            {
+                return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
+            }
+
+            if (!down)
             {
                 return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
             }
@@ -186,6 +209,8 @@ namespace HuntAndPeck.Services
 
             if (!ctrlAltWin)
             {
+                if (vkCode == User32.VK_OEM_3) return Action(OverlayKeyActionKind.ToggleOpacity);
+                if (vkCode == User32.VK_OEM_5) return Action(OverlayKeyActionKind.SuspendNow);
                 if (vkCode >= User32.VK_0 && vkCode <= User32.VK_9)
                 {
                     return Char((char)('0' + (vkCode - User32.VK_0)));
@@ -213,6 +238,10 @@ namespace HuntAndPeck.Services
                 case OverlayKeyActionKind.AppendChar:
                     char c = act.Char;
                     return () => _vm.AppendLabelChar(c);
+                case OverlayKeyActionKind.ToggleOpacity:
+                    return () => _vm.ToggleOpacity();
+                case OverlayKeyActionKind.SuspendNow:
+                    return () => _vm.EnterSuspend();
                 case OverlayKeyActionKind.Nudge:
                     int dx = act.Dx;
                     int dy = act.Dy;
@@ -245,7 +274,9 @@ namespace HuntAndPeck.Services
                     // dismisses. The click is still passed through below either way.
                     var m = (User32.MSLLHOOKSTRUCT)Marshal.PtrToStructure(
                         lParam, typeof(User32.MSLLHOOKSTRUCT));
-                    if ((m.flags & User32.LLMHF_INJECTED) == 0)
+                    // Skip our own synthesized clicks (injected), and skip while
+                    // suspended (the user is clicking into the app beneath).
+                    if ((_vm == null || !_vm.Suspended) && (m.flags & User32.LLMHF_INJECTED) == 0)
                     {
                         var close = _close;
                         if (close != null)

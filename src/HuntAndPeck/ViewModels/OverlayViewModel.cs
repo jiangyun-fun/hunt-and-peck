@@ -27,6 +27,8 @@ namespace HuntAndPeck.ViewModels
         private string _match = "";
         private bool _continuousCapable;
         private bool _isContinuous;
+        private bool _labelsOpaque = true;
+        private bool _suspended;
 
         /// <summary>
         /// Single-session ctor: Automation, Grid+Window, and the headless /hint and
@@ -195,8 +197,9 @@ namespace HuntAndPeck.ViewModels
             set { _isContinuous = value; NotifyOfPropertyChange(nameof(TriggerModeLabel)); }
         }
 
-        /// <summary>Overlay badge: the current trigger mode.</summary>
-        public string TriggerModeLabel => _isContinuous ? "CONTINUOUS" : "ONE-SHOT";
+        /// <summary>Overlay badge: the current trigger mode (or SUSPENDED).</summary>
+        public string TriggerModeLabel => _suspended ? "SUSPENDED"
+            : (_isContinuous ? "CONTINUOUS" : "ONE-SHOT");
 
         /// <summary>Flips one-click &lt;-&gt; continuous. No-op for non-Grid (Automation).</summary>
         public void ToggleContinuous()
@@ -207,6 +210,39 @@ namespace HuntAndPeck.ViewModels
             }
             IsContinuous = !_isContinuous;
         }
+
+        /// <summary>
+        /// Persistent suspend: the overlay stops capturing keys and dims its labels so
+        /// you can type into the app beneath (vimium, Excel). Entered with backslash;
+        /// resumed by pressing the main hotkey again (Ctrl+Shift+M / Capslock+f).
+        /// </summary>
+        public bool Suspended
+        {
+            get { return _suspended; }
+            set
+            {
+                _suspended = value;
+                NotifyOfPropertyChange(nameof(LabelOpacity));
+                NotifyOfPropertyChange(nameof(TriggerModeLabel));
+            }
+        }
+
+        /// <summary>True = labels fully opaque; false = dimmed so text behind is readable.</summary>
+        public bool LabelsOpaque
+        {
+            get { return _labelsOpaque; }
+            set { _labelsOpaque = value; NotifyOfPropertyChange(nameof(LabelOpacity)); }
+        }
+
+        /// <summary>Render opacity for the label canvas. Dim when suspended or toggled transparent.</summary>
+        public double LabelOpacity => (_suspended || !_labelsOpaque) ? DimOpacity : 1.0;
+        private const double DimOpacity = 0.2;
+
+        /// <summary>Toggles label opacity (backtick).</summary>
+        public void ToggleOpacity() { LabelsOpaque = !LabelsOpaque; }
+
+        /// <summary>Enters persistent suspend (backslash). Resume via the main hotkey.</summary>
+        public void EnterSuspend() { Suspended = true; }
 
         /// <summary>
         /// The typed label prefix, for display (bound one-way to the TextBox). Input

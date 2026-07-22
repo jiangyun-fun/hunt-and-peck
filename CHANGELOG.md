@@ -7,6 +7,17 @@ built `HuntAndPeck-<tag>.zip`.
 ## [Unreleased]
 
 ### Added
+- **Label opacity toggle (backtick)**: dims labels to ~20% (see-through) so the text
+  behind is readable; press backtick again to restore. Keys stay captured, so labels
+  remain typeable while dim.
+- **Suspend mode (backslash)**: persistent suspend — the overlay stops capturing keys
+  and dims its labels, so you can type into the app beneath (vimium, Excel) with zero
+  key collision; clicks pass through (no dismiss). Resume by pressing the main hotkey
+  again; Esc closes. Per-session.
+- **Capslock+f now toggles continuous mode**: Alt/Capslock held-state is now tracked
+  from the raw hook events (not `GetAsyncKeyState`), so it detects a Capslock that
+  AutoHotkey has neutralized for a custom combo. The 2nd `Capslock+f` reaches AHK and
+  fires the toggle (previously the overlay's hook swallowed the physical `f` first).
 - **Alt / Capslock passthrough**: while Alt or Capslock is held the overlay suspends
   key capture, so `Alt+Tab` (window switcher) + arrows and Capslock-based AutoHotkey
   mappings pass through. This lets you switch apps mid-overlay (the grid is screen-based)

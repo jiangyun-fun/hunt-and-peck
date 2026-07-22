@@ -98,5 +98,29 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal(OverlayKeyActionKind.None,
                 OverlayKeyboardHook.Classify(0x70, false, false).Kind);
         }
+
+        [Fact]
+        public void Backtick_TogglesOpacity()
+        {
+            var act = OverlayKeyboardHook.Classify(User32.VK_OEM_3, false, false);
+            Assert.Equal(OverlayKeyActionKind.ToggleOpacity, act.Kind);
+        }
+
+        [Fact]
+        public void Backslash_EntersSuspend()
+        {
+            var act = OverlayKeyboardHook.Classify(User32.VK_OEM_5, false, false);
+            Assert.Equal(OverlayKeyActionKind.SuspendNow, act.Kind);
+        }
+
+        [Theory]
+        [InlineData(User32.VK_OEM_3)]
+        [InlineData(User32.VK_OEM_5)]
+        public void CtrlModifier_LetsToggleKeysPassThrough(int vk)
+        {
+            // Ctrl+` or Ctrl+\ is an app shortcut, not an overlay toggle.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(vk, false, true).Kind);
+        }
     }
 }
