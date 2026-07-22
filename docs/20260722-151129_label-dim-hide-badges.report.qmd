@@ -1,0 +1,63 @@
+---
+title: "Backtick=dim, backslash=hide, softer pills, centered badges — report"
+author: "Yun Jiang"
+date: "2026-07-22"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
+---
+
+# Status
+
+Done and shipped. CI green (Build ✓, Test ✓). Plan:
+[`20260722-150317_label-dim-hide-badges.plan.qmd`](20260722-150317_label-dim-hide-badges.plan.qmd).
+
+# What was done
+
+Reverted the two-tone outline read-mode (read as ugly/hard to read) and replaced
+it with a two-level opacity model + declutter:
+
+1. **Backtick = dim** labels to ~20% opacity; keys still captured (typeable). Toggle.
+   Flagged tradeoff: opacity-dim couples contrast to the background → dimmed labels
+   are harder to see on dark surfaces (accepted; base mode stays readable on dark).
+2. **Backslash = hide** labels (opacity 0, was ~20%) + `SUSPENDED` badge + keys pass
+   through. Resume via the main hotkey.
+3. **Softer base pills**: pill fill α≈0.8 (less vivid, background peeks through); text
+   stays fully opaque (crisp). Base is not canvas-dimmed.
+4. **Declutter**: removed the top-left legend; merged the two right-side badges into one
+   bottom-center status strip (over the empty taskbar middle); click-mode badge hides
+   in suspend so only `SUSPENDED` shows.
+
+# Files
+
+- `src/HuntAndPeck/Views/HintCanvas.cs` — reverted to pill + `DrawText`; `ActiveBg`/
+  `InactiveBg` are frozen semi-transparent brushes (`SemiBrush` helper); dropped the
+  cached outline geometry, `_outlinePen`, the `ReadMode` DP.
+- `src/HuntAndPeck/ViewModels/OverlayViewModel.cs` — `ReadMode`→`Dimmed`/
+  `ToggleDimmed`; `LabelOpacity => _suspended ? 0.0 : (_dimmed ? 0.2 : 1.0)`;
+  `ClickModeBadgeVisibility` (Collapsed in suspend); removed `ActiveLegend`.
+- `src/HuntAndPeck/Services/OverlayKeyboardHook.cs` — `ToggleReadMode`→`ToggleDimmed`.
+- `src/HuntAndPeck/Views/OverlayView.xaml` — dropped `ReadMode` binding + legend;
+  bottom-center `StackPanel` status strip; click-mode badge `Visibility`-bound.
+- `src/HuntAndPeck/Services/OverlayActionConfig.cs` — removed the now-dead
+  `OverlayLegend` const.
+- `src/HuntAndPeck.Tests/Services/OverlayKeyboardHookTest.cs` —
+  `Backtick_TogglesDimmed`.
+- `CLAUDE.md`, `CHANGELOG.md` — behavior rewritten.
+
+# Verification
+
+- CI (run 29899210975): Build ✓, Test ✓ (xUnit incl. `Backtick_TogglesDimmed`).
+- `grep` for `ReadMode`/`ToggleReadMode`/`ActiveLegend`/`OverlayLegend` in `src/`
+  → none.
+- Runtime (pending, Windows box) at `…/hap-dim-hide/hap.exe`:
+  - backtick dims (read behind, still typeable); backtick again restores;
+  - backslash hides labels + shows `SUSPENDED` + keys pass through; main hotkey resumes;
+  - base pills look softer (less vivid) with crisp text; badges centered at the bottom.
+
+# Commit
+
+`abb069a` on `master` (jiangyun-fun/hunt-and-peck).
