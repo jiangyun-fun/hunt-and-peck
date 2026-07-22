@@ -4,6 +4,25 @@ All notable changes to this fork are documented here. Versions track the
 `v<MAJOR>.<MINOR>.<PATCH>` git tags; the GitHub release for each tag carries the
 built `HuntAndPeck-<tag>.zip`.
 
+## [Unreleased]
+
+### Fixed
+- **Open context menus / popups survive the hotkey.** Pressing the hotkey no longer
+  dismisses an open right-click menu (File Manager, Edge, etc.). The overlay used to
+  force itself to the foreground to capture typed label chars via WPF focus, and that
+  foreground transfer is what closes open menus. It now shows **non-activated**
+  (`ShowActivated=False`, no force-foreground) and reads typed input through a global
+  low-level **keyboard hook** (`WH_KEYBOARD_LL`) instead of WPF focus, so it never
+  steals foreground — you can even label-click items inside an open context menu.
+
+### Changed
+- **Overlay input model**: label typing, Esc, Space, Tab and arrows are captured by
+  `OverlayKeyboardHook` (a global LL keyboard hook), not by a focused `TextBox` /
+  WPF `PreviewKeyDown`. A LL mouse hook restores click-to-dismiss. The overlay is now
+  modeless (`Show()`), one at a time, and dismisses on match / Esc / any mouse click.
+- `ForegroundWindow` exposes `ForceForegroundOnRender` / `CloseOnDeactivate` virtuals;
+  `OverlayView` opts out of both, `DebugOverlayView` keeps the old behavior.
+
 ## [v2.1.0] — 2026-07-13
 
 ### Added

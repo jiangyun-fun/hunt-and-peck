@@ -27,15 +27,16 @@ src/
       HintLabelService.cs                  vimium hint-string generation
       OverlayActionConfig.cs               App.config readers (click modes, nudge, font, hotkey, timing)
       KeyListenerService.cs                global hotkeys (RegisterHotKey)
+      OverlayKeyboardHook.cs               global LL keyboard/mouse hook for overlay input (non-activating)
       TimingLog.cs                         optional latency log (gated by TimingLogEnabled)
     ViewModels/
       ShellViewModel.cs         hotkey → enumerate → merge taskbar → show overlay
       OverlayViewModel.cs        hint state machine, pan offset, click-mode cycle
       HintViewModel.cs           per-hint label/active/font
     Views/
-      OverlayView.xaml(.cs)      the overlay window (click-through, key handling)
+      OverlayView.xaml(.cs)      the overlay window (click-through, non-activating)
       HintCanvas.cs              single-DrawingVisual renderer for all labels
-      ForegroundWindow.cs        base window: forces foreground, closes on deactivate
+      ForegroundWindow.cs        base window: opt-out foreground + close-on-deactivate (virtuals)
     Models/                      Hint (abstract), PointHint (grid), UiAutomation*Hint, HintSession
     App.config                   shipped defaults (hot-reload + restart-only settings)
   HuntAndPeck.Tests/            xUnit
@@ -57,10 +58,19 @@ docs/superpowers/{specs,plans}/ design docs (some superseded — read the banner
   screen coords, so enlarging the overlay never breaks clicks. Grid `PointHint`s
   store absolute screen points (`UiAutomationHintProviderService.ResolveOwningBounds`).
 - **Overlay lifecycle** (`ShellViewModel`): hotkey → capture foreground window →
-  `EnumHints` off-thread → always **merge the taskbar** in → `OverlayViewModel` →
-  `OverlayView.ShowDialog()`. The overlay is `Topmost`, `AllowsTransparency`, and
-  click-through (`WS_EX_TRANSPARENT`) so real clicks and synthesized clicks reach
-  the app beneath; `ForegroundWindow` auto-closes it on deactivation.
+  `EnumHints` off-thread → merge the taskbar in (Grid + Window / Automation; skipped
+  for Grid + Screen) → `OverlayViewModel` → `App.ShowOverlay` → `OverlayView.Show()`.
+  The overlay is `Topmost`, `AllowsTransparency`, and click-through
+  (`WS_EX_TRANSPARENT`) so real clicks and synthesized clicks reach the app beneath.
+- **Overlay input (non-activating)**: the overlay shows with `ShowActivated=False` and
+  does NOT force foreground, so pressing the hotkey does NOT steal foreground from /
+  dismiss an open context menu. Typed label chars, Esc, Space, Tab and arrows are
+  captured by a global low-level keyboard hook (`OverlayKeyboardHook`,
+  `WH_KEYBOARD_LL`); a low-level mouse hook (`WH_MOUSE_LL`) provides click-to-dismiss.
+  Hooks are armed in `App.ShowOverlay` and disarmed on close (idempotent).
+  `ForegroundWindow` keeps force-foreground + close-on-deactivate for
+  `DebugOverlayView`; `OverlayView` opts out via `ForceForegroundOnRender` /
+  `CloseOnDeactivate`.
 - **Rendering**: `HintCanvas` draws every label in one `OnRender` pass (one
   `DrawingVisual`), not one `TextBlock` per hint. `FormattedText` is cached per
   label; `InvalidateVisual` re-runs (cheaply) when a hint's `Active` flips.
@@ -123,7 +133,12 @@ allows `A–Z` and `D0–D9`.
   (`ClickModeOrder`, wraps; resets each trigger). `Move` positions without clicking.
 - **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
   current mode (left / right / double click via `mouse_event`, or move-only).
-- **Esc** cancels.
+- **Esc** cancels. Any **mouse click** also dismisses the overlay (and still reaches
+  the app beneath).
+- **Doesn't dismiss open menus**: the overlay shows non-activated, so an open context
+  menu / popup stays open when you press the hotkey — you can label-click items inside
+  it. (Trade-off: the app is no longer fully key-isolated while the overlay is up —
+  non-label keystrokes, e.g. Ctrl-shortcuts, pass through to it.)
 - **Tray icon** (WinForms `NotifyIcon` + `ContextMenuStrip` in `ShellView`):
   right-click or `Shift+F10` opens a keyboard-navigable menu (arrows, `O` Options,
   `E` Exit). The **Options** dialog exposes every hot-reload setting, so there is no
