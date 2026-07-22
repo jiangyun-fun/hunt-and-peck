@@ -1,0 +1,49 @@
+---
+title: "Defaults (pill 40, continuous), HintDimOpacity, transparent status — report"
+author: "Yun Jiang"
+date: "2026-07-22"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
+---
+
+# Status
+
+Done and shipped. CI green (Build ✓, Test ✓). Shipped `hap.exe.config` verified to carry
+`OverlayTriggerMode=Continuous`, `HintPillOpacity=40`, `HintDimOpacity=20`. Plan:
+[`20260722-154634_defaults-dimopacity-status-tint.plan.qmd`](20260722-154634_defaults-dimopacity-status-tint.plan.qmd).
+
+# What was done
+
+1. **Pill opacity default → 40** (`HintPillOpacity`): App.config, `ReadHintPillOpacity`
+   (percent 40 / fallback 0.4), `HintCanvas.DefaultPillOpacity=0.4`, Options default "40".
+2. **Continuous is the default trigger mode**: `OverlayTriggerMode=Continuous` in App.config
+   and `ReadTriggerMode` (both the `ParseTriggerMode` default arg and the catch fallback).
+   `ShellViewModel` already derived the initial state from `ReadTriggerMode()`, so Grid
+   overlays now open continuous; Automation stays one-shot.
+3. **Transparent status strip**: bottom-center `StackPanel` `Opacity="0.75"`.
+4. **New `HintDimOpacity` config** (percent 0-100, default 20): the backtick dim level,
+   promoted from the hard-coded `const DimOpacity = 0.2`. `ReadHintDimOpacity` reuses
+   `ParsePercent`; `OverlayViewModel._dimOpacity` feeds `LabelOpacity`; Options VM + row.
+
+# Exploration outcome
+
+Surveyed hard-coded values: `HintCanvas.Pad` (2.0), corner radius (3), font family
+("Helvetica, Arial"), badge colors/sizes, status-strip margins. Only `DimOpacity` had
+real user impact (the dim readability the user has been tuning), so only it was promoted
+to config. The rest are aesthetic — not worth config-key bloat. `ParseTriggerMode`'s unit
+test passes its own default explicitly, so the app-default change didn't break it (CI green).
+
+# Verification
+
+- CI run 29901491554: Build ✓, Test ✓.
+- Shipped `hap.exe.config` carries the three new defaults (grep-verified).
+- `grep` for `value="80"` / `value="OneClick"` / `DefaultPillOpacity = 0.8` / `DimOpacity`
+  const → none in `src/` (only pure-parse test cases that pass their own default).
+
+# Commit
+
+`99f0367` on `master` (jiangyun-fun/hunt-and-peck). Drop: `…/hap-defaults-dim/hap.exe`.
