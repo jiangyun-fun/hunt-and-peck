@@ -8,9 +8,8 @@
     ShowInTaskbar="False"
     AllowsTransparency="True"
     Topmost="True"
-    FocusManager.FocusedElement="{Binding ElementName=MatchStringControl}"
-    Loaded="OverlayView_OnLoaded"
-    PreviewKeyDown="OverlayView_OnPreviewKeyDown">
+    ShowActivated="False"
+    Loaded="OverlayView_OnLoaded">
     <local:ForegroundWindow.Background>
         <SolidColorBrush Color="Transparent" />
     </local:ForegroundWindow.Background>
@@ -32,7 +31,10 @@
                    Foreground="Black"
                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4"
                    Visibility="Visible" />
-        <TextBox x:Name="MatchStringControl" Text="{Binding MatchString, UpdateSourceTrigger=PropertyChanged, Mode=OneWayToSource}" Width="50" VerticalAlignment="Bottom" Background="Transparent" Foreground="White" />
+        <!-- Display-only: shows the typed prefix. Input arrives via the global
+             keyboard hook (not a focused TextBox), so the overlay can stay
+             non-activated and not dismiss an open context menu. -->
+        <TextBox Text="{Binding MatchString, Mode=OneWay}" Width="50" VerticalAlignment="Bottom" Background="Transparent" Foreground="White" IsReadOnly="True" Focusable="False" />
         </Grid>
 </local:ForegroundWindow>
 

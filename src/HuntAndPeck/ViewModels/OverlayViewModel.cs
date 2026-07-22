@@ -24,6 +24,7 @@ namespace HuntAndPeck.ViewModels
         private readonly string _fontSizeRaw;
         private readonly IList<HintSession> _sessions;
         private int _currentSession;
+        private string _match = "";
 
         /// <summary>
         /// Single-session ctor: Automation, Grid+Window, and the headless /hint and
@@ -98,6 +99,7 @@ namespace HuntAndPeck.ViewModels
             LoadSession(_sessions[_currentSession]);
             OffsetX = 0;
             OffsetY = 0;
+            ClearMatch();
         }
 
         /// <summary>
@@ -169,46 +171,76 @@ namespace HuntAndPeck.ViewModels
 
         public Action CloseOverlay { get; set; }
 
-        public string MatchString
+        /// <summary>
+        /// The typed label prefix, for display (bound one-way to the TextBox). Input
+        /// arrives via the global keyboard hook (OverlayKeyboardHook.AppendLabelChar),
+        /// not via a focused TextBox, so the overlay can stay non-activated and not
+        /// dismiss an open context menu.
+        /// </summary>
+        public string MatchString => _match;
+
+        /// <summary>Appends one typed label character and runs the prefix match.</summary>
+        public void AppendLabelChar(char c)
         {
-            set
+            _match += char.ToUpperInvariant(c);
+            NotifyOfPropertyChange(nameof(MatchString));
+            ApplyMatch(_match);
+        }
+
+        /// <summary>
+        /// Clears the typed prefix and any active highlighting. Called when cycling
+        /// to another monitor (the new monitor starts un-highlighted).
+        /// </summary>
+        public void ClearMatch()
+        {
+            _match = "";
+            NotifyOfPropertyChange(nameof(MatchString));
+            foreach (var x in Hints)
             {
-                var matching = Hints.Where(x => x.Label.StartsWith(value, StringComparison.OrdinalIgnoreCase)).ToList();
-                var matchingSet = new HashSet<HintViewModel>(matching);
-
-                // Only flip hints whose Active state actually changes, so we don't
-                // raise PropertyChanged (and trigger WPF binding/layout work) for
-                // every hint on each keystroke.
-                foreach (var x in Hints)
+                if (x.Active)
                 {
-                    bool shouldMatch = matchingSet.Contains(x);
-                    if (x.Active != shouldMatch)
-                    {
-                        x.Active = shouldMatch;
-                    }
+                    x.Active = false;
+                }
+            }
+        }
+
+        private void ApplyMatch(string value)
+        {
+            var matching = Hints.Where(x => x.Label.StartsWith(value, StringComparison.OrdinalIgnoreCase)).ToList();
+            var matchingSet = new HashSet<HintViewModel>(matching);
+
+            // Only flip hints whose Active state actually changes, so we don't
+            // raise PropertyChanged (and trigger WPF binding/layout work) for
+            // every hint on each keystroke.
+            foreach (var x in Hints)
+            {
+                bool shouldMatch = matchingSet.Contains(x);
+                if (x.Active != shouldMatch)
+                {
+                    x.Active = shouldMatch;
+                }
+            }
+
+            if (matching.Count == 1)
+            {
+                // Move the cursor onto the matched label, then apply the grid
+                // pan offset so it lands where the label was shifted to.
+                matching[0].Hint.MoveMouseToCenter();
+                POINT p;
+                User32.GetCursorPos(out p);
+                User32.SetCursorPos(p.X + (int)_offsetX, p.Y + (int)_offsetY);
+
+                // The overlay is click-through, so these real clicks reach the
+                // app beneath; Move performs no click (the user clicks manually).
+                switch (CurrentAction)
+                {
+                    case ClickAction.Left: DoLeftClick(); break;
+                    case ClickAction.Right: DoRightClick(); break;
+                    case ClickAction.Double: DoDoubleClick(); break;
+                    case ClickAction.Move: break;
                 }
 
-                if (matching.Count == 1)
-                {
-                    // Move the cursor onto the matched label, then apply the grid
-                    // pan offset so it lands where the label was shifted to.
-                    matching[0].Hint.MoveMouseToCenter();
-                    POINT p;
-                    User32.GetCursorPos(out p);
-                    User32.SetCursorPos(p.X + (int)_offsetX, p.Y + (int)_offsetY);
-
-                    // The overlay is click-through, so these real clicks reach the
-                    // app beneath; Move performs no click (the user clicks manually).
-                    switch (CurrentAction)
-                    {
-                        case ClickAction.Left: DoLeftClick(); break;
-                        case ClickAction.Right: DoRightClick(); break;
-                        case ClickAction.Double: DoDoubleClick(); break;
-                        case ClickAction.Move: break;
-                    }
-
-                    CloseOverlay?.Invoke();
-                }
+                CloseOverlay?.Invoke();
             }
         }
 

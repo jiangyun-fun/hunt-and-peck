@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using System;
+using System.Windows;
 using HuntAndPeck.ViewModels;
 using System.Linq;
 using HuntAndPeck.Services;
@@ -16,15 +17,51 @@ namespace HuntAndPeck
         private readonly UiAutomationHintProviderService _hintProviderService = new UiAutomationHintProviderService();
         private readonly HintLabelService _hintLabelService = new HintLabelService();
         private KeyListenerService _keyListenerService;
+        private OverlayView _currentOverlayView;
 
         private void ShowOverlay(OverlayViewModel vm)
         {
+            // One overlay at a time. The overlay shows NON-activated (OverlayView.xaml
+            // ShowActivated=False) so the hotkey does NOT steal foreground and dismiss
+            // an open context menu; typed label chars are captured by a global
+            // low-level hook (OverlayKeyboardHook) instead of WPF focus.
+            if (_currentOverlayView != null)
+            {
+                return;
+            }
+
             var view = new OverlayView
             {
                 DataContext = vm
             };
-            vm.CloseOverlay = () => view.Close();
-            view.ShowDialog();
+            _currentOverlayView = view;
+
+            var hook = new OverlayKeyboardHook();
+            bool closed = false;
+            // Single idempotent close path: match success, Esc, or any mouse click
+            // (the latter two via the hook) all funnel through here.
+            Action close = () =>
+            {
+                if (closed) return;
+                closed = true;
+                hook.Disarm();
+                view.Close();
+            };
+
+            vm.CloseOverlay = close;
+            hook.Arm(vm, close);
+
+            view.Closed += (s, e) =>
+            {
+                if (!closed)
+                {
+                    closed = true;
+                    hook.Disarm();
+                }
+                _currentOverlayView = null;
+            };
+
+            view.Show();
         }
 
         private void ShowDebugOverlay(DebugOverlayViewModel vm)
@@ -51,22 +88,14 @@ namespace HuntAndPeck
             {
                 // support headless mode
                 var session = _hintProviderService.EnumHints();
-                var overlayWindow = new OverlayView()
-                {
-                    DataContext = new OverlayViewModel(session, _hintLabelService)
-                };
-                overlayWindow.Show();
+                ShowOverlay(new OverlayViewModel(session, _hintLabelService));
             }
             else if (e.Args.Contains("/tray"))
             {
                 // support headless tray mode
                 var taskbarHWnd = User32.FindWindow("Shell_traywnd", "");
                 var session = _hintProviderService.EnumHints(taskbarHWnd);
-                var overlayWindow = new OverlayView()
-                {
-                    DataContext = new OverlayViewModel(session, _hintLabelService)
-                };
-                overlayWindow.Show();
+                ShowOverlay(new OverlayViewModel(session, _hintLabelService));
             }
             else
             {

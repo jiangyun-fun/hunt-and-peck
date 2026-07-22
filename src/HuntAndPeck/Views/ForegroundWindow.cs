@@ -8,22 +8,43 @@ using HuntAndPeck.NativeMethods;
 namespace HuntAndPeck.Views
 {
     /// <summary>
-    /// Window that is always foreground, and closes when it's not
+    /// Window that is always foreground, and closes when it's not. Deriving views
+    /// can opt out of either behavior: the hint <see cref="OverlayView"/> shows
+    /// non-activating (so it does not steal foreground from / dismiss an open
+    /// context menu) and reads input via a global keyboard hook instead, so it
+    /// overrides both properties to false.
     /// </summary>
     public class ForegroundWindow : Window
     {
         private bool _closing;
         private bool _initialized;
 
+        /// <summary>
+        /// When true (default), the window force-foregrounds itself on first render
+        /// so it receives keyboard focus. OverlayView overrides this to false because
+        /// stealing foreground dismisses any open context menu.
+        /// </summary>
+        protected virtual bool ForceForegroundOnRender => true;
+
+        /// <summary>
+        /// When true (default), the window closes itself when it loses activation
+        /// (click elsewhere, alt-tab). OverlayView overrides this to false: it shows
+        /// non-activated, so dismissal is driven by the keyboard/mouse hook instead.
+        /// </summary>
+        protected virtual bool CloseOnDeactivate => true;
+
         protected override void OnRender(DrawingContext drawingContext)
         {
             if (!_initialized)
             {
-                // Always want this on top. SetForegroundWindow has a few conditions:
-                // https://msdn.microsoft.com/en-us/library/ms633539(VS.85).aspx
-                if (!User32.SetForegroundWindow(new WindowInteropHelper(this).Handle))
+                if (ForceForegroundOnRender)
                 {
-                    ForceForeground();
+                    // Always want this on top. SetForegroundWindow has a few conditions:
+                    // https://msdn.microsoft.com/en-us/library/ms633539(VS.85).aspx
+                    if (!User32.SetForegroundWindow(new WindowInteropHelper(this).Handle))
+                    {
+                        ForceForeground();
+                    }
                 }
                 _initialized = true;
             }
@@ -33,7 +54,7 @@ namespace HuntAndPeck.Views
         protected override void OnDeactivated(EventArgs e)
         {
             // We could have lost focus because we're already closing, make sure this doesn't call close twice
-            if (_initialized && !_closing)
+            if (CloseOnDeactivate && _initialized && !_closing)
             {
                 Close();
             }

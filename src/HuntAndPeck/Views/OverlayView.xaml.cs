@@ -2,7 +2,6 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using HuntAndPeck.NativeMethods;
@@ -24,6 +23,14 @@ namespace HuntAndPeck.Views
         {
             InitializeComponent();
         }
+
+        // Non-activating overlay: do NOT force foreground (that would dismiss any
+        // open context menu) and do NOT close on deactivation (we are never
+        // activated; dismissal is driven by the keyboard/mouse hook installed by
+        // App.ShowOverlay -> OverlayKeyboardHook). Input reaches us through that
+        // global hook, not through WPF focus, so we don't need foreground.
+        protected override bool ForceForegroundOnRender => false;
+        protected override bool CloseOnDeactivate => false;
 
         private void OverlayView_OnLoaded(object sender, RoutedEventArgs e)
         {
@@ -55,6 +62,14 @@ namespace HuntAndPeck.Views
             // double) and a manual click all reach the app beneath; keyboard
             // focus is unaffected, so typing keeps working.
             SetClickThrough(true);
+
+            // Re-assert top-most z-order WITHOUT stealing activation, so we paint
+            // above an open context menu but don't dismiss it. Topmost=True keeps
+            // us in the topmost band; this re-asserts our position above other
+            // topmost popups (e.g. an open right-click menu).
+            var hwnd = new WindowInteropHelper(this).Handle;
+            User32.SetWindowPos(hwnd, User32.HWND_TOPMOST, 0, 0, 0, 0,
+                User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOACTIVATE);
 
             // Measure window-load to content-rendered (the label layout/render cost).
             _renderSw = Stopwatch.StartNew();
@@ -88,66 +103,8 @@ namespace HuntAndPeck.Views
             }
         }
 
-        private void OverlayView_OnPreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            var vm = DataContext as OverlayViewModel;
-
-            if (e.Key == Key.Escape)
-            {
-                Close();
-                e.Handled = true;
-                return;
-            }
-
-            if (e.Key == Key.Space && vm != null)
-            {
-                vm.CycleMode();
-                e.Handled = true;   // never let Space enter the TextBox
-                return;
-            }
-
-            if (e.Key == Key.Tab && vm != null)
-            {
-                // Cycle the overlay to the next (Tab) or previous (Shift+Tab) monitor.
-                int delta = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ? -1 : 1;
-                vm.CycleMonitor(delta);
-                MatchStringControl.Text = "";   // clear the typed prefix for the new monitor
-                e.Handled = true;
-                return;
-            }
-
-            switch (e.Key)
-            {
-                case Key.Up:
-                case Key.Down:
-                case Key.Left:
-                case Key.Right:
-                    if (vm != null)
-                    {
-                        int step = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift
-                            ? OverlayActionConfig.ReadNudgeStepFast()
-                            : OverlayActionConfig.ReadNudgeStep();
-                        int dx = e.Key == Key.Left ? -step : (e.Key == Key.Right ? step : 0);
-                        int dy = e.Key == Key.Up ? -step : (e.Key == Key.Down ? step : 0);
-                        // Pan ALL labels together by the offset.
-                        vm.Nudge(dx, dy);
-                    }
-                    e.Handled = true;
-                    return;
-            }
-
-            // Let letters through to the TextBox; swallow everything else.
-            if (!IsLabelKey(e.Key))
-            {
-                e.Handled = true;
-            }
-        }
-
-        private static bool IsLabelKey(Key key)
-        {
-            // Letters (A-Z) and top-row digits (D0-D9) drive label matching.
-            return (key >= Key.A && key <= Key.Z) || (key >= Key.D0 && key <= Key.D9);
-        }
+        // Key handling lives in OverlayKeyboardHook (a global low-level hook) now,
+        // not in WPF PreviewKeyDown, because the overlay is non-activated.
 
         /// <summary>
         /// Toggles WS_EX_TRANSPARENT on the overlay HWND. When on, the window is
