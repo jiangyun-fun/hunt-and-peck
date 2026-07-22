@@ -132,7 +132,9 @@ allows `A–Z` and `D0–D9`.
 - **Labels are all highlighted (yellow) at start**; typing narrows the highlight to the
   matching labels; a unique match fires. (In continuous mode the highlight resets to
   all-yellow after each click.)
-- **Arrows** pan all labels (3 px; `Shift` = 15 px).
+- **Arrows** pan all labels (3 px; `Shift` = 15 px). Only the **dedicated** arrow cluster
+  (extended key) pans — the **numpad** arrow keys (NumLock off) pass through untouched so a
+  numpad-mouse tool (e.g. AutoHotkey `*NumpadRight`) keeps working while the overlay is up.
 - **Space** cycles the click mode (badge bottom-center): `Left → Right → Double → Move`
   (`ClickModeOrder`, wraps). `Move` positions without clicking. In continuous mode the
   mode reverts to the first (Left) after every click.

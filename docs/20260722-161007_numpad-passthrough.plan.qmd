@@ -1,0 +1,50 @@
+---
+title: "Numpad keys pass through (numpad-mouse compatible) — plan/report"
+author: "Yun Jiang"
+date: "2026-07-22"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖱️</text></svg>">
+---
+
+# Goal
+
+With the overlay up, numpad arrow keys (NumLock off) were swallowed as label pan,
+breaking the user's AutoHotkey numpad-mouse script (`*NumpadUp`/`*NumpadClear`/
+`*NumpadLeft`/`*NumpadRight`). Numpad digit/operator keys were already not captured.
+
+# Root cause
+
+With NumLock off, the numpad nav keys reuse the arrow VK codes (numpad 6 → `VK_RIGHT`,
+8 → `VK_UP`, 4 → `VK_LEFT`; 5 → `VK_CLEAR`). The overlay's `Classify` maps the arrow VK
+codes to Nudge unconditionally, and the low-level hook sits above AutoHotkey's, so the
+key was swallowed before AHK saw it.
+
+# Fix
+
+The `WH_KEYBOARD_LL` extended-key flag (`LLKHF_EXTENDED`) reliably distinguishes the
+**dedicated arrow cluster** (extended → still pans labels) from the **numpad keys** (not
+extended → pass through). Per the Win32 extended-key list ([Keyboard Input Overview](
+https://learn.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input)), extended
+keys are "the Arrow keys in the clusters to the left of the numeric keypad" plus only
+NumpadDivide/NumpadEnter on the keypad — numpad digit/nav keys are NOT extended.
+
+- `NativeMethods/User32.cs`: added `LLKHF_EXTENDED = 0x0001` (keyboard struct flags).
+- `OverlayKeyboardHook.cs`: read `extended = (k.flags & LLKHF_EXTENDED) != 0`; pass it to
+  `Classify`. Added a 4-arg `Classify` whose arrow branches only nudge when `extended`;
+  the 3-arg overload (tests) defaults `extended = true`.
+- Tests: `NumpadArrows_NotExtended_PassThrough` (4 arrows, `extended:false` → `None`).
+
+# Verification
+
+CI compile + xUnit green (existing arrow tests still nudge via the 3-arg default; new
+test asserts numpad arrows pass through). Runtime (Windows): with the overlay up and
+NumLock off, numpad arrows move the mouse via the AHK script; real arrow keys still pan.
+
+# Note
+
+AutoHotkey's own `NumpadRight` vs `Right` key names are further evidence Windows can tell
+them apart — via this same extended flag.

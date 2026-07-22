@@ -124,6 +124,13 @@ namespace HuntAndPeck.NativeMethods
         // dismiss the overlay in continuous mode.
         public const uint LLMHF_INJECTED = 0x0001;
 
+        // KBDLLHOOKSTRUCT.flags: the key is an extended key (dedicated arrow/Nav cluster,
+        // right Ctrl/Alt, NumpadDivide, NumpadEnter, etc.). NOT set for the numeric
+        // keypad's digit/Nav keys (NumLock off: numpad 8/6/4/2 reuse VK_UP/RIGHT/LEFT/
+        // DOWN without this flag). Used to tell real arrows from numpad arrows so a
+        // numpad-mouse tool keeps working with the overlay up.
+        public const uint LLKHF_EXTENDED = 0x0001;
+
         // Window messages delivered to the hook wParam
         public const int WM_KEYDOWN = 0x0100;
         public const int WM_KEYUP = 0x0101;

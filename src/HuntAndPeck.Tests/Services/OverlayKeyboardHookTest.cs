@@ -61,6 +61,20 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Theory]
+        [InlineData(User32.VK_LEFT)]
+        [InlineData(User32.VK_UP)]
+        [InlineData(User32.VK_RIGHT)]
+        [InlineData(User32.VK_DOWN)]
+        public void NumpadArrows_NotExtended_PassThrough(int vk)
+        {
+            // Numpad nav keys (NumLock off) reuse the arrow VK codes but do NOT set the
+            // extended flag, so they must pass through (None) -- letting a numpad-mouse
+            // AutoHotkey script work while the overlay is up.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(vk, false, false, extended: false).Kind);
+        }
+
+        [Theory]
         [InlineData(User32.VK_A, 'A')]
         [InlineData(User32.VK_Z, 'Z')]
         [InlineData(User32.VK_0, '0')]

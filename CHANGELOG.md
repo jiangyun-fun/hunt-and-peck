@@ -67,6 +67,13 @@ built `HuntAndPeck-<tag>.zip`.
   `OverlayView` opts out of both, `DebugOverlayView` keeps the old behavior.
 
 ### Fixed
+- **Numpad keys no longer captured by the overlay.** With NumLock off, the numpad arrow
+  keys reuse the arrow VK codes (numpad 6 → `VK_RIGHT`, etc.), so the overlay was
+  swallowing them as label pan — breaking numpad-mouse tools (e.g. an AutoHotkey
+  `*NumpadRight` mouse-move script). The low-level hook's extended-key flag
+  (`LLKHF_EXTENDED`) reliably separates the dedicated arrow cluster (extended → still
+  pans) from the numpad keys (not extended → pass through). Numpad digit/operator keys
+  were already not captured.
 - **Alt+Tab works again.** While the overlay was up, `Alt+Tab` stopped switching
   windows (Tab was swallowed as "cycle monitor"). Root cause: the low-level hook
   delivers Alt as `VK_LMENU`/`VK_RMENU`, not the `VK_MENU` the event tracker checked,
