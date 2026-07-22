@@ -7,19 +7,22 @@ built `HuntAndPeck-<tag>.zip`.
 ## [Unreleased]
 
 ### Added
-- **Label read-mode (backtick)**: labels switch from a solid pill to a **two-tone
-  outline** (yellow fill + black stroke) with no backing, at full opacity — so they
-  stay crisp on any background (including dark) while the text behind stays readable;
-  press backtick again to restore the pills. Keys stay captured, so labels remain
-  typeable in either state. (Replaces the old global-opacity dim to ~20%, which
-  coupled label contrast to the background and vanished on dark surfaces. A literal
-  single-color hollow outline also fails on one background extreme, so read-mode keeps
-  a thin fill: the stroke gives the edge on light backgrounds, the fill pops on dark
-  ones. Base pill mode is unchanged — already legible on dark backgrounds.)
-- **Suspend mode (backslash)**: persistent suspend — the overlay stops capturing keys
-  and dims its labels, so you can type into the app beneath (vimium, Excel) with zero
-  key collision; clicks pass through (no dismiss). Resume by pressing the main hotkey
-  again; Esc closes. Per-session.
+- **Label dim (backtick)**: drops label opacity to ~20% so the text behind is readable;
+  press backtick again to restore. Keys stay captured, so labels remain typeable while
+  dim. (Replaces a two-tone-outline read-mode that read as ugly/hard to read. Tradeoff:
+  opacity-dim couples label contrast to the background, so dimmed labels are harder to
+  see on dark surfaces — accepted, since base mode stays readable on dark.)
+- **Suspend now hides labels (backslash)**: persistent suspend stops capturing keys and
+  sets label opacity to 0 (was ~20% dim), leaving only the `SUSPENDED` status visible,
+  so you can type into the app beneath (vimium, Excel) with zero key collision; clicks
+  pass through (no dismiss). Resume by pressing the main hotkey again; Esc closes.
+  Per-session.
+- **Softer label pills**: the pill fill is now α≈0.8 (less vivid yellow, background
+  peeks through) while the text stays fully opaque, so labels are crisp yet less
+  glaring. Base mode is not dimmed canvas-wide.
+- **Decluttered overlay**: removed the top-left gesture legend; moved the click-mode and
+  trigger-mode badges into one bottom-center status strip (over the empty taskbar
+  middle). The click-mode badge hides while suspended so only `SUSPENDED` shows.
 - **Capslock+f now toggles continuous mode**: Alt/Capslock held-state is now tracked
   from the raw hook events (not `GetAsyncKeyState`), so it detects a Capslock that
   AutoHotkey has neutralized for a custom combo. The 2nd `Capslock+f` reaches AHK and
@@ -37,7 +40,7 @@ built `HuntAndPeck-<tag>.zip`.
   screen across clicks — e.g. `af`→navigate to a page, `bd`→click another button,
   `Space`→right-click mode, `aa`→open a context menu, `bb`→click a menu item, then
   `Esc`. Press the hotkey again while the overlay is up to toggle one-click ⇄
-  continuous (badge bottom-left). In continuous mode the click mode reverts to Left
+  continuous (badge bottom-center). In continuous mode the click mode reverts to Left
   after every click. Automation stays one-shot (its labels go stale on navigation).
 
 ### Changed

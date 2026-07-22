@@ -1,0 +1,70 @@
+---
+title: "Backtick=dim, backslash=hide, badge relocation — plan"
+author: "Yun Jiang"
+date: "2026-07-22"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
+---
+
+# Goal
+
+User found the two-tone **outline read-mode ugly/hard to read**. Replace it with a
+simpler two-level opacity model and declutter the overlay:
+
+1. **Backtick** → dim labels (canvas opacity 0.2), keys **still captured** (typeable).
+   Toggle (backtick again restores). Flagged tradeoff: opacity-dim re-introduces the
+   dark-background visibility problem (the outline was built to fix that); accepted by
+   the user, who prefers the dim look. Lever: raise 0.2 → ~0.35 if dark-bg legibility
+   matters.
+2. **Backslash** → **hide** labels (canvas opacity 0.0) + `SUSPENDED` badge + keys
+   pass through (suspend). Resume via the main hotkey. (Was: dim 0.2 + suspend.)
+3. Remove the top-left legend (`ActiveLegend` TextBlock + the VM property).
+4. Move the click-mode badge (top-right) and the trigger-mode badge (bottom-right) to
+   a **bottom-center status strip** (over the empty middle of the taskbar).
+5. Soften the vivid yellow pill: **semi-transparent pill fill** (α≈0.8) so the box is
+   less vivid and background peeks through, while text stays fully opaque (crisp).
+   Implemented as a brush alpha, NOT canvas opacity — canvas opacity would also dull
+   the text.
+
+# Approach
+
+- **Revert the outline read-mode** added in `a26325d`: drop the cached `Geometry`,
+  `_outlinePen`, the `ReadMode` DP, and the `RenderHint` branch. Back to pill+text.
+- `HintCanvas`: `ActiveBg`/`InactiveBg` become frozen semi-transparent brushes
+  (`Color.FromArgb(0xCC, …)`). Keep `DrawRoundedRectangle` pill + `DrawText`.
+- `OverlayViewModel`: replace `ReadMode`/`ToggleReadMode` with `Dimmed`/`ToggleDimmed`.
+  `LabelOpacity => _suspended ? 0.0 : (_dimmed ? 0.2 : 1.0)`. Add
+  `ClickModeBadgeVisibility => _suspended ? Collapsed : Visible` so only `SUSPENDED`
+  shows in suspend. Remove `ActiveLegend`.
+- `OverlayKeyboardHook`: rename enum `ToggleReadMode` → `ToggleDimmed`; `VK_OEM_3`
+  maps to it; dispatch → `ToggleDimmed()`. Backslash unchanged (`EnterSuspend`).
+- `OverlayView.xaml`: drop `ReadMode` binding; remove legend TextBlock; replace the
+  two right-side badges with one bottom-center `StackPanel` (click-mode badge
+  Visibility-bound, trigger badge always on); keep `MatchString` TextBox bottom-left.
+- Tests: `Backtick_TogglesReadMode` → `Backtick_TogglesDimmed`.
+- `CLAUDE.md`, `CHANGELOG`: rewrite the backtick/backslash sections.
+
+# Files
+
+`HintCanvas.cs`, `OverlayViewModel.cs`, `OverlayKeyboardHook.cs`, `OverlayView.xaml`,
+`OverlayKeyboardHookTest.cs`, `CLAUDE.md`, `CHANGELOG.md`. No new `.cs`, no
+`.csproj`/`App.config` change. (`OverlayActionConfig.OverlayLegend` const left in
+place — harmless.)
+
+# Risks
+
+- Backtick-dim fails on dark backgrounds (accepted; user prefers dim over outline).
+- α=0.8 pill is a fixed choice; trivially tunable later, or expose as a config key.
+- Badge bottom-center sits over the taskbar; if a window's content is also there it
+  may overlap — acceptable (it's a transient status strip).
+
+# Verification
+
+CI compile + xUnit green; runtime (Windows): backtick dims (light bg readable
+behind, still typeable); backslash hides labels + shows `SUSPENDED` + keys pass
+through; base pills look softer (less vivid) with crisp text; badges centered at the
+bottom.

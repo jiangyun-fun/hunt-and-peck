@@ -52,10 +52,6 @@ namespace HuntAndPeck.Services
         private static readonly IList<ClickAction> DefaultClickOrder =
             new[] { ClickAction.Left, ClickAction.Right, ClickAction.Double, ClickAction.Move };
 
-        /// <summary>Legend shown on the overlay so the gestures are discoverable.</summary>
-        public const string OverlayLegend =
-            "type 2 chars = fire  |  space = click mode  |  arrows = move  |  ` = read-through  |  \\ = suspend  |  Esc = cancel";
-
         // --- config freshness: avoid re-parsing hap.exe.config on every read ---
         private static DateTime _configMtimeUtc = DateTime.MinValue;
         private static readonly object _configRefreshLock = new object();

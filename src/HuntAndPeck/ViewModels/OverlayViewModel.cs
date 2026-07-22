@@ -27,7 +27,7 @@ namespace HuntAndPeck.ViewModels
         private string _match = "";
         private bool _continuousCapable;
         private bool _isContinuous;
-        private bool _readMode;
+        private bool _dimmed;
         private bool _suspended;
 
         /// <summary>
@@ -165,9 +165,6 @@ namespace HuntAndPeck.ViewModels
             }
         }
 
-        /// <summary>Legend shown on the overlay so the gestures are discoverable.</summary>
-        public string ActiveLegend => OverlayActionConfig.OverlayLegend;
-
         public ObservableCollection<HintViewModel> Hints
         {
             get { return _hints; }
@@ -212,9 +209,10 @@ namespace HuntAndPeck.ViewModels
         }
 
         /// <summary>
-        /// Persistent suspend: the overlay stops capturing keys and dims its labels so
-        /// you can type into the app beneath (vimium, Excel). Entered with backslash;
-        /// resumed by pressing the main hotkey again (Ctrl+Shift+M / Capslock+f).
+        /// Persistent suspend (backslash): the overlay stops capturing keys AND hides its
+        /// labels (opacity 0), leaving only the SUSPENDED status, so you can type into the
+        /// app beneath (vimium, Excel) with zero key collision. Resume by pressing the
+        /// main hotkey again (Ctrl+Shift+M / Capslock+f); Esc closes.
         /// </summary>
         public bool Suspended
         {
@@ -224,31 +222,38 @@ namespace HuntAndPeck.ViewModels
                 _suspended = value;
                 NotifyOfPropertyChange(nameof(LabelOpacity));
                 NotifyOfPropertyChange(nameof(TriggerModeLabel));
+                NotifyOfPropertyChange(nameof(ClickModeBadgeVisibility));
             }
         }
 
         /// <summary>
-        /// Read-mode (backtick): labels switch from a solid pill to a two-tone outline
-        /// (yellow fill + black stroke) with no backing, at full opacity -- crisp on any
-        /// background (incl. dark) while the text behind stays readable. A global-opacity
-        /// dim (the old behavior) coupled label contrast to the background and vanished
-        /// on dark surfaces; switching render style decouples them.
+        /// Dimmed (backtick): labels drop to a low opacity so the text behind is readable,
+        /// but keys stay captured so you can still type a label. Toggle (backtick again
+        /// restores). Note: opacity-dim couples label contrast to the background, so it is
+        /// harder to see on dark surfaces -- accepted tradeoff for the simpler look.
         /// </summary>
-        public bool ReadMode
+        public bool Dimmed
         {
-            get { return _readMode; }
-            set { _readMode = value; NotifyOfPropertyChange(nameof(ReadMode)); }
+            get { return _dimmed; }
+            set { _dimmed = value; NotifyOfPropertyChange(nameof(LabelOpacity)); }
         }
 
         /// <summary>
-        /// Render opacity for the label canvas. Only suspend dims now (to get labels out
-        /// of the way while typing into the app beneath); read-mode keeps full opacity.
+        /// Render opacity for the label canvas: 0 (hidden) when suspended, low when dimmed,
+        /// full otherwise. Base mode relies on the semi-transparent pill fill (HintCanvas)
+        /// for its slight see-through, not on a canvas-wide dim, so the text stays crisp.
         /// </summary>
-        public double LabelOpacity => _suspended ? DimOpacity : 1.0;
+        public double LabelOpacity => _suspended ? 0.0 : (_dimmed ? DimOpacity : 1.0);
         private const double DimOpacity = 0.2;
 
-        /// <summary>Toggles read-mode (backtick): pill &lt;-&gt; two-tone outline.</summary>
-        public void ToggleReadMode() { ReadMode = !ReadMode; }
+        /// <summary>
+        /// The click-mode badge is hidden while suspended so only the SUSPENDED status
+        /// shows. Exposed as Visibility so the XAML binds directly (no converter needed).
+        /// </summary>
+        public Visibility ClickModeBadgeVisibility => _suspended ? Visibility.Collapsed : Visibility.Visible;
+
+        /// <summary>Toggles dim mode (backtick): full &lt;-&gt; dimmed labels.</summary>
+        public void ToggleDimmed() { Dimmed = !Dimmed; }
 
         /// <summary>Enters persistent suspend (backslash). Resume via the main hotkey.</summary>
         public void EnterSuspend() { Suspended = true; }

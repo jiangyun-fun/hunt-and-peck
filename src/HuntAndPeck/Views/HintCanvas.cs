@@ -18,30 +18,36 @@ namespace HuntAndPeck.Views
     /// </summary>
     public class HintCanvas : FrameworkElement
     {
-        private static readonly Brush ActiveBg = Brushes.Yellow;
-        private static readonly Brush InactiveBg = Brushes.LightYellow;
+        // Semi-transparent pill fills (alpha 0xCC ~= 0.8): softens the vivid yellow and
+        // lets a hint of the background show through. The text brush stays fully opaque,
+        // so the label stays crisp (dimming the whole canvas would also dull the text).
+        private static readonly Brush ActiveBg = SemiBrush(0xCC, 0xFF, 0xFF, 0x00);   // yellow
+        private static readonly Brush InactiveBg = SemiBrush(0xCC, 0xFF, 0xFA, 0xCD); // light yellow
         private static readonly Brush TextBrush = Brushes.Black;
         private static readonly Typeface LabelTypeface =
             new Typeface(new FontFamily("Helvetica, Arial"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
 
         private readonly VisualCollection _visuals;
 
-        // Parallel by index: the view-model, its cached text + outline geometry, and
-        // the visual that draws it.
+        // Parallel by index: the view-model, its cached text, and the visual that draws it.
         private List<HintViewModel> _hints;
         private FormattedText[] _formatted;
-        private Geometry[] _geometry;          // text outline, used in read-mode rendering
         private List<DrawingVisual> _visualByHint;
         private double _fontSize = 14;
-        private Pen _outlinePen;               // black stroke around read-mode glyphs
 
-        // Padding between the label text and the edge of its pill. Shared by the
-        // pill rect and the cached geometry origin so they line up exactly.
+        // Padding between the label text and the edge of its pill.
         private const double Pad = 2.0;
 
         public HintCanvas()
         {
             _visuals = new VisualCollection(this);
+        }
+
+        private static Brush SemiBrush(byte a, byte r, byte g, byte b)
+        {
+            var br = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+            br.Freeze();
+            return br;
         }
 
         public static readonly DependencyProperty HintsSourceProperty =
@@ -52,38 +58,6 @@ namespace HuntAndPeck.Views
         {
             get { return (IList)GetValue(HintsSourceProperty); }
             set { SetValue(HintsSourceProperty, value); }
-        }
-
-        /// <summary>
-        /// Read-mode (backtick): labels render as a two-tone outline (yellow fill +
-        /// black stroke) with no pill, at full opacity. A literal single-color hollow
-        /// outline cannot be crisp on both light and dark backgrounds, so the fill is
-        /// kept (thin -- just the glyph interior) and the stroke provides the edge on
-        /// light backgrounds while the fill pops on dark ones. Occludes almost nothing,
-        /// so the text behind stays readable.
-        /// </summary>
-        public static readonly DependencyProperty ReadModeProperty =
-            DependencyProperty.Register("ReadMode", typeof(bool), typeof(HintCanvas),
-                new FrameworkPropertyMetadata(false, OnReadModeChanged));
-
-        public bool ReadMode
-        {
-            get { return (bool)GetValue(ReadModeProperty); }
-            set { SetValue(ReadModeProperty, value); }
-        }
-
-        private static void OnReadModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            var c = (HintCanvas)d;
-            if (c._hints == null)
-            {
-                return;
-            }
-            // Re-render every label into its own visual (no full InvalidateVisual).
-            for (int i = 0; i < c._hints.Count; i++)
-            {
-                c.RenderHint(i);
-            }
         }
 
         protected override int VisualChildrenCount
@@ -103,7 +77,6 @@ namespace HuntAndPeck.Views
             c._visuals.Clear();
             c._hints = null;
             c._formatted = null;
-            c._geometry = null;
             c._visualByHint = null;
 
             var list = e.NewValue as IList;
@@ -169,7 +142,6 @@ namespace HuntAndPeck.Views
             if (_hints == null || _hints.Count == 0)
             {
                 _formatted = null;
-                _geometry = null;
                 return;
             }
             if (!double.TryParse(_hints[0].FontSizeReadValue, out var fs) || fs <= 0)
@@ -177,33 +149,19 @@ namespace HuntAndPeck.Views
                 fs = 14;
             }
             _fontSize = fs;
-
-            // Outline pen scales with the font so the stroke stays proportional.
-            // Frozen so it can be reused across render passes without re-copying.
-            _outlinePen = new Pen(Brushes.Black, Math.Max(1.0, _fontSize / 9.0));
-            _outlinePen.Freeze();
-
             _formatted = new FormattedText[_hints.Count];
-            _geometry = new Geometry[_hints.Count];
             for (int i = 0; i < _hints.Count; i++)
             {
-                var ft = new FormattedText(_hints[i].Label ?? "", CultureInfo.CurrentCulture,
+                _formatted[i] = new FormattedText(_hints[i].Label ?? "", CultureInfo.CurrentCulture,
                     FlowDirection.LeftToRight, LabelTypeface, _fontSize, TextBrush);
-                _formatted[i] = ft;
-                // The text outline geometry, baked at the label's absolute position
-                // (same origin DrawText uses) so read-mode needs no per-draw transform.
-                // BuildGeometry ignores the FormattedText brush; fill is set at draw time.
-                var br = _hints[i].Hint.BoundingRectangle;
-                _geometry[i] = ft.BuildGeometry(new Point(br.Left + Pad, br.Top + Pad));
             }
         }
 
         /// <summary>
-        /// Re-renders hint <paramref name="i"/> into its own DrawingVisual, positioned
-        /// at the hint's bounds. Base mode: a colored pill + solid black text (already
-        /// legible on any background, including dark -- the bright pill contrasts).
-        /// Read-mode: a two-tone outline (fill + black stroke) with no pill, so labels
-        /// stay crisp on any background while the text behind stays readable.
+        /// Re-renders hint <paramref name="i"/> into its own DrawingVisual: a semi-
+        /// transparent rounded pill plus the cached label text, positioned at the hint's
+        /// bounds. Overall dim/hide is driven by the canvas <c>Opacity</c> (bound to
+        /// <c>LabelOpacity</c>), not here.
         /// </summary>
         private void RenderHint(int i)
         {
@@ -215,19 +173,9 @@ namespace HuntAndPeck.Views
 
             using (var dc = _visualByHint[i].RenderOpen())
             {
-                if (ReadMode)
-                {
-                    // Two-tone outline (not literally hollow): a single-color outline
-                    // vanishes on one background extreme. Yellow fill pops on dark; the
-                    // black stroke gives the edge on light. No pill -> read-through.
-                    dc.DrawGeometry(h.Active ? ActiveBg : InactiveBg, _outlinePen, _geometry[i]);
-                }
-                else
-                {
-                    dc.DrawRoundedRectangle(h.Active ? ActiveBg : InactiveBg, null,
-                        new Rect(x, y, ft.Width + Pad * 2, ft.Height + Pad * 2), 3, 3);
-                    dc.DrawText(ft, new Point(x + Pad, y + Pad));
-                }
+                dc.DrawRoundedRectangle(h.Active ? ActiveBg : InactiveBg, null,
+                    new Rect(x, y, ft.Width + Pad * 2, ft.Height + Pad * 2), 3, 3);
+                dc.DrawText(ft, new Point(x + Pad, y + Pad));
             }
         }
     }
