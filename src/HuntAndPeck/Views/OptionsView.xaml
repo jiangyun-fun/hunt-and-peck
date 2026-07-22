@@ -33,6 +33,9 @@
                         <TextBlock Text="Pill opacity (0-100; lower = more see-through, text stays crisp)" FontWeight="Bold" />
                         <TextBox Text="{Binding HintPillOpacity}" Margin="0,2,0,10" />
 
+                        <TextBlock Text="Dimmed opacity (0-100; backtick dim level for reading behind)" FontWeight="Bold" />
+                        <TextBox Text="{Binding HintDimOpacity}" Margin="0,2,0,10" />
+
                         <TextBlock Text="Grid edge step (px)" FontWeight="Bold" />
                         <TextBox Text="{Binding GridEdgeStep}" Margin="0,2,0,10" />
 

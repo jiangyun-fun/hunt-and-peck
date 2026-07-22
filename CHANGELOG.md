@@ -17,12 +17,20 @@ built `HuntAndPeck-<tag>.zip`.
   so you can type into the app beneath (vimium, Excel) with zero key collision; clicks
   pass through (no dismiss). Resume by pressing the main hotkey again; Esc closes.
   Per-session.
-- **Softer label pills**: the pill fill is now α≈0.8 by default (less vivid yellow,
-  background peeks through) while the text stays fully opaque, so labels are crisp yet
-  less glaring. Base mode is not dimmed canvas-wide.
+- **Softer label pills**: the pill fill is α≈0.4 by default (was vivid solid yellow) —
+  less glaring, background peeks through — while the text stays fully opaque, so labels
+  stay crisp. Base mode is not dimmed canvas-wide.
 - **Configurable pill opacity** (`HintPillOpacity`, hot-reload): percent 0-100 (default
-  80) controlling the pill fill alpha; the label text stays fully opaque regardless.
+  40) controlling the pill fill alpha; the label text stays fully opaque regardless.
   Exposed in the Options dialog.
+- **Configurable dimmed opacity** (`HintDimOpacity`, hot-reload): percent 0-100 (default
+  20) controlling the backtick-dim canvas opacity for reading the text behind. Exposed in
+  the Options dialog.
+- **Continuous is the default trigger mode** (`OverlayTriggerMode=Continuous`): the
+  overlay now stays up for repeated clicks by default (Grid only); set `OneClick` to
+  restore the close-after-one-click behavior.
+- **Transparent status strip**: the bottom-center status badges are now semi-transparent
+  (Opacity 0.75) so they don't fully obscure content behind them.
 - **Decluttered overlay**: removed the top-left gesture legend; moved the click-mode and
   trigger-mode badges into one bottom-center status strip (over the empty taskbar
   middle). The click-mode badge hides while suspended so only `SUSPENDED` shows.

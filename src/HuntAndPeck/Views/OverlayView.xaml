@@ -28,9 +28,10 @@
                  HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4"
                  Background="Transparent" Foreground="White" IsReadOnly="True" Focusable="False" />
         <!-- Bottom-center status strip (sits over the empty middle of the taskbar).
-             The click-mode badge hides while suspended so only SUSPENDED shows. -->
+             The click-mode badge hides while suspended so only SUSPENDED shows.
+             Semi-transparent so it never fully obscures content behind it. -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
-                    VerticalAlignment="Bottom" Margin="0,0,0,8">
+                    VerticalAlignment="Bottom" Margin="0,0,0,8" Opacity="0.75">
             <TextBlock Text="{Binding CurrentModeName}"
                        Background="{Binding CurrentModeBrush}"
                        FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="14"

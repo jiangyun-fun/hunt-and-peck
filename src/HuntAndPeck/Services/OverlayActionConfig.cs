@@ -264,20 +264,39 @@ namespace HuntAndPeck.Services
 
         /// <summary>
         /// Hint pill fill opacity as 0.0-1.0 (hot-reload). Configured as a percent
-        /// (0-100, default 80): softens the vivid yellow so background peeks through,
-        /// while the label text stays fully opaque. Bad/missing values fall back to 0.8.
+        /// (0-100, default 40): softens the vivid yellow so background peeks through,
+        /// while the label text stays fully opaque. Bad/missing values fall back to 0.4.
         /// </summary>
         public static double ReadHintPillOpacity()
         {
             try
             {
                 EnsureFresh();
-                return ParsePercent(ConfigurationManager.AppSettings["HintPillOpacity"], 80) / 100.0;
+                return ParsePercent(ConfigurationManager.AppSettings["HintPillOpacity"], 40) / 100.0;
             }
             catch (Exception)
             {
                 // Deliberate fallback so a malformed config keeps the app usable.
-                return 0.8;
+                return 0.4;
+            }
+        }
+
+        /// <summary>
+        /// Dimmed-label opacity as 0.0-1.0 (hot-reload). Configured as a percent
+        /// (0-100, default 20): the canvas-wide opacity used when you press backtick to
+        /// dim labels so the text behind is readable. Bad/missing values fall back to 0.2.
+        /// </summary>
+        public static double ReadHintDimOpacity()
+        {
+            try
+            {
+                EnsureFresh();
+                return ParsePercent(ConfigurationManager.AppSettings["HintDimOpacity"], 20) / 100.0;
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return 0.2;
             }
         }
 
@@ -325,19 +344,19 @@ namespace HuntAndPeck.Services
         /// The default trigger mode (hot-reload): OneClick closes the overlay after one
         /// click; Continuous keeps it up for repeated clicks until Esc / a mouse click.
         /// At runtime Continuous applies to Grid only (Automation stays one-shot). Default
-        /// OneClick.
+        /// Continuous.
         /// </summary>
         public static TriggerMode ReadTriggerMode()
         {
             try
             {
                 EnsureFresh();
-                return ParseTriggerMode(ConfigurationManager.AppSettings["OverlayTriggerMode"], TriggerMode.OneClick);
+                return ParseTriggerMode(ConfigurationManager.AppSettings["OverlayTriggerMode"], TriggerMode.Continuous);
             }
             catch (Exception)
             {
                 // Deliberate fallback so a malformed config keeps the app usable.
-                return TriggerMode.OneClick;
+                return TriggerMode.Continuous;
             }
         }
 

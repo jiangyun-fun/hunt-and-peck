@@ -38,7 +38,7 @@ namespace HuntAndPeck.Views
 
         // Padding between the label text and the edge of its pill.
         private const double Pad = 2.0;
-        private const double DefaultPillOpacity = 0.8;
+        private const double DefaultPillOpacity = 0.4;
 
         public HintCanvas()
         {

@@ -112,8 +112,8 @@ Two kinds of settings:
 - **Hot-reload** (read each trigger; edit `hap.exe.config`, save, re-trigger):
   `HintSource`, `HintBoundsSource`, `OverlayTriggerMode`, `GridEdgeStep`,
   `GridCenterStep`, `GridDenseRegions`, `GridInset`, `GridEdgeBandPercent`,
-  `HintCharacters`, `HintFontSize`, `HintPillOpacity`, `NudgeStep`, `NudgeStepFast`,
-  `ClickModeOrder`, `MaxEnumerationDepth`, `TimingLogEnabled`.
+  `HintCharacters`, `HintFontSize`, `HintPillOpacity`, `HintDimOpacity`, `NudgeStep`,
+  `NudgeStepFast`, `ClickModeOrder`, `MaxEnumerationDepth`, `TimingLogEnabled`.
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
   dismisses open context menus even inside a chord).
@@ -144,11 +144,12 @@ allows `A–Z` and `D0–D9`.
   is tracked from the raw hook events (not `GetAsyncKeyState`), so it still detects a
   Capslock AutoHotkey has neutralized for a custom combo — letting `Capslock+f` toggle
   continuous mode on the 2nd press. Also lets you Alt+Tab between apps mid-overlay.
-- **Backtick dims the labels**: drops label opacity to ~20% so the text passage behind
-  is readable, then press again to restore. Keys stay captured, so labels stay typeable
-  while dim (you can still type a label to fire it). Tradeoff: opacity-dim couples
-  label contrast to the background, so dimmed labels are harder to see on dark surfaces
-  (acceptable on light backgrounds). A two-tone-outline read-mode was tried and
+- **Backtick dims the labels**: drops label opacity to the configured dim level
+  (default ~20%, `HintDimOpacity`) so the text passage behind is readable, then press
+  again to restore. Keys stay captured, so labels stay typeable while dim (you can still
+  type a label to fire it). Tradeoff: opacity-dim couples label contrast to the
+  background, so dimmed labels are harder to see on dark surfaces (acceptable on light
+  backgrounds; raise `HintDimOpacity` to improve). A two-tone-outline read-mode was tried and
   rejected as ugly/hard to read.
 - **Backslash suspends the overlay**: enters persistent suspend — the overlay stops
   capturing keys AND **hides its labels** (opacity 0), leaving only the `SUSPENDED`
@@ -156,14 +157,14 @@ allows `A–Z` and `D0–D9`.
   collision. Clicks pass through (no dismiss). Resume by pressing the **main hotkey**
   (`Ctrl+Shift+M` / `Capslock+f`) again; `Esc` closes. Per-session (resets each new
   overlay).
-- **Labels are slightly transparent by design**: the pill fill is α≈0.8 by default
+- **Labels are slightly transparent by design**: the pill fill is α≈0.4 by default
   (softened yellow, background peeks through) while the text stays fully opaque
   (crisp). Configurable via `HintPillOpacity` (0-100 percent; hot-reload). Base mode
   is NOT dimmed canvas-wide, so it stays readable on dark backgrounds.
-- **Trigger mode** (`OverlayTriggerMode`, hot-reload; Grid only): `OneClick` (default)
-  closes the overlay after one click; `Continuous` keeps it up for repeated clicks
-  until `Esc` / a mouse click — e.g. `af`→navigate, `bd`→click again, `Space`→
-  right-click, `aa`→open a menu, `bb`→click a menu item, then `Esc`. Press the hotkey
+- **Trigger mode** (`OverlayTriggerMode`, hot-reload; Grid only): `Continuous` (default)
+  keeps the overlay up for repeated clicks until `Esc` / a mouse click — e.g. `af`→
+  navigate, `bd`→click again, `Space`→right-click, `aa`→open a menu, `bb`→click a menu
+  item, then `Esc`. `OneClick` closes the overlay after one click. Press the hotkey
   again while the overlay is up to toggle one-click ⇄ continuous (badge bottom-center).
   Automation ignores this and stays one-shot.
 - **Esc** cancels. Any **mouse click** also dismisses the overlay (and still reaches

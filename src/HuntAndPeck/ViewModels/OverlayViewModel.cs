@@ -23,6 +23,7 @@ namespace HuntAndPeck.ViewModels
         private readonly IHintLabelService _hintLabelService;
         private readonly string _fontSizeRaw;
         private readonly double _pillOpacity;
+        private readonly double _dimOpacity;
         private readonly IList<HintSession> _sessions;
         private int _currentSession;
         private string _match = "";
@@ -60,6 +61,8 @@ namespace HuntAndPeck.ViewModels
                 ?? HuntAndPeck.Properties.Settings.Default.FontSize;
             // Pill fill opacity (0-1) read once per overlay; bound to HintCanvas.
             _pillOpacity = OverlayActionConfig.ReadHintPillOpacity();
+            // Dimmed-label opacity (0-1) read once per overlay; used by LabelOpacity.
+            _dimOpacity = OverlayActionConfig.ReadHintDimOpacity();
 
             if (_sessions.Count > 0)
             {
@@ -248,12 +251,12 @@ namespace HuntAndPeck.ViewModels
         }
 
         /// <summary>
-        /// Render opacity for the label canvas: 0 (hidden) when suspended, low when dimmed,
-        /// full otherwise. Base mode relies on the semi-transparent pill fill (HintCanvas)
-        /// for its slight see-through, not on a canvas-wide dim, so the text stays crisp.
+        /// Render opacity for the label canvas: 0 (hidden) when suspended, the configured
+        /// dim level when dimmed (backtick), full otherwise. Base mode relies on the
+        /// semi-transparent pill fill (HintCanvas) for its slight see-through, not on a
+        /// canvas-wide dim, so the text stays crisp.
         /// </summary>
-        public double LabelOpacity => _suspended ? 0.0 : (_dimmed ? DimOpacity : 1.0);
-        private const double DimOpacity = 0.2;
+        public double LabelOpacity => _suspended ? 0.0 : (_dimmed ? _dimOpacity : 1.0);
 
         /// <summary>
         /// The click-mode badge is hidden while suspended so only the SUSPENDED status

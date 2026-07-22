@@ -52,7 +52,7 @@ namespace HuntAndPeck.ViewModels
 
         public string OverlayTriggerMode
         {
-            get { return Get("OverlayTriggerMode", "OneClick"); }
+            get { return Get("OverlayTriggerMode", "Continuous"); }
             set { Set("OverlayTriggerMode", value); OnPropertyChanged("OverlayTriggerMode"); }
         }
 
@@ -62,7 +62,9 @@ namespace HuntAndPeck.ViewModels
             set { Set("HintCharacters", value); OnPropertyChanged("HintCharacters"); }
         }
 
-        public string HintPillOpacity { get { return Get("HintPillOpacity", "80"); } set { Set("HintPillOpacity", value); OnPropertyChanged("HintPillOpacity"); } }
+        public string HintPillOpacity { get { return Get("HintPillOpacity", "40"); } set { Set("HintPillOpacity", value); OnPropertyChanged("HintPillOpacity"); } }
+
+        public string HintDimOpacity { get { return Get("HintDimOpacity", "20"); } set { Set("HintDimOpacity", value); OnPropertyChanged("HintDimOpacity"); } }
 
         public string GridEdgeStep { get { return Get("GridEdgeStep", "30"); } set { Set("GridEdgeStep", value); OnPropertyChanged("GridEdgeStep"); } }
         public string GridCenterStep { get { return Get("GridCenterStep", "50"); } set { Set("GridCenterStep", value); OnPropertyChanged("GridCenterStep"); } }

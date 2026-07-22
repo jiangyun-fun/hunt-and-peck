@@ -1,0 +1,46 @@
+---
+title: "Defaults (pill 40, continuous), HintDimOpacity, transparent status — plan/report"
+author: "Yun Jiang"
+date: "2026-07-22"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
+---
+
+# Changes
+
+1. **Pill opacity default 80 → 40** (`HintPillOpacity`). App.config, `ReadHintPillOpacity`
+   (percent 40 / fallback 0.4), `HintCanvas.DefaultPillOpacity` 0.4, Options default "40".
+2. **Continuous is the default trigger mode** (`OverlayTriggerMode=Continuous`). App.config,
+   `ReadTriggerMode` default (both the `ParseTriggerMode` arg and the catch fallback),
+   Options default "Continuous". `ShellViewModel` already derives the initial state from
+   `ReadTriggerMode()`, so no change there; Automation still one-shot.
+3. **Transparent status strip**: bottom-center `StackPanel` `Opacity="0.75"` so the badges
+   don't fully obscure content. Fixed (not configurable).
+4. **New `HintDimOpacity` config** (percent 0-100, default 20) — the backtick dim level,
+   which the user has been tuning for dark-bg readability. `ReadHintDimOpacity` (reuses
+   `ParsePercent`), `OverlayViewModel._dimOpacity` (replaces the old `const DimOpacity`),
+   Options VM + dialog row.
+
+# Exploration: other config-worthy settings
+
+Surveyed hard-coded values in the overlay code (`HintCanvas.Pad`/corner-radius/font
+family, badge colors/sizes, status-strip margins). Only `DimOpacity` had real user impact
+(directly tied to the dim readability work), so only it was promoted to a config key. The
+rest are aesthetic and not worth config-key bloat. `ParseTriggerMode`'s unit test passes
+its own default explicitly, so changing the app default did not break it.
+
+# Files
+
+`App.config`, `Services/OverlayActionConfig.cs`, `ViewModels/OverlayViewModel.cs`,
+`Views/HintCanvas.cs`, `Views/OverlayView.xaml`, `ViewModels/OptionsViewModel.cs`,
+`Views/OptionsView.xaml`, `CLAUDE.md`, `CHANGELOG.md`.
+
+# Verification
+
+CI compile + xUnit green. Runtime (Windows): pills dimmer (α≈0.4) with crisp text; overlay
+opens continuous by default; status strip semi-transparent; backtick dims to the
+configured level; Options exposes HintPillOpacity + HintDimOpacity.
