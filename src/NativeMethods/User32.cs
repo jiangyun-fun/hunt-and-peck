@@ -119,6 +119,11 @@ namespace HuntAndPeck.NativeMethods
         public const int WH_MOUSE_LL = 14;
         public const int HC_ACTION = 0;
 
+        // MSLLHOOKSTRUCT.flags: the event was injected (mouse_event/SendInput), not
+        // from real hardware. Used to ignore our OWN synthesized clicks so they don't
+        // dismiss the overlay in continuous mode.
+        public const uint LLMHF_INJECTED = 0x0001;
+
         // Window messages delivered to the hook wParam
         public const int WM_KEYDOWN = 0x0100;
         public const int WM_SYSKEYDOWN = 0x0104;

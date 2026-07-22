@@ -224,13 +224,21 @@ namespace HuntAndPeck.Services
                 if (msg == User32.WM_LBUTTONDOWN || msg == User32.WM_RBUTTONDOWN
                     || msg == User32.WM_MBUTTONDOWN || msg == User32.WM_XBUTTONDOWN)
                 {
-                    // Defer so the callback stays fast; pass the click through so the
-                    // app beneath still receives it (matches the old behavior where a
-                    // click dismissed the overlay AND acted on the app).
-                    var close = _close;
-                    if (close != null)
+                    // Ignore clicks WE synthesized (mouse_event sets LLMHF_INJECTED).
+                    // Otherwise our own label click would dismiss the overlay and
+                    // continuous mode could never stay up. Only a REAL user click
+                    // dismisses. The click is still passed through below either way.
+                    var m = (User32.MSLLHOOKSTRUCT)Marshal.PtrToStructure(
+                        lParam, typeof(User32.MSLLHOOKSTRUCT));
+                    if ((m.flags & User32.LLMHF_INJECTED) == 0)
                     {
-                        _dispatcher.BeginInvoke(close);
+                        var close = _close;
+                        if (close != null)
+                        {
+                            // Defer so the callback stays fast; pass the click through
+                            // so the app beneath still receives it.
+                            _dispatcher.BeginInvoke(close);
+                        }
                     }
                 }
             }
