@@ -1,0 +1,64 @@
+---
+title: "Second hotkey that opens in one-shot mode (default Ctrl+Shift+,) — report"
+author: "Yun Jiang"
+date: "2026-07-22"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⌨️</text></svg>">
+---
+
+# Status
+
+Done and shipped. CI green (Build ✓, Test ✓). Plan:
+[`20260722-204844_oneshot-hotkey.plan.qmd`](20260722-204844_oneshot-hotkey.plan.qmd).
+
+# What was done
+
+Added a second, configurable global hotkey — default `Ctrl+Shift+,` (`Oemcomma`) — that opens
+the overlay in **one-shot** mode regardless of `OverlayTriggerMode` (which defaults to
+`Continuous`). The main hotkey (`Ctrl+Shift+M`) still honors the configured mode. Pressing
+either hotkey while the overlay is already up toggles one-click ⇄ continuous (Grid only).
+
+- `OverlayActionConfig.cs`: pure `ComputeIsContinuous(forceOneShot, gridSource, configMode)`
+  (forceOneShot wins; else Grid && config Continuous) + `ReadOneShotHotkeyKey` /
+  `ReadOneShotHotkeyModifier` (mirror the main-hotkey readers; defaults `Oemcomma` /
+  `Control|Shift`).
+- `IKeyListenerService.cs` / `KeyListenerService.cs`: new `OneShotHotKey` slot +
+  `OnOneShotHotKeyActivated` event, registered via the existing `ReRegisterHotKey` path, and a
+  symmetric `WndProc` dispatch block.
+- `ShellViewModel.cs`: open body refactored into `OpenOverlayAsync(bool forceOneShot)`; two
+  thin `async void` handlers call it with `false` (main) / `true` (one-shot). `continuous` now
+  comes from `ComputeIsContinuous`.
+- `OptionsViewModel.cs` / `OptionsView.xaml`: `OneShotHotkeyKey` / `OneShotHotkeyModifier`
+  rows (Keyboard tab).
+- `App.config`: `OneShotHotkeyKey=Oemcomma`, `OneShotHotkeyModifier=Control,Shift` with a
+  comment block.
+- Tests: `ComputeIsContinuous_RespectsForceOneShotAndGrid` theory (6 cases) covers the
+  forceOneShot override, Automation one-shot, and config OneClick.
+- `CLAUDE.md` / `CHANGELOG.md` updated.
+
+No new `.cs` files (all edits to existing files) → no csproj churn.
+
+# Verification (Rule #0)
+
+- Key code confirmed authoritative: **`Oemcomma` = 188 (0xBC)**, present in
+  `netframework-4.5.1` ([Microsoft Learn — Keys Enum](
+  https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.keys)).
+- CI run 29921716305 (commit `b94aea4`): Build ✓, Test ✓ (55s; new
+  `ComputeIsContinuous` theory + existing tests). Only annotation is the unrelated
+  Node.js 20 deprecation notice.
+- Shipped `hap.exe.config` verified to contain `OneShotHotkeyKey=Oemcomma` and
+  `OneShotHotkeyModifier=Control,Shift`.
+- Drop: `$HAP_WIN_TEST_DIR/hap-oneshot/hap.exe` →
+  `/mnt/c/5.sibio/93.bk/20260627-144526.test/hap-oneshot/hap.exe`.
+- Runtime (pending, Windows): `Ctrl+Shift+,` opens a one-shot overlay that closes after one
+  click even when `OverlayTriggerMode=Continuous`; `Ctrl+Shift+M` still opens in the
+  configured mode; pressing `Ctrl+Shift+,` while a Continuous overlay is up flips it to
+  one-shot.
+
+# Commit
+
+`b94aea4` on `master`.
