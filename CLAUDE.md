@@ -138,6 +138,11 @@ allows `A–Z` and `D0–D9`.
   mode reverts to the first (Left) after every click.
 - **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
   current mode (left / right / double click via `mouse_event`, or move-only).
+- **Alt or Capslock held → passthrough**: while you hold Alt or Capslock the overlay
+  stops capturing keys, so `Alt+Tab` (window switcher) + arrows and Capslock-based
+  AutoHotkey mappings (e.g. `Capslock+f`) pass through. Lets you Alt+Tab between apps
+  mid-overlay (the grid is screen-based, so it still targets whatever is foreground) and
+  lets an AHK-mapped hotkey toggle continuous mode on the 2nd press.
 - **Trigger mode** (`OverlayTriggerMode`, hot-reload; Grid only): `OneClick` (default)
   closes the overlay after one click; `Continuous` keeps it up for repeated clicks
   until `Esc` / a mouse click — e.g. `af`→navigate, `bd`→click again, `Space`→

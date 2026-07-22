@@ -130,6 +130,21 @@ namespace HuntAndPeck.Services
             var k = (User32.KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(User32.KBDLLHOOKSTRUCT));
             int vk = (int)k.vkCode;
 
+            // Suspend overlay key-capture while Alt or Capslock is held, so system and
+            // AutoHotkey combos pass through:
+            //  - Alt+Tab opens the window switcher and Alt+arrows navigate it (instead
+            //    of Tab cycling monitors / arrows panning labels).
+            //  - Capslock-based AHK mappings (e.g. Capslock+f -> Ctrl+Shift+M) reach
+            //    AutoHotkey. Without this our hook (installed on top of AHK's when the
+            //    overlay opens) would swallow the physical key before AHK sees it, so
+            //    the 2nd press could never toggle continuous mode.
+            // Capslock is only "held" while physically pressed; its toggle state is
+            // ignored, so this never interferes with normal label typing.
+            if (IsDown(User32.VK_MENU) || IsDown(User32.VK_CAPITAL))
+            {
+                return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
+            }
+
             bool shift = IsDown(User32.VK_SHIFT);
             // Shift alone is allowed (Shift+letter is still that letter, Shift+arrow
             // is the fast nudge). Ctrl/Alt/Win means the key is a shortcut, not a

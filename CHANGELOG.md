@@ -7,6 +7,13 @@ built `HuntAndPeck-<tag>.zip`.
 ## [Unreleased]
 
 ### Added
+- **Alt / Capslock passthrough**: while Alt or Capslock is held the overlay suspends
+  key capture, so `Alt+Tab` (window switcher) + arrows and Capslock-based AutoHotkey
+  mappings pass through. This lets you switch apps mid-overlay (the grid is screen-based)
+  and makes an AHK-mapped hotkey (e.g. `Capslock+f` → `Ctrl+Shift+M`) toggle continuous
+  mode on the 2nd press — previously the overlay's hook swallowed the physical key
+  before AutoHotkey saw it. (Native `Capslock+F` via `RegisterHotKey` is impossible:
+  Win32 doesn't accept Capslock as a modifier.)
 - **Continuous trigger mode** (`OverlayTriggerMode`, hot-reload; Grid only): the
   overlay can stay up for repeated clicks until Esc / a mouse click, instead of closing
   after one. `OneClick` (default) is the old behavior; `Continuous` keeps labels on
