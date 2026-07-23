@@ -167,6 +167,8 @@ namespace HuntAndPeck.NativeMethods
         public const int VK_9 = 0x39;
         public const int VK_A = 0x41;
         public const int VK_Z = 0x5A;
+        public const int VK_C = 0x43;  // Ctrl+C (regression guard: Ctrl+letter passthrough)
+        public const int VK_V = 0x56;  // Ctrl+V (regression guard: Ctrl+letter passthrough)
         // Vim-style label-pan keys: Shift+hjkl = large step, Ctrl+Shift+hjkl = small.
         public const int VK_H = 0x48;
         public const int VK_J = 0x4A;
