@@ -182,7 +182,7 @@ allows `A–Z` and `D0–D9`.
   restart (`ActiveLayout`). Ships with 2: the dense edge grid and a uniform full-screen grid
   (`Center` + equal steps). Omit `GridLayouts` to use the five flat knobs as before; `;`
   then passes through. Automation ignores it (no grid concept) — `;` reaches the app.
-- **Labels are slightly transparent by design**: the pill fill is α≈0.4 by default
+- **Labels are slightly transparent by design**: the pill fill is α≈0.8 by default
   (softened yellow, background peeks through) while the text stays fully opaque
   (crisp). Configurable via `HintPillOpacity` (0-100 percent; hot-reload). Base mode
   is NOT dimmed canvas-wide, so it stays readable on dark backgrounds.

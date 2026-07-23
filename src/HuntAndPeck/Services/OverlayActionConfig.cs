@@ -304,20 +304,20 @@ namespace HuntAndPeck.Services
 
         /// <summary>
         /// Hint pill fill opacity as 0.0-1.0 (hot-reload). Configured as a percent
-        /// (0-100, default 40): softens the vivid yellow so background peeks through,
-        /// while the label text stays fully opaque. Bad/missing values fall back to 0.4.
+        /// (0-100, default 80): softens the vivid yellow so background peeks through,
+        /// while the label text stays fully opaque. Bad/missing values fall back to 0.8.
         /// </summary>
         public static double ReadHintPillOpacity()
         {
             try
             {
                 EnsureFresh();
-                return ParsePercent(ConfigurationManager.AppSettings["HintPillOpacity"], 40) / 100.0;
+                return ParsePercent(ConfigurationManager.AppSettings["HintPillOpacity"], 80) / 100.0;
             }
             catch (Exception)
             {
                 // Deliberate fallback so a malformed config keeps the app usable.
-                return 0.4;
+                return 0.8;
             }
         }
 

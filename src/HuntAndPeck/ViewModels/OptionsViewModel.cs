@@ -62,7 +62,7 @@ namespace HuntAndPeck.ViewModels
             set { Set("HintCharacters", value); OnPropertyChanged("HintCharacters"); }
         }
 
-        public string HintPillOpacity { get { return Get("HintPillOpacity", "40"); } set { Set("HintPillOpacity", value); OnPropertyChanged("HintPillOpacity"); } }
+        public string HintPillOpacity { get { return Get("HintPillOpacity", "80"); } set { Set("HintPillOpacity", value); OnPropertyChanged("HintPillOpacity"); } }
 
         public string HintDimOpacity { get { return Get("HintDimOpacity", "20"); } set { Set("HintDimOpacity", value); OnPropertyChanged("HintDimOpacity"); } }
 
