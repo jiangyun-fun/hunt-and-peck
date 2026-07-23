@@ -1,0 +1,65 @@
+---
+title: "hjkl label-pan + configurable arrow passthrough — report"
+author: "Yun Jiang"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✅</text></svg>">
+---
+
+# Report
+
+## Outcome
+
+Implemented and **verified green on CI**. Plain dedicated arrow keys now reach
+the app beneath by default; label-panning moved to Vim-style `hjkl` chords.
+`Ctrl+C`/`Ctrl+V` and all other Ctrl-shortcuts are untouched (regression-tested).
+
+Plan: [`20260723-194232_hjkl-pan-arrow-passthrough.plan.qmd`](20260723-194232_hjkl-pan-arrow-passthrough.plan.qmd).
+
+## What was done
+
+- `Shift+hjkl` = large pan (`NudgeStepFast`, 15px); `Ctrl+Shift+hjkl` = small pan
+  (`NudgeStep`, 3px); `h`=←, `j`=↓, `k`=↑, `l`=→. Plain `hjkl` still type hint
+  labels (Shift is the pan gate); `Win+Shift+hjkl` passes through.
+- New hot-reload setting `ArrowKeyBehavior` (`Passthrough` default → arrows to the
+  app; `Pan` → legacy arrow-panning), exposed in the Options dialog.
+- `OverlayKeyboardHook.Classify` collapsed to one pure optional-param method
+  taking explicit `ctrl`/`win`/`extended`/`arrowPan`; the hjkl branch runs before
+  the `(ctrl||win)` gate so `Ctrl+Shift+hjkl` is still captured.
+
+Files: `OverlayActionConfig.cs`, `OverlayKeyboardHook.cs`, `User32.cs`,
+`App.config`, `OptionsViewModel.cs`, `OptionsView.xaml`,
+`OverlayKeyboardHookTest.cs`, `CLAUDE.md`.
+
+## Verification (evidence)
+
+CI run `30005126186` (commit `f55cb8a`) — **success**, 55s
+([run](https://github.com/jiangyun-fun/hunt-and-peck/actions/runs/30005126186)):
+
+- ✓ Build (Release, Any CPU)
+- ✓ Test — vstest: **`Total tests: 113` / `Passed: 113`** (16 new cases included)
+- ✓ Upload build artifact
+
+New/changed unit coverage: `ShiftHjkl_IsLargeNudge`,
+`CtrlShiftHjkl_IsSmallNudge`, `PlainHjkl_StillAppendsChar`,
+`WinShiftHjkl_PassesThrough`, `Arrows_Passthrough_WhenConfigured`,
+`CtrlPlusLetter_StillPassthrough` (Ctrl+C/V regression guard); all prior tests
+unchanged.
+
+## Issues encountered
+
+- First push (`5dedfc7`, run `30004617221`) failed CI with `CS0117`: the
+  `CtrlPlusLetter_StillPassthrough` test referenced `User32.VK_C`/`VK_V`, which
+  were not defined. Fixed by adding `VK_C` (0x43) and `VK_V` (0x56) to
+  `User32.cs` (commit `f55cb8a`).
+
+## Remaining (manual, on the Windows box)
+
+CI is the only gate reachable from the Linux dev box; UI/P-Invoke behavior is
+manual. `ship-drop` the artifact, then verify: arrows move app focus;
+`Shift+hjkl` pans ~15px; `Ctrl+Shift+hjkl` ~3px; `Ctrl+C/V/Z` still work; plain
+`hjkl` still matches labels; `Win+Shift+hjkl` reaches the OS; toggling
+`ArrowKeyBehavior` in Options hot-reloads.

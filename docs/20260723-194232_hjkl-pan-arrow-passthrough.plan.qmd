@@ -42,7 +42,8 @@ are high-demand app shortcuts (selection, word-jump); `Shift+hjkl` /
 
 1. `src/HuntAndPeck/Services/OverlayActionConfig.cs` — `ArrowKeyBehavior` enum,
    `ParseArrowKeyBehavior`, `ReadArrowKeyBehavior` (default `Passthrough`).
-2. `src/NativeMethods/User32.cs` — named `VK_H/J/K/L` constants.
+2. `src/NativeMethods/User32.cs` — named `VK_H/J/K/L` constants (hjkl pan), plus
+   `VK_C`/`VK_V` (0x43/0x56) to back the `Ctrl+C`/`Ctrl+V` regression test.
 3. `src/HuntAndPeck/Services/OverlayKeyboardHook.cs` — split `ctrl`/`win` in
    `KeyboardProc`; read `arrowPan` per keydown; collapse the two `Classify`
    overloads into one optional-param method; add hjkl pan branch; gate the
