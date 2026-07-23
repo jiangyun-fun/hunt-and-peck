@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
+using HuntAndPeck.Models;
 using HuntAndPeck.ViewModels;
 
 namespace HuntAndPeck.Views
@@ -209,13 +210,30 @@ namespace HuntAndPeck.Views
             var ft = _formatted[i];
             var h = _hints[i];
             var br = h.Hint.BoundingRectangle;
-            double x = br.Left;
-            double y = br.Top;
+
+            double pillW = ft.Width + Pad * 2;
+            double pillH = ft.Height + Pad * 2;
+            // PointHint: br.Left/Top IS the cursor target, so center the pill on it.
+            // Previously the pill was top-left-anchored there, which sat every label
+            // down-right of its click point and left the grid with asymmetric margins
+            // (left/top blank larger than right/bottom). UI-automation hints: br is the
+            // element rect; keep the label at its top-left corner as before.
+            double x, y;
+            if (h.Hint is PointHint)
+            {
+                x = br.Left - pillW / 2.0;
+                y = br.Top - pillH / 2.0;
+            }
+            else
+            {
+                x = br.Left;
+                y = br.Top;
+            }
 
             using (var dc = _visualByHint[i].RenderOpen())
             {
                 dc.DrawRoundedRectangle(h.Active ? _activeBg : _inactiveBg, null,
-                    new Rect(x, y, ft.Width + Pad * 2, ft.Height + Pad * 2), 3, 3);
+                    new Rect(x, y, pillW, pillH), 3, 3);
                 dc.DrawText(ft, new Point(x + Pad, y + Pad));
             }
         }

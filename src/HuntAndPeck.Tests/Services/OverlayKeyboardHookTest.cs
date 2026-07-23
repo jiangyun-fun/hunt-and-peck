@@ -38,6 +38,30 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal(OverlayKeyActionKind.CycleMonitorPrev, act.Kind);
         }
 
+        [Fact]
+        public void CtrlTab_PassesThrough()
+        {
+            // Ctrl+Tab switches the app's/browser's own tabs; it must reach the app.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_TAB, false, true).Kind);
+        }
+
+        [Fact]
+        public void CtrlShiftTab_PassesThrough()
+        {
+            // Ctrl+Shift+Tab (reverse tab switch) must also reach the app.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_TAB, true, true).Kind);
+        }
+
+        [Fact]
+        public void WinTab_PassesThrough()
+        {
+            // Win+Tab is Task View / virtual desktops; leave it for the OS.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_TAB, false, false, win: true).Kind);
+        }
+
         [Theory]
         [InlineData(User32.VK_LEFT, -1, 0)]
         [InlineData(User32.VK_UP, 0, -1)]

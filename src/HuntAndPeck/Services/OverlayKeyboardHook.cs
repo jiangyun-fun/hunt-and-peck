@@ -233,6 +233,13 @@ namespace HuntAndPeck.Services
             if (vkCode == User32.VK_SPACE) return Action(OverlayKeyActionKind.CycleMode);
             if (vkCode == User32.VK_TAB)
             {
+                // Plain Tab / Shift+Tab cycle monitors. But Ctrl+Tab / Ctrl+Shift+Tab
+                // (browser/app tab switch) and Win+Tab (Task View) are high-demand app/OS
+                // shortcuts, so they pass through when Ctrl or Win is held.
+                if (ctrl || win)
+                {
+                    return Action(OverlayKeyActionKind.None);
+                }
                 return Action(shift ? OverlayKeyActionKind.CycleMonitorPrev
                                      : OverlayKeyActionKind.CycleMonitorNext);
             }

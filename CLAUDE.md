@@ -131,8 +131,10 @@ allows `A–Z` and `D0–D9`.
   inside a chord). By default (`HintBoundsSource=Screen`) it fills the whole monitor
   the foreground window is on; in Grid mode one grid is built per monitor. **Tab**
   cycles to the next monitor (wraps), **Shift+Tab** to the previous; each monitor shows
-  its own labels and the typed prefix + pan reset on switch. (Cycling is Grid + Screen
-  only; Automation / Grid+Window stay single-session.)
+  its own labels and the typed prefix + pan reset on switch. **Ctrl+Tab / Ctrl+Shift+Tab
+  / Win+Tab pass through** (browser/app tab switch, Task View) — only plain Tab/Shift+Tab
+  cycle monitors. (Cycling is Grid + Screen only; Automation / Grid+Window stay
+  single-session.)
 - **One-shot hotkey** `Ctrl+Shift+,` (`OneShotHotkeyKey`/`OneShotHotkeyModifier`,
   startup-only) → opens the overlay in **one-shot** mode regardless of `OverlayTriggerMode`
   — handy for a quick single click when the default is Continuous. Pressing either hotkey

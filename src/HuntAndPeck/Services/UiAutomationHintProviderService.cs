@@ -482,6 +482,10 @@ namespace HuntAndPeck.Services
             var hints = new List<Hint>();
             var seen = new Dictionary<string, List<double[]>>();
             double box = edgeStep * 0.8;
+            // A Center-only layout is a uniform "fill the screen" grid: span its points
+            // edge-to-edge so labels reach the screen edges. Edge-banded layouts keep the
+            // original cell-center placement (their center points dedup against the strips).
+            bool uniformOnly = want.Count == 1 && want.Contains("CENTER");
 
             if (want.Contains("LEFT"))   FillRegion(hints, seen, hWnd, windowBounds, left,          top,           left + bandW,   bottom,         edgeStep, box);
             if (want.Contains("TOP"))    FillRegion(hints, seen, hWnd, windowBounds, left,          top,           right,          top + bandH,    edgeStep, box);
@@ -491,7 +495,7 @@ namespace HuntAndPeck.Services
             if (want.Contains("TR"))     FillRegion(hints, seen, hWnd, windowBounds, right - bandW, top,           right,          top + bandH,    edgeStep, box);
             if (want.Contains("BL"))     FillRegion(hints, seen, hWnd, windowBounds, left,          bottom - bandH, left + bandW,   bottom,         edgeStep, box);
             if (want.Contains("BR"))     FillRegion(hints, seen, hWnd, windowBounds, right - bandW, bottom - bandH, right,          bottom,         edgeStep, box);
-            if (want.Contains("CENTER")) FillRegion(hints, seen, hWnd, windowBounds, left,          top,           right,          bottom,         centerStep, box);
+            if (want.Contains("CENTER")) FillRegion(hints, seen, hWnd, windowBounds, left,          top,           right,          bottom,         centerStep, box, spanEdges: uniformOnly);
 
             return hints;
         }
@@ -527,7 +531,7 @@ namespace HuntAndPeck.Services
         /// placed within <paramref name="box"/> of each other, so labels never stack.
         /// <paramref name="step"/> sets the density; <paramref name="box"/> is the label size.
         /// </summary>
-        private static void FillRegion(List<Hint> hints, Dictionary<string, List<double[]>> seen, IntPtr hWnd, Rect windowBounds, double x1, double y1, double x2, double y2, double step, double box)
+        private static void FillRegion(List<Hint> hints, Dictionary<string, List<double[]>> seen, IntPtr hWnd, Rect windowBounds, double x1, double y1, double x2, double y2, double step, double box, bool spanEdges = false)
         {
             if (step <= 0 || x2 <= x1 || y2 <= y1 || box <= 0)
             {
@@ -536,15 +540,22 @@ namespace HuntAndPeck.Services
 
             int cols = Math.Max(1, (int)Math.Round((x2 - x1) / step));
             int rows = Math.Max(1, (int)Math.Round((y2 - y1) / step));
-            double dx = (x2 - x1) / cols;
-            double dy = (y2 - y1) / rows;
+            // spanEdges: first point at the region start, last at the end (edge-to-edge),
+            // so a uniform / Center-only grid reaches the screen edges instead of leaving a
+            // half-cell margin. Otherwise points sit at cell centers (edge strips/corners).
+            bool spanX = spanEdges && cols > 1;
+            bool spanY = spanEdges && rows > 1;
+            double dx = spanX ? (x2 - x1) / (cols - 1) : (x2 - x1) / cols;
+            double dy = spanY ? (y2 - y1) / (rows - 1) : (y2 - y1) / rows;
+            double ox = spanX ? 0.0 : 0.5;
+            double oy = spanY ? 0.0 : 0.5;
 
             for (int i = 0; i < cols; i++)
             {
                 for (int j = 0; j < rows; j++)
                 {
-                    double sx = x1 + (i + 0.5) * dx;
-                    double sy = y1 + (j + 0.5) * dy;
+                    double sx = x1 + (i + ox) * dx;
+                    double sy = y1 + (j + oy) * dy;
 
                     if (HasNearbyPoint(seen, sx, sy, box))
                     {
