@@ -1,0 +1,79 @@
+---
+title: "hjkl label-pan + configurable arrow passthrough"
+author: "Yun Jiang"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⌨️</text></svg>">
+---
+
+# Plan
+
+## Objective
+
+Free the extended-cluster arrow keys while the overlay is up so they reach the
+**app beneath** (Excel cell nav, list focus, editor movement), and move
+label-panning to Vim-style **`hjkl`** chords. A new hot-reload `ArrowKeyBehavior`
+setting keeps the legacy arrow-panning available for anyone who wants it.
+
+## Why
+
+In continuous mode the overlay currently steals plain arrows for panning
+(`src/HuntAndPeck/Services/OverlayKeyboardHook.cs:232-238`), but arrows are
+more often wanted by the app beneath. `hjkl` is preferred over any
+arrow+modifier scheme because `Shift+Arrow`, `Ctrl+Arrow`, and `Ctrl+Shift+Arrow`
+are high-demand app shortcuts (selection, word-jump); `Shift+hjkl` /
+`Ctrl+Shift+hjkl` collide with almost nothing.
+
+## Locked design
+
+- Plain extended arrows → **passthrough by default** (`ArrowKeyBehavior=Passthrough`);
+  `ArrowKeyBehavior=Pan` restores legacy arrow-panning. Hot-reload.
+- **`Shift+hjkl` = large step** (15px, reuses `NudgeStepFast`).
+- **`Ctrl+Shift+hjkl` = small step** (3px, reuses `NudgeStep`).
+- Vim mapping: `h`=←, `j`=↓, `k`=↑, `l`=→.
+- `Ctrl+C` / `Ctrl+V` / all Ctrl-shortcuts stay untouched: the new pan capture
+  requires `Shift` held AND key ∈ {H,J,K,L}; anything without Shift, or Shift
+  with another key, is unchanged (`ctrl||win` → `None` → passthrough).
+
+## Scope / files
+
+1. `src/HuntAndPeck/Services/OverlayActionConfig.cs` — `ArrowKeyBehavior` enum,
+   `ParseArrowKeyBehavior`, `ReadArrowKeyBehavior` (default `Passthrough`).
+2. `src/NativeMethods/User32.cs` — named `VK_H/J/K/L` constants.
+3. `src/HuntAndPeck/Services/OverlayKeyboardHook.cs` — split `ctrl`/`win` in
+   `KeyboardProc`; read `arrowPan` per keydown; collapse the two `Classify`
+   overloads into one optional-param method; add hjkl pan branch; gate the
+   extended-arrow nudge on `arrowPan`.
+4. `src/HuntAndPeck/App.config` — `ArrowKeyBehavior` setting + refreshed
+   `NudgeStep`/`NudgeStepFast` comments.
+5. `src/HuntAndPeck/ViewModels/OptionsViewModel.cs` + `Views/OptionsView.xaml`
+   — expose `ArrowKeyBehavior` (ComboBox Passthrough/Pan) + refreshed labels.
+6. `src/HuntAndPeck.Tests/Services/OverlayKeyboardHookTest.cs` — new xUnit cases.
+7. `CLAUDE.md` — runtime + config doc updates.
+
+No new `.cs` files → no `.csproj` `<Compile Include>` edits.
+
+## Risks
+
+- `Shift+hjkl` previously typed an uppercase hint char; now pans. Plain `hjkl`
+  still matches the same label (case-insensitive match,
+  `OverlayViewModel.cs:323`), so no hint-typing is lost.
+- `arrowPan` is read per keydown via `EnsureFresh` (stat-based, cheap);
+  keydowns are low-frequency.
+- `Ctrl+Shift+hjkl` does not collide with global hotkeys `Ctrl+Shift+M` /
+  `Ctrl+Shift+,`.
+
+## Verification
+
+1. CI gate (`.github/workflows/build.yml`, windows-latest): MSBuild compiles +
+   xUnit green (existing + new). Linux box cannot build/run — CI is the gate.
+2. `ship-drop` to the Windows box, then manual: arrows move app focus;
+   `Shift+hjkl` pans ~15px; `Ctrl+Shift+hjkl` ~3px; `Ctrl+C/V/Z` still work;
+   plain `hjkl` still matches labels; `Win+Shift+hjkl` reaches the OS;
+   `ArrowKeyBehavior=Pan` restores legacy.
+3. Hot-reload: toggle in Options, re-trigger without restart.
+
+See report: `20260723-194232_hjkl-pan-arrow-passthrough.report.qmd`.

@@ -76,6 +76,7 @@ namespace HuntAndPeck.ViewModels
 
         public string NudgeStep { get { return Get("NudgeStep", "3"); } set { Set("NudgeStep", value); OnPropertyChanged("NudgeStep"); } }
         public string NudgeStepFast { get { return Get("NudgeStepFast", "15"); } set { Set("NudgeStepFast", value); OnPropertyChanged("NudgeStepFast"); } }
+        public string ArrowKeyBehavior { get { return Get("ArrowKeyBehavior", "Passthrough"); } set { Set("ArrowKeyBehavior", value); OnPropertyChanged("ArrowKeyBehavior"); } }
 
         public bool TimingLogEnabled
         {

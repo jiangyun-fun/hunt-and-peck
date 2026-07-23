@@ -67,10 +67,17 @@
         <TabItem Header="Keyboard">
             <TabItem.Content>
                 <StackPanel Margin="10">
-                    <TextBlock Text="Nudge step (px)" FontWeight="Bold" />
+                    <TextBlock Text="Arrow key behavior" FontWeight="Bold" />
+                    <ComboBox SelectedValue="{Binding ArrowKeyBehavior}" SelectedValuePath="Content" Margin="0,2,0,4">
+                        <ComboBoxItem>Passthrough</ComboBoxItem>
+                        <ComboBoxItem>Pan</ComboBoxItem>
+                    </ComboBox>
+                    <TextBlock Text="Passthrough: arrows move focus in the app beneath. Pan: arrows pan the labels (legacy). Either way Shift+hjkl = large pan, Ctrl+Shift+hjkl = small pan." FontStyle="Italic" Foreground="Gray" Margin="0,0,0,10" TextWrapping="Wrap" />
+
+                    <TextBlock Text="Small pan step (Ctrl+Shift+hjkl, px)" FontWeight="Bold" />
                     <TextBox Text="{Binding NudgeStep}" Margin="0,2,0,10" />
 
-                    <TextBlock Text="Fast nudge step (Shift+arrows, px)" FontWeight="Bold" />
+                    <TextBlock Text="Large pan step (Shift+hjkl, px)" FontWeight="Bold" />
                     <TextBox Text="{Binding NudgeStepFast}" Margin="0,2,0,10" />
 
                     <TextBlock Text="Hotkey key (System.Windows.Forms.Keys name)" FontWeight="Bold" />

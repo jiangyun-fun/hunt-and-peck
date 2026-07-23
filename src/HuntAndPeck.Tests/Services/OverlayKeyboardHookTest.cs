@@ -136,5 +136,79 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal(OverlayKeyActionKind.None,
                 OverlayKeyboardHook.Classify(vk, false, true).Kind);
         }
+
+        // ---- hjkl label-pan (h=left, j=down, k=up, l=right) ----
+
+        [Theory]
+        [InlineData(User32.VK_H, -1, 0)]
+        [InlineData(User32.VK_J, 0, 1)]
+        [InlineData(User32.VK_K, 0, -1)]
+        [InlineData(User32.VK_L, 1, 0)]
+        public void ShiftHjkl_IsLargeNudge(int vk, int dx, int dy)
+        {
+            // Shift+hjkl pans all labels by the large step (NudgeStepFast).
+            var act = OverlayKeyboardHook.Classify(vk, true, false);
+            Assert.Equal(OverlayKeyActionKind.Nudge, act.Kind);
+            Assert.Equal(dx, act.Dx);
+            Assert.Equal(dy, act.Dy);
+            Assert.True(act.Fast);
+        }
+
+        [Theory]
+        [InlineData(User32.VK_H, -1, 0)]
+        [InlineData(User32.VK_J, 0, 1)]
+        [InlineData(User32.VK_K, 0, -1)]
+        [InlineData(User32.VK_L, 1, 0)]
+        public void CtrlShiftHjkl_IsSmallNudge(int vk, int dx, int dy)
+        {
+            // Ctrl+Shift+hjkl pans by the small step (NudgeStep) -- still captured even
+            // though Ctrl is held, because the hjkl branch runs before the ctrl gate.
+            var act = OverlayKeyboardHook.Classify(vk, true, true);
+            Assert.Equal(OverlayKeyActionKind.Nudge, act.Kind);
+            Assert.Equal(dx, act.Dx);
+            Assert.Equal(dy, act.Dy);
+            Assert.False(act.Fast);
+        }
+
+        [Fact]
+        public void PlainHjkl_StillAppendsChar()
+        {
+            // Plain h (no Shift) must still type a hint char, not pan.
+            var act = OverlayKeyboardHook.Classify(User32.VK_H, false, false);
+            Assert.Equal(OverlayKeyActionKind.AppendChar, act.Kind);
+            Assert.Equal('H', act.Char);
+        }
+
+        [Fact]
+        public void WinShiftHjkl_PassesThrough()
+        {
+            // Win+Shift+hjkl is an OS shortcut, not a pan -- Win must not be captured.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_H, true, false, true).Kind);
+        }
+
+        [Theory]
+        [InlineData(User32.VK_LEFT)]
+        [InlineData(User32.VK_UP)]
+        [InlineData(User32.VK_RIGHT)]
+        [InlineData(User32.VK_DOWN)]
+        public void Arrows_Passthrough_WhenConfigured(int vk)
+        {
+            // ArrowKeyBehavior=Passthrough (default): dedicated arrows reach the app.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(vk, shift: false, ctrl: false, win: false,
+                    extended: true, arrowPan: false).Kind);
+        }
+
+        [Theory]
+        [InlineData(User32.VK_C)]
+        [InlineData(User32.VK_V)]
+        public void CtrlPlusLetter_StillPassthrough(int vk)
+        {
+            // Regression guard: Ctrl+C / Ctrl+V (no Shift) must reach the app. The hjkl
+            // pan capture requires Shift, so plain Ctrl+letters are untouched.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(vk, false, true).Kind);
+        }
     }
 }

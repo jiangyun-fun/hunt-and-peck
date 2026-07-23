@@ -178,19 +178,24 @@ namespace HuntAndPeck.Services
             }
 
             bool shift = IsDown(User32.VK_SHIFT);
-            // Shift alone is allowed (Shift+letter is still that letter, Shift+arrow
-            // is the fast nudge). Ctrl/Alt/Win means the key is a shortcut, not a
-            // label char, so let it pass through to the app.
-            bool ctrlAltWin = IsDown(User32.VK_CONTROL) || IsDown(User32.VK_MENU)
-                              || IsDown(User32.VK_LWIN) || IsDown(User32.VK_RWIN);
+            // Shift alone is allowed (Shift+letter is still that letter). Ctrl or Win
+            // means the key is a shortcut, not a label char, so it passes through --
+            // EXCEPT the hjkl pan chords (Shift+hjkl / Ctrl+Shift+hjkl), which Classify
+            // captures below. (Alt is already gated out above by the altHeld check.)
+            bool ctrl = IsDown(User32.VK_CONTROL);
+            bool win = IsDown(User32.VK_LWIN) || IsDown(User32.VK_RWIN);
+            // Whether the dedicated arrows pan the labels (legacy) or pass through to
+            // the app (default, ArrowKeyBehavior=Passthrough). Read per keydown so an
+            // Options change hot-reloads immediately; EnsureFresh is a stat, not a parse.
+            bool arrowPan = OverlayActionConfig.ReadArrowKeyBehavior() == ArrowKeyBehavior.Pan;
 
             // Extended-key flag: set for the dedicated arrow/Nav cluster, NOT for the
             // numeric keypad (whose Nav keys, with NumLock off, reuse the same VK codes).
-            // Used to tell real arrows (nudge) from numpad arrows (pass through, so a
-            // numpad-mouse tool keeps working).
+            // Used to tell real arrows (pan, when arrowPan) from numpad arrows (always
+            // pass through, so a numpad-mouse tool keeps working).
             bool extended = (k.flags & User32.LLKHF_EXTENDED) != 0;
 
-            var act = Classify(vk, shift, ctrlAltWin, extended);
+            var act = Classify(vk, shift, ctrl, win, extended, arrowPan);
             if (act.Kind == OverlayKeyActionKind.None)
             {
                 return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
@@ -205,20 +210,19 @@ namespace HuntAndPeck.Services
         private static bool IsDown(int vKey) => (User32.GetAsyncKeyState(vKey) & 0x8000) != 0;
 
         /// <summary>
-        /// Pure decode of a virtual-key code into an overlay action. Defaults to a real
-        /// (extended) key -- the form used by the 3-arg callers and the unit tests.
+        /// Pure decode of a virtual-key code + modifier state into an overlay action.
+        /// Kept free of any window/hook dependency so the full mapping is unit-testable.
+        /// Optional params default to the common case (a real extended key whose arrows
+        /// still pan) used by most tests; the hook passes every argument explicitly.
         /// </summary>
-        internal static OverlayKeyAction Classify(int vkCode, bool shift, bool ctrlAltWin)
-            => Classify(vkCode, shift, ctrlAltWin, true);
-
-        /// <summary>
-        /// Pure decode of a virtual-key code into an overlay action. Arrows nudge ONLY
-        /// when they come from the dedicated arrow cluster (<paramref name="extended"/>
-        /// set, i.e. <c>LLKHF_EXTENDED</c>); numpad nav keys (NumLock off: numpad
-        /// 8/6/4/2 -&gt; VK_UP/RIGHT/LEFT/DOWN, NOT extended) pass through, so a
-        /// numpad-mouse tool (e.g. AutoHotkey) keeps working with the overlay up.
-        /// </summary>
-        internal static OverlayKeyAction Classify(int vkCode, bool shift, bool ctrlAltWin, bool extended)
+        /// <param name="shift">Shift held.</param>
+        /// <param name="ctrl">Ctrl held (Alt is gated out before this runs).</param>
+        /// <param name="win">Win held -- Win combos always pass through to the OS.</param>
+        /// <param name="extended">Dedicated arrow/Nav cluster (LLKHF_EXTENDED), not numpad.</param>
+        /// <param name="arrowPan">If true, dedicated arrows pan the labels (legacy
+        /// ArrowKeyBehavior=Pan); if false they pass through to the app beneath.</param>
+        internal static OverlayKeyAction Classify(int vkCode, bool shift, bool ctrl,
+            bool win = false, bool extended = true, bool arrowPan = true)
         {
             if (vkCode == User32.VK_ESCAPE) return Action(OverlayKeyActionKind.Escape);
             if (vkCode == User32.VK_SPACE) return Action(OverlayKeyActionKind.CycleMode);
@@ -227,9 +231,22 @@ namespace HuntAndPeck.Services
                 return Action(shift ? OverlayKeyActionKind.CycleMonitorPrev
                                      : OverlayKeyActionKind.CycleMonitorNext);
             }
-            // Numpad arrows (extended == false) fall through to None below so they reach
-            // the app / AutoHotkey numpad-mouse; real arrows (extended) nudge the labels.
-            if (extended)
+
+            // hjkl label-pan (Vim-style). Shift is required so plain hjkl still type
+            // hints; Ctrl picks the SMALL step (NudgeStep) and its absence the LARGE
+            // step (NudgeStepFast); Win is left for the OS so Win+Shift+hjkl passes
+            // through. Runs BEFORE the (ctrl||win) gate below because Ctrl+Shift+hjkl
+            // has ctrl==true and must still be captured.
+            if (shift && !win && IsHjkl(vkCode))
+            {
+                return Nudge(HjklDx(vkCode), HjklDy(vkCode), fast: !ctrl);
+            }
+
+            // Dedicated arrows: pan ONLY when arrowPan (legacy). When ArrowKeyBehavior
+            // =Passthrough (default) they fall through to None so the app beneath gets
+            // them (Excel/list focus nav). Numpad nav keys (extended==false) always
+            // pass through regardless, so a numpad-mouse tool keeps working.
+            if (extended && arrowPan)
             {
                 if (vkCode == User32.VK_LEFT) return Nudge(-1, 0, shift);
                 if (vkCode == User32.VK_UP) return Nudge(0, -1, shift);
@@ -237,7 +254,9 @@ namespace HuntAndPeck.Services
                 if (vkCode == User32.VK_DOWN) return Nudge(0, 1, shift);
             }
 
-            if (!ctrlAltWin)
+            // A Ctrl/Win chord (Alt is gated out above) is an app shortcut, not a label
+            // char, so it passes through. hjkl pan chords were already handled above.
+            if (!(ctrl || win))
             {
                 if (vkCode == User32.VK_OEM_3) return Action(OverlayKeyActionKind.ToggleDimmed);
                 if (vkCode == User32.VK_OEM_5) return Action(OverlayKeyActionKind.SuspendNow);
@@ -331,5 +350,17 @@ namespace HuntAndPeck.Services
 
         private static OverlayKeyAction Nudge(int dx, int dy, bool fast)
             => new OverlayKeyAction { Kind = OverlayKeyActionKind.Nudge, Dx = dx, Dy = dy, Fast = fast };
+
+        // ---- hjkl direction decode (h=left, j=down, k=up, l=right) ----
+
+        private static bool IsHjkl(int vkCode)
+            => vkCode == User32.VK_H || vkCode == User32.VK_J
+               || vkCode == User32.VK_K || vkCode == User32.VK_L;
+
+        private static int HjklDx(int vkCode)
+            => vkCode == User32.VK_H ? -1 : vkCode == User32.VK_L ? 1 : 0;
+
+        private static int HjklDy(int vkCode)
+            => vkCode == User32.VK_J ? 1 : vkCode == User32.VK_K ? -1 : 0;
     }
 }

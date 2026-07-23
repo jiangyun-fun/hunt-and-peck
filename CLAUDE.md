@@ -113,7 +113,7 @@ Two kinds of settings:
   `HintSource`, `HintBoundsSource`, `OverlayTriggerMode`, `GridEdgeStep`,
   `GridCenterStep`, `GridDenseRegions`, `GridInset`, `GridEdgeBandPercent`,
   `HintCharacters`, `HintFontSize`, `HintPillOpacity`, `HintDimOpacity`, `NudgeStep`,
-  `NudgeStepFast`, `ClickModeOrder`, `MaxEnumerationDepth`, `TimingLogEnabled`.
+  `NudgeStepFast`, `ClickModeOrder`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `TimingLogEnabled`.
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
   dismisses open context menus even inside a chord); and the dedicated one-shot
@@ -139,9 +139,15 @@ allows `A–Z` and `D0–D9`.
 - **Labels are all highlighted (yellow) at start**; typing narrows the highlight to the
   matching labels; a unique match fires. (In continuous mode the highlight resets to
   all-yellow after each click.)
-- **Arrows** pan all labels (3 px; `Shift` = 15 px). Only the **dedicated** arrow cluster
-  (extended key) pans — the **numpad** arrow keys (NumLock off) pass through untouched so a
-  numpad-mouse tool (e.g. AutoHotkey `*NumpadRight`) keeps working while the overlay is up.
+- **Arrows move focus in the app beneath** by default (`ArrowKeyBehavior=Passthrough`) — e.g.
+  Excel cell nav, list selection — so the dedicated arrow cluster is no longer eaten by the
+  overlay. Set `ArrowKeyBehavior=Pan` to restore legacy arrow-panning (plain arrows 3 px,
+  `Shift` 15 px). The **numpad** arrow keys (NumLock off) always pass through so a numpad-mouse
+  tool (e.g. AutoHotkey `*NumpadRight`) keeps working while the overlay is up.
+- **hjkl pans the labels** (Vim-style): `Shift+hjkl` = large step (`NudgeStepFast`, 15 px),
+  `Ctrl+Shift+hjkl` = small step (`NudgeStep`, 3 px); `h`=←, `j`=↓, `k`=↑, `l`=→. Plain `hjkl`
+  still type hint chars (Shift is the pan gate), so label-typing is unaffected. `Win+Shift+hjkl`
+  passes through (not captured).
 - **Space** cycles the click mode (badge bottom-center): `Left → Right → Double → Move`
   (`ClickModeOrder`, wraps). `Move` positions without clicking. In continuous mode the
   mode reverts to the first (Left) after every click.

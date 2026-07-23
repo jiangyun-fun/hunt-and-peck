@@ -42,6 +42,18 @@ namespace HuntAndPeck.Services
     }
 
     /// <summary>
+    /// What the dedicated arrow cluster does while the overlay is up. Passthrough
+    /// (default) sends arrows to the app beneath (Excel/list/editor focus nav); Pan
+    /// is the legacy behavior (arrows pan all labels). Shift+hjkl / Ctrl+Shift+hjkl
+    /// pan the labels regardless of this setting.
+    /// </summary>
+    public enum ArrowKeyBehavior
+    {
+        Pan,
+        Passthrough
+    }
+
+    /// <summary>
     /// Reads overlay and hotkey settings from hap.exe.config. Parsing is split
     /// into pure methods (unit-tested) and ConfigurationManager wrappers.
     /// Unknown or missing values fall back to safe defaults so a bad config
@@ -157,6 +169,20 @@ namespace HuntAndPeck.Services
         public static TriggerMode ParseTriggerMode(string raw, TriggerMode defaultValue)
         {
             TriggerMode v;
+            if (!string.IsNullOrWhiteSpace(raw) && Enum.TryParse(raw.Trim(), true, out v))
+            {
+                return v;
+            }
+            return defaultValue;
+        }
+
+        /// <summary>
+        /// Parses an ArrowKeyBehavior name (case-insensitive). Returns defaultValue when
+        /// blank or unrecognized so a bad config never breaks the app. Pure + unit-tested.
+        /// </summary>
+        public static ArrowKeyBehavior ParseArrowKeyBehavior(string raw, ArrowKeyBehavior defaultValue)
+        {
+            ArrowKeyBehavior v;
             if (!string.IsNullOrWhiteSpace(raw) && Enum.TryParse(raw.Trim(), true, out v))
             {
                 return v;
@@ -351,6 +377,26 @@ namespace HuntAndPeck.Services
             {
                 // Deliberate fallback so a malformed config keeps the app usable.
                 return HintBounds.Screen;
+            }
+        }
+
+        /// <summary>
+        /// What the dedicated arrow cluster does while the overlay is up (hot-reload):
+        /// Passthrough (default) sends arrows to the app beneath (Excel/list/editor focus
+        /// nav); Pan pans the labels (legacy). The hjkl chords pan regardless. Default
+        /// Passthrough.
+        /// </summary>
+        public static ArrowKeyBehavior ReadArrowKeyBehavior()
+        {
+            try
+            {
+                EnsureFresh();
+                return ParseArrowKeyBehavior(ConfigurationManager.AppSettings["ArrowKeyBehavior"], ArrowKeyBehavior.Passthrough);
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return ArrowKeyBehavior.Passthrough;
             }
         }
 
