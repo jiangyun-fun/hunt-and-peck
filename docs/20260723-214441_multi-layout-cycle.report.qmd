@@ -42,11 +42,16 @@ Plan: [`20260723-214334_multi-layout-cycle.plan.qmd`](20260723-214334_multi-layo
 
 # Verification status
 
-- **CI**: pending — commit/push + `gh run watch` is the next step (Linux dev box
-  cannot build the WPF/.NET-Framework project locally). Expected: existing suite +
-  the new tests green.
-- **Manual** (Windows, post ship-drop): badge `L1/2`→`;`→`L2/2`; Esc/reopen and
-  restart both retain the choice; Automation passes `;` through; removing
+- **CI**: green — run `30012921849` (commit `6b92057`), conclusion `success`,
+  **134/134 tests pass** (a first push failed 1/134 on a trailing-space in the
+  parsed regions field; fixed by trimming the rejoined `denseRegions`). The Linux
+  dev box cannot build the WPF/.NET-Framework project locally, so CI is the compile
+  + unit-test gate.
+- **Ship-drop**: done — Release artifact rsync'd to the Windows box at
+  `/mnt/c/5.sibio/93.bk/20260627-144526.test/hap-layouts/` (`hap.exe` 99 KB +
+  `hap.exe.config` with `GridLayouts`/`ActiveLayout`).
+- **Manual** (Windows, user-driven, pending): badge `L1/2`→`;`→`L2/2`; Esc/reopen
+  and restart both retain the choice; Automation passes `;` through; removing
   `GridLayouts` reverts to flat knobs; Options hot-reload.
 
 Evidence the design is sound (pre-implementation): the live session-swap already
