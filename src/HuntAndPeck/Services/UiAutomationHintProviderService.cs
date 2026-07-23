@@ -81,6 +81,21 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Grid-mode enumeration with an explicit layout preset (the single-session path:
+        /// Grid + Window, or whenever monitor cycling is off). Automation ignores the
+        /// layout -- it has no grid concept -- and falls back to the real-control walk.
+        /// A null layout also falls back to <see cref="EnumHints(IntPtr)"/> (flat keys).
+        /// </summary>
+        public HintSession EnumHints(IntPtr hWnd, GridLayout layout)
+        {
+            if (layout != null && IsGridMode())
+            {
+                return EnumGridHints(hWnd, ResolveOwningBounds(hWnd), layout);
+            }
+            return EnumHints(hWnd);
+        }
+
+        /// <summary>
         /// Refreshes a cached session's hint positions by re-reading each element's
         /// current bounding rectangle, without re-walking the automation tree. Best-effort:
         /// elements that have disappeared keep their last known bounds. Runs off the UI
@@ -385,22 +400,38 @@ namespace HuntAndPeck.Services
         /// </summary>
         public HintSession EnumGridHintsForBounds(IntPtr hWnd, Rect bounds)
         {
-            return EnumGridHints(hWnd, bounds);
+            return EnumGridHints(hWnd, bounds, null);
+        }
+
+        /// <summary>
+        /// Layout-aware monitor-cycling entry: builds a Grid session over <paramref name="bounds"/>
+        /// using the given preset. A null <paramref name="layout"/> reads the five legacy flat
+        /// keys (GridLayout.FromFlatConfig), preserving the pre-layout behavior.
+        /// </summary>
+        public HintSession EnumGridHintsForBounds(IntPtr hWnd, Rect bounds, GridLayout layout)
+        {
+            return EnumGridHints(hWnd, bounds, layout);
         }
 
         private HintSession EnumGridHints(IntPtr hWnd)
         {
-            return EnumGridHints(hWnd, ResolveOwningBounds(hWnd));
+            return EnumGridHints(hWnd, ResolveOwningBounds(hWnd), null);
         }
 
-        private HintSession EnumGridHints(IntPtr hWnd, Rect windowBounds)
+        private HintSession EnumGridHints(IntPtr hWnd, Rect windowBounds, GridLayout layout)
         {
-            var inset = ReadIntSetting("GridInset", 10);
-            var bandPct = ReadIntSetting("GridEdgeBandPercent", 15) / 100.0;
-            var edgeStep = (double)ReadIntSetting("GridEdgeStep", 60);
-            var centerStep = (double)ReadIntSetting("GridCenterStep", 160);
+            // null layout = no GridLayouts configured: read the legacy flat keys so the
+            // geometry is identical to the pre-layout behavior.
+            if (layout == null)
+            {
+                layout = GridLayout.FromFlatConfig();
+            }
+            var inset = layout.Inset;
+            var bandPct = layout.BandPercent / 100.0;
+            var edgeStep = (double)layout.EdgeStep;
+            var centerStep = (double)layout.CenterStep;
             var want = new HashSet<string>(
-                (ReadStringSetting("GridDenseRegions") ?? "Left,Top,TR,BR,Center").Split(',').Select(s => s.Trim()),
+                (layout.DenseRegions ?? "Left,Top,TR,BR,Center").Split(',').Select(s => s.Trim()),
                 StringComparer.OrdinalIgnoreCase);
 
             // Cap the total at the two-character label capacity (HintCharacters^2) so every

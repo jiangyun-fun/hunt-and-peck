@@ -98,6 +98,7 @@
     <Compile Include="Models\UiAutomationSelectHint.cs" />
     <Compile Include="Models\UiAutomationToggleHint.cs" />
     <Compile Include="Services\HintLabelService.cs" />
+    <Compile Include="Services\GridLayoutConfig.cs" />
     <Compile Include="Services\OverlayActionConfig.cs" />
     <Compile Include="Services\TimingLog.cs" />
     <Compile Include="Services\Interfaces\IDebugHintProviderService.cs" />

@@ -174,6 +174,7 @@ namespace HuntAndPeck.NativeMethods
         public const int VK_J = 0x4A;
         public const int VK_K = 0x4B;
         public const int VK_L = 0x4C;
+        public const int VK_OEM_1 = 0xBA;  // ; : (semicolon) -- cycle grid layout
         public const int VK_OEM_3 = 0xC0;  // ` ~ (backtick) -- toggle label opacity
         public const int VK_OEM_5 = 0xDC;  // \ | (backslash) -- enter suspend
     }

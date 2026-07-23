@@ -210,5 +210,39 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal(OverlayKeyActionKind.None,
                 OverlayKeyboardHook.Classify(vk, false, true).Kind);
         }
+
+        // ---- `;` cycles grid layouts (Grid + GridLayouts only) ----
+
+        [Fact]
+        public void Semicolon_CyclesLayout_WhenEnabled()
+        {
+            var act = OverlayKeyboardHook.Classify(User32.VK_OEM_1, false, false,
+                layoutCycle: true);
+            Assert.Equal(OverlayKeyActionKind.CycleLayout, act.Kind);
+        }
+
+        [Fact]
+        public void Semicolon_PassesThrough_WhenDisabled()
+        {
+            // Default (no multi-layout configured): ; reaches the app beneath.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_OEM_1, false, false).Kind);
+        }
+
+        [Fact]
+        public void ShiftSemicolon_StillCyclesLayout()
+        {
+            // OEM commands ignore Shift (matches backtick/backslash); Shift+; (:) cycles too.
+            var act = OverlayKeyboardHook.Classify(User32.VK_OEM_1, true, false, layoutCycle: true);
+            Assert.Equal(OverlayKeyActionKind.CycleLayout, act.Kind);
+        }
+
+        [Fact]
+        public void CtrlSemicolon_PassesThrough()
+        {
+            // Ctrl+; is an app shortcut, not a layout cycle.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_OEM_1, false, true, layoutCycle: true).Kind);
+        }
     }
 }

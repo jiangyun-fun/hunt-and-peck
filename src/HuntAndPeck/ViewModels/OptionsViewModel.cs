@@ -72,6 +72,8 @@ namespace HuntAndPeck.ViewModels
         public string GridEdgeBandPercent { get { return Get("GridEdgeBandPercent", "15"); } set { Set("GridEdgeBandPercent", value); OnPropertyChanged("GridEdgeBandPercent"); } }
         public string MaxEnumerationDepth { get { return Get("MaxEnumerationDepth", "0"); } set { Set("MaxEnumerationDepth", value); OnPropertyChanged("MaxEnumerationDepth"); } }
         public string GridDenseRegions { get { return Get("GridDenseRegions", "Left,Top,TR,BR,Center"); } set { Set("GridDenseRegions", value); OnPropertyChanged("GridDenseRegions"); } }
+        // Multi-layout presets (cycle with `;`); blank/absent falls back to the five knobs above.
+        public string GridLayouts { get { return Get("GridLayouts", GridLayoutConfig.DefaultGridLayouts); } set { Set("GridLayouts", value); OnPropertyChanged("GridLayouts"); } }
         public string ClickModeOrder { get { return Get("ClickModeOrder", "Left,Right,Double,Move"); } set { Set("ClickModeOrder", value); OnPropertyChanged("ClickModeOrder"); } }
 
         public string NudgeStep { get { return Get("NudgeStep", "3"); } set { Set("NudgeStep", value); OnPropertyChanged("NudgeStep"); } }

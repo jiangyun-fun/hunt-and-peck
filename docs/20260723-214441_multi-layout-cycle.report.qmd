@@ -1,0 +1,60 @@
+---
+title: "Report — multiple label layouts + `;` cycle"
+author: "Yun Jiang"
+date: "2026-07-23"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
+---
+
+# Bottom line
+
+Implemented user-defined grid-layout presets cycled live with `;` while the overlay is
+up (Grid only), with the active preset persisted across Esc/reopen and a full restart.
+Ships with 2 defaults (dense edge grid + uniform full-screen grid). Backward-compatible:
+omitting `GridLayouts` is byte-for-byte today's behavior, and `;` passes through in
+Automation / single-layout mode.
+
+Plan: [`20260723-214334_multi-layout-cycle.plan.qmd`](20260723-214334_multi-layout-cycle.plan.qmd).
+
+# What was done
+
+- **New `GridLayoutConfig.cs`** — `GridLayout` model + pure `ParseGridLayouts`
+  (`||` between layouts, `|` between fields, regions field tolerates commas) +
+  `ClampActiveLayout` (pure) + config wrappers + `FromFlatConfig` (legacy path).
+- **Layout-aware grid generation** — `EnumGridHints(hWnd, bounds, layout)` with
+  `null ⇒ FromFlatConfig()`; new `EnumGridHintsForBounds` / `EnumHints` overloads on
+  the service + interface.
+- **`OverlayViewModel.CycleLayout`** — mirrors `CycleMonitor`: advance+persist index,
+  rebuild sessions via a delegate, `LoadSession`, pan reset, monitor index clamped.
+  Adds `LayoutCycleCapable`, `LayoutLabel` ("L2/2"), `LayoutBadgeVisibility`.
+- **`OverlayKeyboardHook`** — `;` (`VK_OEM_1`) → `CycleLayout`, gated by a new
+  `layoutCycle` flag (default false) read from `_vm.LayoutCycleCapable`.
+- **`ShellViewModel`** — reads `GridLayouts`/`ActiveLayout`, threads the active preset
+  into both build paths, wires a rebuild delegate per path.
+- **Config/Options/Badge** — `GridLayouts` + `ActiveLayout` in `App.config`; a
+  multiline Options editor; a `LayoutLabel` badge (collapsed when inactive).
+- **Tests** — new `GridLayoutConfigTest` (parse, defaults, regions-with-commas, wrap)
+  + `;`-classification cases in `OverlayKeyboardHookTest`.
+
+# Verification status
+
+- **CI**: pending — commit/push + `gh run watch` is the next step (Linux dev box
+  cannot build the WPF/.NET-Framework project locally). Expected: existing suite +
+  the new tests green.
+- **Manual** (Windows, post ship-drop): badge `L1/2`→`;`→`L2/2`; Esc/reopen and
+  restart both retain the choice; Automation passes `;` through; removing
+  `GridLayouts` reverts to flat knobs; Options hot-reload.
+
+Evidence the design is sound (pre-implementation): the live session-swap already
+exists (`CycleMonitor`/Tab), `;` is a free OEM key that can never collide with hint
+chars, and the uniform layout is just `GridDenseRegions=Center` — no new geometry.
+
+# Risks accepted
+
+One `hap.exe.config` rewrite per `;` (low frequency); monitor index clamped not reset
+across a switch; `Shift+;` also cycles (OEM commands ignore shift); rebuild is
+synchronous on the UI thread (Grid gen is pure math; Automation excluded).

@@ -41,6 +41,12 @@
                        FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
                        Foreground="White" Background="DarkSlateBlue" Padding="6,2"
                        Margin="6,0,0,0" />
+            <!-- Current grid layout preset when layout cycling is active (Grid + GridLayouts);
+                 Collapsed otherwise so no empty box shows. -->
+            <TextBlock Text="{Binding LayoutLabel}"
+                       FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
+                       Foreground="White" Background="DarkSlateGray" Padding="6,2"
+                       Margin="6,0,0,0" Visibility="{Binding LayoutBadgeVisibility}" />
         </StackPanel>
     </Grid>
 </local:ForegroundWindow>

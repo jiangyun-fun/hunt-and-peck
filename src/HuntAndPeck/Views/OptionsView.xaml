@@ -54,6 +54,10 @@
                         <TextBlock Text="Dense regions" FontWeight="Bold" />
                         <TextBox Text="{Binding GridDenseRegions}" Margin="0,2,0,10" />
 
+                        <TextBlock Text="Grid layouts (cycle with ; while overlay is up; Grid only)" FontWeight="Bold" />
+                        <TextBox Text="{Binding GridLayouts}" AcceptsReturn="True" TextWrapping="Wrap" Height="60" VerticalScrollBarVisibility="Auto" Margin="0,2,0,4" />
+                        <TextBlock Text="Layouts separated by ||, fields by |: edgeStep|centerStep|inset|edgeBandPercent|denseRegions. Blank uses the five knobs above." FontStyle="Italic" Foreground="Gray" Margin="0,0,0,10" TextWrapping="Wrap" />
+
                         <TextBlock Text="Click-mode order" FontWeight="Bold" />
                         <TextBox Text="{Binding ClickModeOrder}" Margin="0,2,0,10" />
 

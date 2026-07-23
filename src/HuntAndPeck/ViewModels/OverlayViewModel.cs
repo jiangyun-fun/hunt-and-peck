@@ -24,8 +24,15 @@ namespace HuntAndPeck.ViewModels
         private readonly string _fontSizeRaw;
         private readonly double _pillOpacity;
         private readonly double _dimOpacity;
-        private readonly IList<HintSession> _sessions;
+        private IList<HintSession> _sessions;
         private int _currentSession;
+        // Layout cycling (`;`): presets + the persisted active index + a delegate that
+        // rebuilds the sessions for a given preset. Null when only one/no layout is
+        // configured (Automation, Grid+Window without GridLayouts), in which case `;`
+        // is a no-op / passes through.
+        private readonly IList<GridLayout> _layouts;
+        private int _activeLayout;
+        private readonly Func<int, IList<HintSession>> _rebuildSessions;
         private string _match = "";
         private bool _continuousCapable;
         private bool _isContinuous;
@@ -45,12 +52,29 @@ namespace HuntAndPeck.ViewModels
         /// displayed monitor.
         /// </summary>
         public OverlayViewModel(IList<HintSession> sessions, int current, IHintLabelService hintLabelService)
+            : this(sessions, current, hintLabelService, null, 0, null) { }
+
+        /// <summary>
+        /// Full ctor: monitor sessions + layout-cycling state. <paramref name="layouts"/>
+        /// is the parsed GridLayouts presets; <paramref name="activeLayout"/> is the
+        /// starting (persisted) index; <paramref name="rebuildSessions"/> regenerates the
+        /// sessions for a given preset index when the user cycles with `;`. Pass null
+        /// layouts/rebuild when layout cycling does not apply (Automation, or no
+        /// GridLayouts configured).
+        /// </summary>
+        public OverlayViewModel(IList<HintSession> sessions, int current, IHintLabelService hintLabelService,
+            IList<GridLayout> layouts, int activeLayout, Func<int, IList<HintSession>> rebuildSessions)
         {
             _hintLabelService = hintLabelService;
             _sessions = sessions ?? new List<HintSession>();
             _currentSession = _sessions.Count == 0
                 ? 0
                 : ((current % _sessions.Count) + _sessions.Count) % _sessions.Count;
+            _layouts = layouts;
+            _activeLayout = (layouts == null || layouts.Count == 0)
+                ? 0
+                : GridLayoutConfig.ClampActiveLayout(activeLayout, layouts.Count);
+            _rebuildSessions = rebuildSessions;
             _modeOrder = OverlayActionConfig.ReadClickActionOrder();
             _modeIndex = 0; // start on the first mode (Left, by default)
 
@@ -111,6 +135,65 @@ namespace HuntAndPeck.ViewModels
             LoadSession(_sessions[_currentSession]);
             OffsetX = 0;
             OffsetY = 0;
+        }
+
+        /// <summary>
+        /// True when more than one layout preset is configured AND a rebuild delegate is
+        /// wired, so the `;` key can cycle grid shapes live (Grid only). Drives both the
+        /// keyboard hook (whether `;` is captured) and the layout badge.
+        /// </summary>
+        public bool LayoutCycleCapable
+            => _layouts != null && _layouts.Count > 1 && _rebuildSessions != null;
+
+        /// <summary>Overlay badge: the current preset, e.g. "L2/2". Empty when not cycle-capable.</summary>
+        public string LayoutLabel => LayoutCycleCapable
+            ? string.Format("L{0}/{1}", _activeLayout + 1, _layouts.Count)
+            : string.Empty;
+
+        /// <summary>
+        /// The layout badge is Collapsed unless layout cycling is active, so no empty box
+        /// shows next to the trigger-mode badge in the common single-layout / Automation
+        /// case. Constant for a session (set at construction); bound directly, no converter.
+        /// </summary>
+        public Visibility LayoutBadgeVisibility => LayoutCycleCapable ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>
+        /// Cycles to the next layout preset (`;`): advances the index (wraps), persists it
+        /// so the choice survives a restart, regenerates the sessions with the new geometry
+        /// via the rebuild delegate, and reloads the current session. Stays on the same
+        /// monitor (index clamped, not reset). Mirrors <see cref="CycleMonitor"/>'s
+        /// session-swap + pan reset.
+        /// </summary>
+        public void CycleLayout()
+        {
+            if (!LayoutCycleCapable)
+            {
+                return;
+            }
+
+            _activeLayout = (_activeLayout + 1) % _layouts.Count;
+            GridLayoutConfig.WriteActiveLayout(_activeLayout);
+
+            var fresh = _rebuildSessions(_activeLayout);
+            if (fresh == null || fresh.Count == 0)
+            {
+                return;
+            }
+
+            _sessions = fresh;
+            // Stay on the monitor the user is viewing (clamp, do not reset to 0).
+            if (_currentSession >= _sessions.Count)
+            {
+                _currentSession = _sessions.Count - 1;
+            }
+            if (_currentSession < 0)
+            {
+                _currentSession = 0;
+            }
+            LoadSession(_sessions[_currentSession]);
+            OffsetX = 0;
+            OffsetY = 0;
+            NotifyOfPropertyChange(nameof(LayoutLabel));
         }
 
         /// <summary>

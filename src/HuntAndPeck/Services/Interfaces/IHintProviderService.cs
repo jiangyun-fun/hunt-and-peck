@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Windows;
 using HuntAndPeck.Models;
+using HuntAndPeck.Services;
 
 namespace HuntAndPeck.Services.Interfaces
 {
@@ -18,10 +19,21 @@ namespace HuntAndPeck.Services.Interfaces
         HintSession EnumHints(IntPtr handle);
 
         /// <summary>
+        /// Grid-mode enumeration with an explicit layout preset (single-session path).
+        /// Automation ignores the layout and falls back to the real-control walk.
+        /// </summary>
+        HintSession EnumHints(IntPtr handle, GridLayout layout);
+
+        /// <summary>
         /// Build a Grid-mode hint session covering the given bounds (physical screen
         /// coordinates), regardless of which monitor the foreground window is on. Used to
         /// generate one grid per monitor for monitor cycling.
         /// </summary>
         HintSession EnumGridHintsForBounds(IntPtr handle, Rect bounds);
+
+        /// <summary>
+        /// Layout-aware monitor-cycling entry: a null layout reads the legacy flat keys.
+        /// </summary>
+        HintSession EnumGridHintsForBounds(IntPtr handle, Rect bounds, GridLayout layout);
     }
 }

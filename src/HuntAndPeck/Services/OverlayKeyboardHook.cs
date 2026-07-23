@@ -19,7 +19,8 @@ namespace HuntAndPeck.Services
         CycleMonitorPrev,
         Nudge,
         ToggleDimmed,
-        SuspendNow
+        SuspendNow,
+        CycleLayout
     }
 
     /// <summary>
@@ -188,6 +189,10 @@ namespace HuntAndPeck.Services
             // the app (default, ArrowKeyBehavior=Passthrough). Read per keydown so an
             // Options change hot-reloads immediately; EnsureFresh is a stat, not a parse.
             bool arrowPan = OverlayActionConfig.ReadArrowKeyBehavior() == ArrowKeyBehavior.Pan;
+            // `;` cycles grid layouts, but only when more than one layout is configured
+            // (Grid + GridLayouts). Read from the VM (set once at open) so we do not
+            // re-parse GridLayouts on every keydown. Elsewhere `;` passes through.
+            bool layoutCycle = _vm != null && _vm.LayoutCycleCapable;
 
             // Extended-key flag: set for the dedicated arrow/Nav cluster, NOT for the
             // numeric keypad (whose Nav keys, with NumLock off, reuse the same VK codes).
@@ -195,7 +200,7 @@ namespace HuntAndPeck.Services
             // pass through, so a numpad-mouse tool keeps working).
             bool extended = (k.flags & User32.LLKHF_EXTENDED) != 0;
 
-            var act = Classify(vk, shift, ctrl, win, extended, arrowPan);
+            var act = Classify(vk, shift, ctrl, win, extended, arrowPan, layoutCycle);
             if (act.Kind == OverlayKeyActionKind.None)
             {
                 return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
@@ -222,7 +227,7 @@ namespace HuntAndPeck.Services
         /// <param name="arrowPan">If true, dedicated arrows pan the labels (legacy
         /// ArrowKeyBehavior=Pan); if false they pass through to the app beneath.</param>
         internal static OverlayKeyAction Classify(int vkCode, bool shift, bool ctrl,
-            bool win = false, bool extended = true, bool arrowPan = true)
+            bool win = false, bool extended = true, bool arrowPan = true, bool layoutCycle = false)
         {
             if (vkCode == User32.VK_ESCAPE) return Action(OverlayKeyActionKind.Escape);
             if (vkCode == User32.VK_SPACE) return Action(OverlayKeyActionKind.CycleMode);
@@ -260,6 +265,9 @@ namespace HuntAndPeck.Services
             {
                 if (vkCode == User32.VK_OEM_3) return Action(OverlayKeyActionKind.ToggleDimmed);
                 if (vkCode == User32.VK_OEM_5) return Action(OverlayKeyActionKind.SuspendNow);
+                // `;` cycles grid layouts (Grid + GridLayouts only). Ignored unless
+                // layoutCycle is set, so `;` reaches the app everywhere else.
+                if (layoutCycle && vkCode == User32.VK_OEM_1) return Action(OverlayKeyActionKind.CycleLayout);
                 if (vkCode >= User32.VK_0 && vkCode <= User32.VK_9)
                 {
                     return Char((char)('0' + (vkCode - User32.VK_0)));
@@ -291,6 +299,8 @@ namespace HuntAndPeck.Services
                     return () => _vm.ToggleDimmed();
                 case OverlayKeyActionKind.SuspendNow:
                     return () => _vm.EnterSuspend();
+                case OverlayKeyActionKind.CycleLayout:
+                    return () => _vm.CycleLayout();
                 case OverlayKeyActionKind.Nudge:
                     int dx = act.Dx;
                     int dy = act.Dy;

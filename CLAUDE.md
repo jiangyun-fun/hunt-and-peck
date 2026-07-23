@@ -113,7 +113,8 @@ Two kinds of settings:
   `HintSource`, `HintBoundsSource`, `OverlayTriggerMode`, `GridEdgeStep`,
   `GridCenterStep`, `GridDenseRegions`, `GridInset`, `GridEdgeBandPercent`,
   `HintCharacters`, `HintFontSize`, `HintPillOpacity`, `HintDimOpacity`, `NudgeStep`,
-  `NudgeStepFast`, `ClickModeOrder`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `TimingLogEnabled`.
+  `NudgeStepFast`, `ClickModeOrder`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`.
+  (`ActiveLayout` is also in appSettings but is rewritten by the `;` key, not hand-edited.)
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
   dismisses open context menus even inside a chord); and the dedicated one-shot
@@ -172,6 +173,13 @@ allows `A–Z` and `D0–D9`.
   collision. Clicks pass through (no dismiss). Resume by pressing the **main hotkey**
   (`Ctrl+Shift+M` / `Capslock+f`) again; `Esc` closes. Per-session (resets each new
   overlay).
+- **Semicolon cycles grid layouts** (Grid only): `GridLayouts` lists N geometry presets
+  (layouts separated by `||`, fields `edgeStep|centerStep|inset|edgeBandPercent|denseRegions`);
+  pressing `;` while the overlay is up regenerates the grid with the next preset and wraps
+  (badge shows e.g. `L2/2`). The active preset persists across Esc/reopen **and** a full
+  restart (`ActiveLayout`). Ships with 2: the dense edge grid and a uniform full-screen grid
+  (`Center` + equal steps). Omit `GridLayouts` to use the five flat knobs as before; `;`
+  then passes through. Automation ignores it (no grid concept) — `;` reaches the app.
 - **Labels are slightly transparent by design**: the pill fill is α≈0.4 by default
   (softened yellow, background peeks through) while the text stays fully opaque
   (crisp). Configurable via `HintPillOpacity` (0-100 percent; hot-reload). Base mode

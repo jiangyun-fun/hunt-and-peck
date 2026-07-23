@@ -1,0 +1,113 @@
+---
+title: "Multiple label layouts + `;` to cycle them"
+author: "Yun Jiang"
+date: "2026-07-23"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>">
+---
+
+# Objective
+
+Give the overlay more than one grid geometry (preset) and let the user flip between
+them **live, while the overlay is up**, with a single key — e.g. a dense edge grid
+versus a uniform full-screen grid — remembering the last choice across Esc/reopen and
+a full restart.
+
+# Why it fits the existing architecture
+
+The grid engine is already fully parameterized by five App.config knobs, read in
+`EnumGridHints` (`src/HuntAndPeck/Services/UiAutomationHintProviderService.cs`):
+`GridEdgeStep`, `GridCenterStep`, `GridInset`, `GridEdgeBandPercent`,
+`GridDenseRegions`. A "layout" is just a named tuple of those five. The requested
+"uniform step" layout already works: `GridDenseRegions=Center` alone fills the whole
+window at one step, so no new geometry code is needed — only preset storage, live
+cycling, and persistence.
+
+Three existing mechanisms are reused rather than reinvented:
+
+1. **`CycleMonitor` (Tab)** already swaps the session list and re-renders labels in
+   place (`OverlayViewModel.LoadSession`). A layout switch is structurally the same
+   operation — regenerate the sessions with new params, reuse `LoadSession`.
+2. **OEM-key-as-command convention.** `;` (`VK_OEM_1`) is currently unused and slots
+   next to backtick (`VK_OEM_3`, dim) and backslash (`VK_OEM_5`, suspend). It can
+   never be a hint char (input accepts only `A–Z` / `D0–D9`), and any Ctrl chord is
+   gated before the OEM block, so Ctrl+C/V stay safe.
+3. **Hot-reload + persistence** via `OverlayActionConfig.EnsureFresh` /
+   `WriteSetting` — the same path the Options dialog uses.
+
+Prior art (the commercial tool Mouseless ships grid presets + a `cycle grid action
+level` command run while the overlay is up) validated the interaction; its
+hierarchical-grid geometry model does not transfer, so hunt-and-peck keeps its own
+flat synthetic-grid preset format.
+
+# Locked design (user-confirmed)
+
+- **N user-defined presets** in one `GridLayouts` config string; `;` cycles and wraps.
+  Ships with 2 defaults (dense + uniform).
+- **Persist across restart**: write `ActiveLayout` (index) to `hap.exe.config` on
+  each `;`.
+- **Grid-only.** Automation and the no-`GridLayouts` legacy path are untouched — `;`
+  passes through, geometry from the flat keys. Zero regression.
+
+# Approach (as implemented)
+
+1. **New `Services/GridLayoutConfig.cs`** — `GridLayout` model (5 fields) + pure
+   `ParseGridLayouts` (layouts split on `||`, fields on `|`, regions field rejoined
+   so commas/stray pipes survive), `ClampActiveLayout` (pure), `ReadGridLayouts` /
+   `ReadActiveLayout` / `WriteActiveLayout` wrappers, and `GridLayout.FromFlatConfig`
+   (reads the 5 legacy keys — the backward-compat source).
+2. **`User32.VK_OEM_1 = 0xBA`** added.
+3. **`UiAutomationHintProviderService`** — `EnumGridHints(hWnd, bounds, layout)`
+   where `layout == null` ⇒ `FromFlatConfig()` (today's behavior); new
+   `EnumGridHintsForBounds(hWnd, bounds, layout)` and `EnumHints(hWnd, layout)`
+   overloads added to the service and `IHintProviderService`. `GenerateGridPoints`
+   unchanged.
+4. **`OverlayViewModel`** — new full ctor carrying `layouts` / `activeLayout` /
+   `rebuildSessions`; `LayoutCycleCapable` (computed), `LayoutLabel` ("L2/2"),
+   `LayoutBadgeVisibility`, and `CycleLayout()` (advance+persist+rebuild+`LoadSession`
+   + pan reset, monitor index clamped). Mirrors `CycleMonitor`.
+5. **`OverlayKeyboardHook`** — `OverlayKeyActionKind.CycleLayout`; `Classify` gains a
+   `layoutCycle` param (default false); `VK_OEM_1` branch in the `!(ctrl||win)` block;
+   hook reads `_vm.LayoutCycleCapable`; dispatch → `_vm.CycleLayout()`.
+6. **`ShellViewModel`** — reads `GridLayouts`/`ActiveLayout`; threads the active
+   preset into `BuildMonitorSessions` and the single-session path; builds a rebuild
+   delegate (`BuildMonitorSessionList` for multi-monitor, `SingleSessionWithTaskbar`
+   for Grid+Window) passed into the VM.
+7. **`App.config`** — `GridLayouts` (2 defaults) + `ActiveLayout=0` + comments.
+8. **Options** — `GridLayouts` multiline editor (Overlay tab); the 5 flat knobs stay
+   for the fallback.
+9. **Badge** — `LayoutLabel` TextBlock, `Collapsed` when not capable.
+10. **csproj × 2** — `<Compile Include>` for the two new files.
+
+# Files touched
+
+- New: `src/HuntAndPeck/Services/GridLayoutConfig.cs`;
+  `src/HuntAndPeck.Tests/Services/GridLayoutConfigTest.cs`.
+- `src/NativeMethods/User32.cs`, `IHintProviderService.cs`,
+  `UiAutomationHintProviderService.cs`, `OverlayViewModel.cs`, `ShellViewModel.cs`,
+  `OverlayKeyboardHook.cs`, `App.config`, `OptionsViewModel.cs`, `OptionsView.xaml`,
+  `OverlayView.xaml`, `HuntAndPeck.csproj`, `HuntAndPeck.Tests.csproj`, `CLAUDE.md`.
+
+# Verification
+
+- **CI** (`.github/workflows/build.yml`, `windows-latest`): MSBuild compiles + the
+  xUnit suite is green (existing + `GridLayoutConfigTest` + `;`-classification cases).
+  This is the only local (Linux) gate; UI/P-Invoke is manual on Windows.
+- **Manual (Grid + Screen)**: badge `L1/2` on open; `;` → `L2/2` uniform grid; `;`
+  wraps; Esc+reopen keeps it; restart keeps it; Automation passes `;` through;
+  removing `GridLayouts` reverts to the flat knobs with `;` passthrough.
+- Hot-reload: edit `GridLayouts` in Options, re-trigger — applies without restart.
+
+# Risks / notes
+
+- Backward compat is hard-required: with no `GridLayouts`, every path behaves as
+  today (`layout == null` → `FromFlatConfig`; `;` → passthrough). Enforced by the
+  `layoutCycle=false` default and `LayoutCycleCapable` gate.
+- One `hap.exe.config` rewrite per `;` (low frequency; `EnsureFresh` is stat-based).
+- Monitor index is clamped, not reset, across a switch (stay on the viewed monitor).
+- `Shift+;` (`:`) also cycles (OEM commands ignore shift, matching backtick/backslash).
+- Rebuild runs on the UI thread (Grid gen is pure math; Automation is excluded).

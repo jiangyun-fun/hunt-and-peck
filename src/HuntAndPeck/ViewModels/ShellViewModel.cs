@@ -127,10 +127,18 @@ namespace HuntAndPeck.ViewModels
             var continuous = OverlayActionConfig.ComputeIsContinuous(
                 forceOneShot, gridSource, OverlayActionConfig.ReadTriggerMode());
 
+            // Layout presets (Grid only): when GridLayouts lists more than one geometry,
+            // `;` cycles them live and the active one is persisted (ActiveLayout). Null
+            // (Automation, or no GridLayouts configured) preserves today's behavior.
+            var layouts = gridSource ? GridLayoutConfig.ReadGridLayouts() : new List<GridLayout>();
+            bool hasLayouts = layouts.Count > 0;
+            int activeLayout = hasLayouts ? GridLayoutConfig.ReadActiveLayout(layouts.Count) : 0;
+            GridLayout layout = hasLayouts ? layouts[activeLayout] : null;
+
             var sw = Stopwatch.StartNew();
             if (cycleCapable)
             {
-                var built = await Task.Run(() => BuildMonitorSessions(hWnd));
+                var built = await Task.Run(() => BuildMonitorSessions(hWnd, layout));
                 sw.Stop();
                 var cur = built.Sessions.Count > 0 ? built.Sessions[built.Current] : null;
                 TimingLog.Log("enum+merge " + sw.ElapsedMilliseconds + "ms  monitors="
@@ -138,20 +146,26 @@ namespace HuntAndPeck.ViewModels
                     + (cur != null && cur.Hints != null ? cur.Hints.Count : 0));
                 if (built.Sessions.Count > 0)
                 {
-                    var vm = new OverlayViewModel(built.Sessions, built.Current, _hintLabelService);
+                    var vm = hasLayouts
+                        ? new OverlayViewModel(built.Sessions, built.Current, _hintLabelService,
+                            layouts, activeLayout, idx => BuildMonitorSessionList(hWnd, layouts[idx]))
+                        : new OverlayViewModel(built.Sessions, built.Current, _hintLabelService);
                     ConfigureTriggerMode(vm, gridSource, continuous);
                     _showOverlay(vm);
                 }
             }
             else
             {
-                var session = await Task.Run(() => MergeWithTaskbar(_hintProviderService.EnumHints(hWnd)));
+                var session = await Task.Run(() => MergeWithTaskbar(_hintProviderService.EnumHints(hWnd, layout)));
                 sw.Stop();
                 TimingLog.Log("enum+merge " + sw.ElapsedMilliseconds + "ms  hints="
                     + (session != null && session.Hints != null ? session.Hints.Count : 0));
                 if (session != null)
                 {
-                    var vm = new OverlayViewModel(session, _hintLabelService);
+                    var vm = hasLayouts
+                        ? new OverlayViewModel(new List<HintSession> { session }, 0, _hintLabelService,
+                            layouts, activeLayout, idx => SingleSessionWithTaskbar(hWnd, layouts[idx]))
+                        : new OverlayViewModel(session, _hintLabelService);
                     ConfigureTriggerMode(vm, gridSource, continuous);
                     _showOverlay(vm);
                 }
@@ -177,14 +191,17 @@ namespace HuntAndPeck.ViewModels
         /// <summary>
         /// Builds one Grid session per monitor, sorted left-to-right then top-to-bottom,
         /// starting on the monitor the foreground window is on. For monitor cycling
-        /// (Grid + Screen). No taskbar merge: each monitor's full-screen grid already
+        /// (Grid + Screen). <paramref name="layout"/> selects the geometry preset (null =
+        /// the legacy flat keys). No taskbar merge: each monitor's full-screen grid already
         /// covers its own taskbar strip, and secondary monitors have no taskbar.
         /// </summary>
-        private MonitorSessions BuildMonitorSessions(IntPtr hWnd)
+        private MonitorSessions BuildMonitorSessions(IntPtr hWnd, GridLayout layout)
         {
             var screens = Screen.AllScreens
                 .OrderBy(s => s.Bounds.X).ThenBy(s => s.Bounds.Y)
                 .ToList();
+
+            var sessions = BuildSessionsForScreens(hWnd, screens, layout);
 
             var fgScreen = Screen.FromHandle(hWnd);
             var current = screens.FindIndex(s => fgScreen != null && s.Bounds.Equals(fgScreen.Bounds));
@@ -192,15 +209,44 @@ namespace HuntAndPeck.ViewModels
             {
                 current = 0;
             }
+            return new MonitorSessions { Sessions = sessions, Current = current };
+        }
 
+        /// <summary>
+        /// Layout-cycling rebuild target (Grid + Screen): regenerates the per-monitor
+        /// sessions for a new preset. The current-monitor index is kept by the overlay VM
+        /// (clamped), so the user stays on the monitor they are viewing after a switch.
+        /// </summary>
+        private List<HintSession> BuildMonitorSessionList(IntPtr hWnd, GridLayout layout)
+        {
+            var screens = Screen.AllScreens
+                .OrderBy(s => s.Bounds.X).ThenBy(s => s.Bounds.Y)
+                .ToList();
+            return BuildSessionsForScreens(hWnd, screens, layout);
+        }
+
+        private List<HintSession> BuildSessionsForScreens(IntPtr hWnd, List<Screen> screens, GridLayout layout)
+        {
             var sessions = new List<HintSession>(screens.Count);
             foreach (var screen in screens)
             {
                 var b = screen.Bounds;
                 sessions.Add(_hintProviderService.EnumGridHintsForBounds(
-                    hWnd, new System.Windows.Rect(b.X, b.Y, b.Width, b.Height)));
+                    hWnd, new System.Windows.Rect(b.X, b.Y, b.Width, b.Height), layout));
             }
-            return new MonitorSessions { Sessions = sessions, Current = current };
+            return sessions;
+        }
+
+        /// <summary>
+        /// Layout-cycling rebuild target (single-session Grid + Window): regenerates the
+        /// foreground session with a new preset and re-merges the taskbar. Returns a 0- or
+        /// 1-element list so the single- and multi-monitor rebuild shapes both satisfy the
+        /// overlay VM's Func&lt;int, IList&lt;HintSession&gt;&gt; rebuild delegate.
+        /// </summary>
+        private IList<HintSession> SingleSessionWithTaskbar(IntPtr hWnd, GridLayout layout)
+        {
+            var session = MergeWithTaskbar(_hintProviderService.EnumHints(hWnd, layout));
+            return session == null ? new List<HintSession>() : new List<HintSession> { session };
         }
 
         /// <summary>
