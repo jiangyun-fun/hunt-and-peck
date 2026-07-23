@@ -100,14 +100,15 @@ namespace HuntAndPeck.Services
                 var fields = part.Split('|');
 
                 // Regions = field 5 onward (index 4+), rejoined so a stray '|' inside it
-                // does not truncate the region list. Blank/missing -> default.
+                // does not truncate the region list. Trimmed so the spaces around the
+                // `||` and `|` separators do not leak into the value. Blank/missing -> default.
                 string regions = GridLayout.DefaultDenseRegions;
                 if (fields.Length > 4)
                 {
                     var joined = string.Join("|", fields, 4, fields.Length - 4);
                     if (!string.IsNullOrWhiteSpace(joined))
                     {
-                        regions = joined;
+                        regions = joined.Trim();
                     }
                 }
 
