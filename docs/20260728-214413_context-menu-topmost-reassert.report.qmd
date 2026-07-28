@@ -1,0 +1,68 @@
+---
+title: "Report — keep overlay labels above mid-session popups"
+author: "Yun Jiang"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📌</text></svg>">
+---
+
+# Summary
+
+Implemented the timer-based topmost re-assert so hunt-and-peck overlay labels
+stay above context menus / dropdowns / tooltips that open **after** the overlay
+loads (the continuous-mode case). Plan:
+[`20260728-214134_context-menu-topmost-reassert.plan.qmd`](20260728-214134_context-menu-topmost-reassert.plan.qmd).
+
+# What changed
+
+`src/HuntAndPeck/Views/OverlayView.xaml.cs` only:
+
+- Cached the HWND as `_hwnd` at load.
+- Extracted `ReassertTopmost()` — `SetWindowPos(HWND_TOPMOST, SWP_NOACTIVATE |
+  SWP_NOMOVE | SWP_NOSIZE)`, guarded on `_hwnd != IntPtr.Zero`.
+- Replaced the one-shot with a call to `ReassertTopmost()` plus a
+  `DispatcherTimer` (`TopmostReassertIntervalMs = 100 ms`) that re-asserts on
+  every tick while the overlay is up.
+- Added an `OnClosed` override that stops the timer and zeroes the HWND.
+
+No new P/Invoke (all symbols already in `User32.cs`), no `.csproj` change, no
+`App.config` knob. Diff: +60 / −3 in `OverlayView.xaml.cs`.
+
+# Why this fixes the context-menu case
+
+Within `ZBID_DESKTOP` (the band application windows live in) the
+most-recently-positioned window wins. The old one-shot ran only at load, so a
+popup created mid-session landed above the overlay and stayed there. The timer
+re-asserts every 100 ms, pushing the overlay back above any same-band popup.
+`SWP_NOACTIVATE` means the menu beneath never loses activation, so it stays
+open. Labels are click-through, so a menu visible beneath a floating label is
+still clickable via synthesized absolute-coordinate clicks.
+
+# Non-goal (unchanged)
+
+Toast notifications remain unreachable — they live in
+`ZBID_IMMERSIVE_NOTIFICATION`, above all `ZBID_DESKTOP` app windows; no app
+window (topmost / admin / UIAccess) can cover them. Suppress via Focus Assist /
+Do Not Disturb.
+
+# Verification
+
+- **CI green:** run `30364805530` on commit `8cfbf46`, job "Build, test,
+  package (Windows)" passed in 49 s (MSBuild Release + xUnit + artifact upload).
+  Only annotation: a pre-existing Node.js 20 deprecation warning, unrelated to
+  this change.
+- **Code:** all z-order sites accounted for — `grep SetWindowPos|HWND_TOPMOST|Topmost`
+  over `src/` returns `OverlayView.xaml:10` (`Topmost="True"`), the new
+  `ReassertTopmost` + timer in `OverlayView.xaml.cs`, and the `User32`
+  definitions; no other z-order code exists.
+- **Manual (pending, Windows box):** continuous mode → trigger → label-click to
+  open a context menu → labels stay on top; menu stays open; label-clicking a
+  menu item still fires. Cannot be exercised on the Linux dev box.
+
+# Drop
+
+Shipped to the Windows test box via the `ship-drop` skill (folder path reported
+in chat).

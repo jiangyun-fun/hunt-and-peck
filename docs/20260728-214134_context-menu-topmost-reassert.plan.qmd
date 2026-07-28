@@ -62,3 +62,11 @@ No `.csproj` change (existing file already compiled). No new `App.config` knob
 - Manual test on the Windows box: continuous mode → trigger → label-click to
   open a context menu → labels stay on top of the menu; menu stays open (not
   dismissed); label-clicking a menu item still fires.
+
+# Result (completed 2026-07-28)
+
+Implemented exactly as planned — no deviation in approach or file list. Commit
+`8cfbf46` on `master`; CI run `30364805530` green (49 s). See
+[`20260728-214413_context-menu-topmost-reassert.report.qmd`](20260728-214413_context-menu-topmost-reassert.report.qmd).
+Manual Windows verification still pending (cannot run GUI on the Linux dev
+box).
