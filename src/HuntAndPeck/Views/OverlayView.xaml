@@ -14,7 +14,7 @@
         <SolidColorBrush Color="Transparent" />
     </local:ForegroundWindow.Background>
     <Grid x:Name="layoutGrid">
-        <local:HintCanvas Width="{Binding Bounds.Width}" Height="{Binding Bounds.Height}"
+        <local:HintCanvas x:Name="hintCanvas" Width="{Binding Bounds.Width}" Height="{Binding Bounds.Height}"
                           HintsSource="{Binding Hints}" Opacity="{Binding LabelOpacity}"
                           PillOpacity="{Binding PillOpacity}">
             <local:HintCanvas.RenderTransform>

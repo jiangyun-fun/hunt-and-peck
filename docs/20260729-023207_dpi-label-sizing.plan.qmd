@@ -1,0 +1,77 @@
+---
+title: "Fix tiny labels on high-DPI / scaled displays (e.g. 4K @ 300%)"
+author: "Yun Jiang"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+---
+
+# Objective
+
+On a 4K display at 300% scaling, hint labels render ~1/3 of their intended
+physical size (barely readable). Make label sizes DPI-correct while leaving
+cursor targeting untouched.
+
+# Root cause
+
+The overlay window is sized `Bounds / scale` DIP and `layoutGrid` gets a
+`ScaleTransform(1/scale)` (`Views/OverlayView.xaml.cs:57`) to map the
+physical-pixel hint coordinates into that DIP window. That transform cancels
+WPF's `×scale` DPI render for **sizes**: text drawn at `_fontSize` (e.g. 14,
+`Views/HintCanvas.cs:193,198`) ends up at `14 × (1/scale) × scale = 14 physical
+px` regardless of DPI. On a 4K panel 14 physical px is ~1.5 mm — tiny. `Pad`
+(`:41`) and the corner radius (`:236`) are frozen the same way. Positions are
+correct (physical → DIP → physical round-trips), which is why labels land in the
+right place but at the wrong size.
+
+# Approach (scale size constants by `scale`, leave positions in physical px)
+
+Option A — minimal, targeting-safe:
+
+- Add a `DpiScale` property to `HintCanvas` (default 1.0). Setter rebuilds
+  `FormattedText` and re-renders all hints (emSize depends on it).
+- In `BuildFormatted`, use `_fontSize * DpiScale` for the `FormattedText` emSize.
+- In `RenderHint`, scale `Pad` and the corner radius by `DpiScale`.
+- Name the canvas in `OverlayView.xaml` (`x:Name="hintCanvas"`) and set
+  `hintCanvas.DpiScale = _scaleX` in `OnLoaded` (right after the existing
+  `TransformToDevice` read).
+
+Net: text → `(fontSize·s) × (1/s) × s = fontSize·s` physical px = DPI-correct
+(same physical size as `fontSize` at 100%). The existing `HintFontSize` knob
+becomes meaningful again on high-DPI.
+
+Rejected Option B (drop the `1/scale` transform, divide display coords by scale,
+draw at native DIP): touches the `PointHint` model and the cursor-targeting
+math, which `mouse_event` relies on — too risky for the size-only symptom.
+
+# Files
+
+- `src/HuntAndPeck/Views/HintCanvas.cs` — `DpiScale` property + scaled emSize /
+  pad / radius.
+- `src/HuntAndPeck/Views/OverlayView.xaml` — `x:Name="hintCanvas"`.
+- `src/HuntAndPeck/Views/OverlayView.xaml.cs` — set `hintCanvas.DpiScale`.
+
+No `.csproj`, no `App.config`, no model change. `FormattedText` keeps the 6-arg
+ctor (the `pixelsPerDip` overload needs .NET 4.7+; we target 4.5.1).
+
+# Risks / non-goals
+
+- **Cannot self-test on Linux** (WPF render) — CI compile + manual test on the
+  4K / 300% Windows box.
+- **Mixed-DPI multi-monitor** (e.g. 4K@300% + 1080p@100%): scale is captured once
+  at load (same as the existing `LayoutTransform`), so labels would be wrong-
+  sized on a second monitor at a *different* DPI. Pre-existing limitation; not
+  addressed here (YAGNI — reported bug is single-monitor 4K).
+- One extra `BuildFormatted` at overlay-open if `HintsSource` binds before
+  `DpiScale` is set; negligible vs. the existing O(N) build.
+- `DebugOverlayView` left alone (different render path; debug surface).
+
+# Verification
+
+- CI (`.github/workflows/build.yml`, `windows-latest`) compiles + xUnit green.
+- Manual on the 4K / 300% box: labels render at a readable physical size (≈ the
+  same physical size as on a 1080p@100% display); positions still land on the
+  correct click targets; `HintFontSize` still tunes the size.

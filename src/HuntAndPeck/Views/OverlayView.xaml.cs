@@ -56,6 +56,12 @@ namespace HuntAndPeck.Views
             // scale the items for non-96 DPIs
             layoutGrid.LayoutTransform = new ScaleTransform(1/_scaleX, 1/_scaleY);
 
+            // Tell the label renderer the device scale so it sizes fonts / pills /
+            // corner radii up by it; hint positions already round-trip. Without this
+            // the 1/scale transform above cancels WPF's DPI render for sizes and the
+            // labels render at raw physical px (tiny on high-DPI / scaled displays).
+            hintCanvas.DpiScale = _scaleX;
+
             var vm = DataContext as OverlayViewModel;
             ApplyBounds(vm);
 

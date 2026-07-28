@@ -31,6 +31,10 @@ namespace HuntAndPeck.Views
         private List<DrawingVisual> _visualByHint;
         private double _fontSize = 14;
 
+        // Device scale (TransformToDevice) of the overlay's monitor; set by
+        // OverlayView. Label SIZE constants are multiplied by this (see DpiScale).
+        private double _dpi = 1.0;
+
         // Pill fill brushes, rebuilt when PillOpacity changes. Semi-transparent so the
         // vivid yellow softens and background peeks through; the text stays fully opaque
         // (crisp). Opacity is configurable via HintPillOpacity (default 0.8).
@@ -39,6 +43,7 @@ namespace HuntAndPeck.Views
 
         // Padding between the label text and the edge of its pill.
         private const double Pad = 2.0;
+        private const double DefaultCornerRadius = 3.0;
         private const double DefaultPillOpacity = 0.8;
 
         public HintCanvas()
@@ -71,6 +76,37 @@ namespace HuntAndPeck.Views
                 for (int i = 0; i < c._hints.Count; i++)
                 {
                     c.RenderHint(i);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Device scale factor (TransformToDevice) of the overlay's monitor. Label
+        /// SIZE constants (font emSize, padding, corner radius) are scaled by this so
+        /// they render DPI-correct; hint POSITIONS stay in physical px (they already
+        /// round-trip through the layoutGrid 1/scale transform). Without it, sizes come
+        /// out ~fontSize physical px regardless of DPI (tiny on high-DPI / scaled
+        /// displays, e.g. 4K @ 300%). Setting it rebuilds the cached FormattedText
+        /// (emSize depends on it) and re-renders every label.
+        /// </summary>
+        public double DpiScale
+        {
+            get { return _dpi; }
+            set
+            {
+                var v = value > 0 ? value : 1.0;
+                if (Math.Abs(v - _dpi) < 1e-9)
+                {
+                    return;
+                }
+                _dpi = v;
+                if (_hints != null && _hints.Count > 0)
+                {
+                    BuildFormatted();
+                    for (int i = 0; i < _hints.Count; i++)
+                    {
+                        RenderHint(i);
+                    }
                 }
             }
         }
@@ -191,11 +227,12 @@ namespace HuntAndPeck.Views
                 fs = 14;
             }
             _fontSize = fs;
+            double emSize = _fontSize * _dpi;
             _formatted = new FormattedText[_hints.Count];
             for (int i = 0; i < _hints.Count; i++)
             {
                 _formatted[i] = new FormattedText(_hints[i].Label ?? "", CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight, LabelTypeface, _fontSize, TextBrush);
+                    FlowDirection.LeftToRight, LabelTypeface, emSize, TextBrush);
             }
         }
 
@@ -211,8 +248,12 @@ namespace HuntAndPeck.Views
             var h = _hints[i];
             var br = h.Hint.BoundingRectangle;
 
-            double pillW = ft.Width + Pad * 2;
-            double pillH = ft.Height + Pad * 2;
+            // Scale the size constants by the device DPI so the pill renders at a
+            // DPI-correct physical size; positions (br.Left/Top) stay in physical px.
+            double pad = Pad * _dpi;
+            double radius = DefaultCornerRadius * _dpi;
+            double pillW = ft.Width + pad * 2;
+            double pillH = ft.Height + pad * 2;
             // PointHint: br.Left/Top IS the cursor target, so center the pill on it.
             // Previously the pill was top-left-anchored there, which sat every label
             // down-right of its click point and left the grid with asymmetric margins
@@ -233,8 +274,8 @@ namespace HuntAndPeck.Views
             using (var dc = _visualByHint[i].RenderOpen())
             {
                 dc.DrawRoundedRectangle(h.Active ? _activeBg : _inactiveBg, null,
-                    new Rect(x, y, pillW, pillH), 3, 3);
-                dc.DrawText(ft, new Point(x + Pad, y + Pad));
+                    new Rect(x, y, pillW, pillH), radius, radius);
+                dc.DrawText(ft, new Point(x + pad, y + pad));
             }
         }
     }
