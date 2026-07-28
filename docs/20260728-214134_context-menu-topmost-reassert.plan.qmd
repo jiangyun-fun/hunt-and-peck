@@ -68,5 +68,4 @@ No `.csproj` change (existing file already compiled). No new `App.config` knob
 Implemented exactly as planned — no deviation in approach or file list. Commit
 `8cfbf46` on `master`; CI run `30364805530` green (49 s). See
 [`20260728-214413_context-menu-topmost-reassert.report.qmd`](20260728-214413_context-menu-topmost-reassert.report.qmd).
-Manual Windows verification still pending (cannot run GUI on the Linux dev
-box).
+Manual Windows verification passed (2026-07-28) — confirmed by the user.

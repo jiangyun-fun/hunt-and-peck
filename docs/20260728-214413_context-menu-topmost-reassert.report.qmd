@@ -58,9 +58,9 @@ Do Not Disturb.
   over `src/` returns `OverlayView.xaml:10` (`Topmost="True"`), the new
   `ReassertTopmost` + timer in `OverlayView.xaml.cs`, and the `User32`
   definitions; no other z-order code exists.
-- **Manual (pending, Windows box):** continuous mode → trigger → label-click to
-  open a context menu → labels stay on top; menu stays open; label-clicking a
-  menu item still fires. Cannot be exercised on the Linux dev box.
+- **Manual (passed, Windows box, 2026-07-28):** continuous mode → trigger →
+  label-click to open a context menu → labels stay on top; menu stays open;
+  label-clicking a menu item still fires. Confirmed by the user.
 
 # Drop
 
