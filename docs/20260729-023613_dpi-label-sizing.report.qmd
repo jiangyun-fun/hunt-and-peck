@@ -1,0 +1,70 @@
+---
+title: "Report — fix tiny labels on high-DPI / scaled displays"
+author: "Yun Jiang"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+---
+
+# Summary
+
+Labels rendered ~1/3 size on a 4K @ 300% display. Fixed by scaling label SIZE
+constants (font, padding, corner radius) by the device DPI inside `HintCanvas`,
+leaving positions (and thus cursor targeting) in physical px. Plan:
+[`20260729-023207_dpi-label-sizing.plan.qmd`](20260729-023207_dpi-label-sizing.plan.qmd).
+
+# Root cause (recap)
+
+The overlay window is `Bounds / scale` DIP and `layoutGrid` carries a
+`ScaleTransform(1/scale)` (`Views/OverlayView.xaml.cs:57`) to map physical-px
+hint coords into that DIP window. That transform cancels WPF's `×scale` DPI
+render for **sizes**: text at `_fontSize` became `fontSize × (1/scale) × scale =
+fontSize physical px` regardless of DPI. On 4K that is ~1.5 mm — tiny. `Pad`
+and the corner radius were frozen the same way. Positions were already correct.
+
+# What changed
+
+- `Views/HintCanvas.cs`
+  - `private double _dpi = 1.0` field + `public double DpiScale` property
+    (setter rebuilds `FormattedText` and re-renders all hints, since emSize
+    depends on it).
+  - `BuildFormatted`: `emSize = _fontSize * _dpi`.
+  - `RenderHint`: `pad = Pad * _dpi`, `radius = DefaultCornerRadius * _dpi`
+    (new `DefaultCornerRadius = 3.0` const), and the pill/text use those.
+- `Views/OverlayView.xaml`: `<local:HintCanvas x:Name="hintCanvas" …>`.
+- `Views/OverlayView.xaml.cs`: `hintCanvas.DpiScale = _scaleX;` in `OnLoaded`,
+  right after the existing `TransformToDevice` read / `LayoutTransform`.
+
+Net: text → `(fontSize·s) × (1/s) × s = fontSize·s` physical px — DPI-correct,
+same physical size as `fontSize` at 100%. `HintFontSize` is meaningful again on
+high-DPI. Diff: +130 / −6 across the three files.
+
+No model change, no `App.config` knob, no `.csproj` change. `FormattedText`
+keeps the 6-arg ctor (the `pixelsPerDip` overload requires .NET 4.7+; target is
+4.5.1). `DebugOverlayView` untouched (different render path).
+
+# Verification
+
+- **CI green:** run `30387990254` on commit `6b02876`, job "Build, test,
+  package (Windows)" passed (~49 s; MSBuild Release + xUnit + artifact). Only
+  annotation: the pre-existing Node.js 20 deprecation warning, unrelated.
+- **Static check:** `grep` over `HintCanvas.cs` confirms no unscaled `Pad * 2` /
+  `x + Pad` / `, 3, 3)` remain; all size paths route through `_dpi`.
+- **Manual (pending, Windows 4K box):** labels render at a readable physical
+  size on the 4K / 300% display; positions still hit the correct click targets;
+  `HintFontSize` still tunes size. Cannot render WPF on the Linux dev box.
+
+# Known limitation
+
+Mixed-DPI multi-monitor (e.g. 4K @ 300% + 1080p @ 100%): the scale is captured
+once at load (same as the pre-existing `LayoutTransform`), so labels would be
+wrong-sized on a second monitor at a *different* DPI. Pre-existing behavior; not
+in scope for this change (the reported bug is single-monitor 4K).
+
+# Drop
+
+Shipped to the Windows test box via `ship-drop` at
+`$HAP_WIN_TEST_DIR/hap-dpi/hap.exe` (verified present).

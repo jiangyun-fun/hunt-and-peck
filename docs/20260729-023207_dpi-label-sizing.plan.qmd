@@ -75,3 +75,10 @@ ctor (the `pixelsPerDip` overload needs .NET 4.7+; we target 4.5.1).
 - Manual on the 4K / 300% box: labels render at a readable physical size (≈ the
   same physical size as on a 1080p@100% display); positions still land on the
   correct click targets; `HintFontSize` still tunes the size.
+
+# Result (completed 2026-07-29)
+
+Implemented as planned — Option A, no deviation. Commit `6b02876` on `master`;
+CI run `30387990254` green (~49 s). See
+[`20260729-023613_dpi-label-sizing.report.qmd`](20260729-023613_dpi-label-sizing.report.qmd).
+Manual Windows verification on the 4K / 300% display still pending.
