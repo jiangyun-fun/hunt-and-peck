@@ -1,0 +1,64 @@
+---
+title: "Keep overlay labels above mid-session popups (context menus)"
+author: "Yun Jiang"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📌</text></svg>">
+---
+
+# Objective
+
+Labels currently disappear behind popups (context menus, dropdowns, tooltips)
+that open **after** the overlay loads — the continuous-mode case (e.g.
+label-click → right-click → app opens a context menu). Make the overlay
+re-assert topmost z-order on a short timer while it is up, so labels float
+above any same-band popup that appears mid-session.
+
+# Root cause
+
+`OverlayView` is `Topmost="True"` (`Views/OverlayView.xaml:10`) and re-asserts
+`SetWindowPos(HWND_TOPMOST, SWP_NOACTIVATE)` **once** at load
+(`Views/OverlayView.xaml.cs:71`). Within the `ZBID_DESKTOP` topmost band the
+most-recently-positioned window wins, so a popup created after load (a new
+context menu) lands above the overlay and the overlay never recovers. Toast
+notifications are out of scope — they live in `ZBID_IMMERSIVE_NOTIFICATION`,
+above all app windows; no app window (topmost / admin / UIAccess) can cover them
+([ADeltaX, "Window z-order in Windows 10"](https://blog.adeltax.com/window-z-order-in-windows-10/)).
+
+# Approach (timer, not event-hook)
+
+Add a `DispatcherTimer` (~100 ms) started after the existing one-shot; each tick
+re-asserts `HWND_TOPMOST` with `SWP_NOACTIVATE` (never steals activation → the
+menu beneath stays open). `SWP_NOACTIVATE` is menu-safe by construction — the
+one-shot already relies on it. Stop the timer on close.
+
+Why a timer over `SetWinEventHook`: KISS — no new P/Invoke, no fragile event
+filtering, and 100 ms is imperceptible vs. menu-open latency. Cost is negligible:
+`SetWindowPos` on an already-topmost window is essentially a no-op.
+
+# Files
+
+- `src/HuntAndPeck/Views/OverlayView.xaml.cs` — cache the HWND as a field,
+  extract a `ReassertTopmost()` helper, start/stop a `DispatcherTimer`.
+
+No `.csproj` change (existing file already compiled). No new `App.config` knob
+(internal mechanism; YAGNI).
+
+# Risks / non-goals
+
+- Toast notifications, Action Center, Start menu: unreachable (higher z-band).
+  Suppress via Focus Assist / Do Not Disturb — out of scope for this change.
+- Composition-drawn menus (some Chromium / Electron popups): may still peek
+  through; not guaranteed — only HWND-based popups are affected.
+- No unit test: pure P/Invoke / windowing behavior, verified by CI compile +
+  manual Windows test (consistent with the rest of the overlay code).
+
+# Verification
+
+- CI (`.github/workflows/build.yml`, `windows-latest`) compiles + xUnit green.
+- Manual test on the Windows box: continuous mode → trigger → label-click to
+  open a context menu → labels stay on top of the menu; menu stays open (not
+  dismissed); label-clicking a menu item still fires.

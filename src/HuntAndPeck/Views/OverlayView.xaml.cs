@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services;
 using HuntAndPeck.ViewModels;
@@ -18,6 +19,20 @@ namespace HuntAndPeck.Views
         private Stopwatch _renderSw;
         private double _scaleX = 1.0;
         private double _scaleY = 1.0;
+
+        // HWND cached at load so the re-assert timer can re-position us without
+        // re-querying WindowInteropHelper every tick.
+        private IntPtr _hwnd;
+
+        // Re-asserts HWND_TOPMOST on a short cadence so labels stay above any
+        // same-band popup (context menu / dropdown / tooltip) that opens AFTER
+        // the overlay loads (the continuous-mode case). Stopped on close.
+        private DispatcherTimer _topmostReassertTimer;
+
+        // How often the overlay re-asserts topmost while it is up. 100 ms is
+        // imperceptible vs. menu-open latency; SetWindowPos on an already-topmost
+        // window is ~free.
+        private const int TopmostReassertIntervalMs = 100;
 
         public OverlayView()
         {
@@ -67,9 +82,22 @@ namespace HuntAndPeck.Views
             // above an open context menu but don't dismiss it. Topmost=True keeps
             // us in the topmost band; this re-asserts our position above other
             // topmost popups (e.g. an open right-click menu).
-            var hwnd = new WindowInteropHelper(this).Handle;
-            User32.SetWindowPos(hwnd, User32.HWND_TOPMOST, 0, 0, 0, 0,
-                User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOACTIVATE);
+            _hwnd = new WindowInteropHelper(this).Handle;
+            ReassertTopmost();
+
+            // In continuous mode a label-click can open a NEW popup (context menu,
+            // dropdown, tooltip) AFTER load. That popup lands above us in the
+            // topmost band and buries our labels until we re-assert. A short timer
+            // keeps us on top of any same-band popup that appears mid-session.
+            // SWP_NOACTIVATE means we never steal activation, so the menu beneath
+            // stays open. (Cannot reach toast notifications -- those live in
+            // ZBID_IMMERSIVE_NOTIFICATION, above all ZBID_DESKTOP windows.)
+            _topmostReassertTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(TopmostReassertIntervalMs)
+            };
+            _topmostReassertTimer.Tick += (s, ev) => ReassertTopmost();
+            _topmostReassertTimer.Start();
 
             // Measure window-load to content-rendered (the label layout/render cost).
             _renderSw = Stopwatch.StartNew();
@@ -124,6 +152,35 @@ namespace HuntAndPeck.Views
                 ext &= ~User32.WS_EX_TRANSPARENT;
             }
             User32.SetWindowLong(hwnd, User32.GWL_EXSTYLE, ext);
+        }
+
+        /// <summary>
+        /// Re-asserts this overlay at the top of the topmost z-order band WITHOUT
+        /// stealing activation (SWP_NOACTIVATE), so labels paint above an open
+        /// context menu / dropdown / tooltip without dismissing it. Called once on
+        /// load and then on a short timer to cover popups that appear mid-session.
+        /// </summary>
+        private void ReassertTopmost()
+        {
+            if (_hwnd == IntPtr.Zero)
+            {
+                return;
+            }
+            User32.SetWindowPos(_hwnd, User32.HWND_TOPMOST, 0, 0, 0, 0,
+                User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOACTIVATE);
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            // Stop the re-assert timer and drop the HWND so a late tick (if any)
+            // can't touch a destroyed window.
+            if (_topmostReassertTimer != null)
+            {
+                _topmostReassertTimer.Stop();
+                _topmostReassertTimer = null;
+            }
+            _hwnd = IntPtr.Zero;
+            base.OnClosed(e);
         }
     }
 }
