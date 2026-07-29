@@ -1,0 +1,72 @@
+---
+title: "Report — punctuation labels, digit hotkeys, menu-safe Esc"
+author: "Yun Jiang"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⌨️</text></svg>">
+---
+
+# Summary
+
+Reworked the overlay key map: retired digits as labels, made
+`,./;'[]\` typeable labels, moved the displaced hotkeys onto digits, added `1`
+as a close alias, and made closing the overlay menu-safe. Plan:
+[`20260729-174111_keybinding-rework.plan.qmd`](20260729-174111_keybinding-rework.plan.qmd).
+
+# New key map
+
+| Key | Action | Was |
+|---|---|---|
+| `Esc`, `1` | close (menu-safe) | Esc only |
+| `2` | suspend | `\` |
+| `3` | cycle grid layout (Grid+GridLayouts) | `;` |
+| backtick | dim | unchanged |
+| `A–Z` | label chars (always) | unchanged |
+| `, . / ; ' [ ] \` | label chars (when in `HintCharacters`) | passthrough / hotkey |
+| `4`–`0` | passthrough | label chars |
+
+# What changed
+
+- `Services/OverlayKeyboardHook.cs`: `Classify` gains a `labelChars` param
+  (uppercased `HintCharacters`). New digit block — `VK_1`→Escape,
+  `VK_2`→SuspendNow, `VK_3`→CycleLayout (when capable); the old `VK_0..VK_9`
+  AppendChar range and the `;`/`\` action lines are gone. New `LabelCharForVk`
+  (letters always; OEM only when in `labelChars`) + `OemCharForVk` (US-layout).
+  `KeyboardProc` reads `HintCharacters` per keydown via
+  `OverlayActionConfig.ReadRawString` and passes it in.
+- `NativeMethods/User32.cs`: `VK_1/2/3`, `VK_OEM_2/4/6/7/_COMMA/_PERIOD`,
+  `WS_EX_NOACTIVATE`.
+- `Views/OverlayView.xaml.cs`: `SetClickThrough` now also ORs `WS_EX_NOACTIVATE`
+  onto the overlay HWND (menu-safe close).
+- `App.config`: `HintCharacters` default → `A–Z` + `,./;'[]\` (no digits).
+- `OverlayKeyboardHookTest.cs`: rewritten for the new map (letters, digit
+  functions, punctuation-as-label, `\`/`;` as labels, `3` cycle).
+- `CLAUDE.md`: runtime-behavior spec updated.
+
+# Menu-safe close (hypothesis — needs Windows verification)
+
+The close path (`App.xaml.cs:72-78`) does no foreground manipulation and Esc is
+already swallowed by the hook, so the dismissal most likely came from the overlay
+acquiring foreground and returning it on close. `WS_EX_NOACTIVATE` makes the
+window never enter the activation chain, so closing it should cause no foreground
+transition and the context menu beneath keeps activation. **Not reproducible on
+Linux** — flagged for manual test. Fallback if it does not hold: switch Esc/`1`
+to a suspend-style hide.
+
+# Verification
+
+- **CI green:** run `30441353555` on commit `742c733` (build + xUnit; two earlier
+  pushes fixed — `MSB3249` from a `--` in an App.config comment, then an
+  undefined `VK_4` test const).
+- **Shipped config check:** the drop's `hap.exe.config` reads
+  `HintCharacters = ABCDEFGHIJKLMNOPQRSTUVWXYZ\,./;'[]` (no digits). ✓
+- **Manual (pending, Windows):** (a) `,./;'[]\` type labels; (b) `1`/Esc close;
+  (c) `2` suspends, `3` cycles layout; (d) over an open context menu, Esc/`1`
+  close **without** dismissing it; (e) Ctrl+digit still reaches the app.
+
+# Drop
+
+`$HAP_WIN_TEST_DIR/hap-keys/hap.exe` (verified present).

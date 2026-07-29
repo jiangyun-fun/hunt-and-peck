@@ -83,3 +83,12 @@ switch Esc/`1` to a suspend-style hide.
 - Manual on Windows: (a) `,./;'[]\` type labels; (b) `1` and Esc close; (c) `2`
   suspends, `3` cycles layout; (d) over an open context menu, Esc/`1` close the
   overlay **without** dismissing the menu; (e) Ctrl+digit still reaches the app.
+
+# Result (completed 2026-07-29)
+
+Implemented as planned. Commit `742c733` on `master` (two repair pushes for an
+App.config `--` comment → MSB3249 and an undefined `VK_4` test const); CI run
+`30441353555` green. See
+[`20260729-175321_keybinding-rework.report.qmd`](20260729-175321_keybinding-rework.report.qmd).
+The menu-safe close (`WS_EX_NOACTIVATE`) is hypothesis-based and awaits Windows
+verification.
