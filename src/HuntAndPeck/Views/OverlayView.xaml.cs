@@ -149,6 +149,10 @@ namespace HuntAndPeck.Views
         {
             var hwnd = new WindowInteropHelper(this).Handle;
             int ext = User32.GetWindowLong(hwnd, User32.GWL_EXSTYLE);
+            // WS_EX_NOACTIVATE always on: the overlay must never be activated (it
+            // reads input via the global hook, not focus), so closing it causes no
+            // foreground transition that would dismiss an open context menu beneath.
+            ext |= User32.WS_EX_NOACTIVATE;
             if (on)
             {
                 ext |= User32.WS_EX_TRANSPARENT;

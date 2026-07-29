@@ -101,13 +101,65 @@ namespace HuntAndPeck.Tests.Services
         [Theory]
         [InlineData(User32.VK_A, 'A')]
         [InlineData(User32.VK_Z, 'Z')]
-        [InlineData(User32.VK_0, '0')]
-        [InlineData(User32.VK_9, '9')]
-        public void LettersAndDigits_AppendChar(int vk, char expected)
+        public void Letters_AppendChar(int vk, char expected)
         {
+            // Letters are always typeable label chars (case-normalized to upper).
             var act = OverlayKeyboardHook.Classify(vk, false, false);
             Assert.Equal(OverlayKeyActionKind.AppendChar, act.Kind);
             Assert.Equal(expected, act.Char);
+        }
+
+        [Fact]
+        public void Digit1_MapsToEscape()
+        {
+            // `1` is the close alias (Esc), not a label.
+            var act = OverlayKeyboardHook.Classify(User32.VK_1, false, false);
+            Assert.Equal(OverlayKeyActionKind.Escape, act.Kind);
+        }
+
+        [Fact]
+        public void Digit2_MapsToSuspend()
+        {
+            // `2` enters suspend (was `\`).
+            var act = OverlayKeyboardHook.Classify(User32.VK_2, false, false);
+            Assert.Equal(OverlayKeyActionKind.SuspendNow, act.Kind);
+        }
+
+        [Fact]
+        public void Digit3_CyclesLayout_WhenEnabled()
+        {
+            var act = OverlayKeyboardHook.Classify(User32.VK_3, false, false, layoutCycle: true);
+            Assert.Equal(OverlayKeyActionKind.CycleLayout, act.Kind);
+        }
+
+        [Fact]
+        public void Digit3_PassesThrough_WhenDisabled()
+        {
+            // Without multi-layout configured, `3` reaches the app.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_3, false, false).Kind);
+        }
+
+        [Theory]
+        [InlineData(User32.VK_4)]
+        [InlineData(User32.VK_0)]
+        [InlineData(User32.VK_9)]
+        public void NonFunctionDigits_PassThrough(int vk)
+        {
+            // Digits that are not 1/2/3 are neither labels nor functions -> app gets them.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(vk, false, false).Kind);
+        }
+
+        [Theory]
+        [InlineData(User32.VK_1)]
+        [InlineData(User32.VK_2)]
+        [InlineData(User32.VK_3)]
+        public void CtrlDigit_PassesThrough(int vk)
+        {
+            // Ctrl+digit is an app shortcut, not an overlay function.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(vk, false, true).Kind);
         }
 
         [Fact]
@@ -121,12 +173,12 @@ namespace HuntAndPeck.Tests.Services
 
         [Theory]
         [InlineData(User32.VK_A)]
-        [InlineData(User32.VK_0)]
-        public void CtrlAltWin_Held_BlocksLabelChar(int vk)
+        [InlineData(User32.VK_OEM_1)]   // `;`
+        public void CtrlModifier_BlocksLabelChar(int vk)
         {
-            // With Ctrl/Alt/Win held, a letter/digit is a shortcut, not a label.
+            // With Ctrl held, a letter or configured punctuation is a shortcut, not a label.
             Assert.Equal(OverlayKeyActionKind.None,
-                OverlayKeyboardHook.Classify(vk, false, true).Kind);
+                OverlayKeyboardHook.Classify(vk, false, true, labelChars: ";").Kind);
         }
 
         [Fact]
@@ -145,18 +197,27 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Fact]
-        public void Backslash_EntersSuspend()
+        public void Backslash_AppendsChar_WhenLabel()
         {
-            var act = OverlayKeyboardHook.Classify(User32.VK_OEM_5, false, false);
-            Assert.Equal(OverlayKeyActionKind.SuspendNow, act.Kind);
+            // `\` is now a label char (suspend moved to `2`), captured only when configured.
+            var act = OverlayKeyboardHook.Classify(User32.VK_OEM_5, false, false, labelChars: "\\");
+            Assert.Equal(OverlayKeyActionKind.AppendChar, act.Kind);
+            Assert.Equal('\\', act.Char);
+        }
+
+        [Fact]
+        public void Backslash_PassesThrough_WhenNotLabel()
+        {
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_OEM_5, false, false).Kind);
         }
 
         [Theory]
         [InlineData(User32.VK_OEM_3)]
         [InlineData(User32.VK_OEM_5)]
-        public void CtrlModifier_LetsToggleKeysPassThrough(int vk)
+        public void CtrlModifier_LetsOemKeysPassThrough(int vk)
         {
-            // Ctrl+` or Ctrl+\ is an app shortcut, not an overlay toggle.
+            // Ctrl+` (dim) or Ctrl+\ (label char) is an app shortcut -- passes through.
             Assert.Equal(OverlayKeyActionKind.None,
                 OverlayKeyboardHook.Classify(vk, false, true).Kind);
         }
@@ -235,38 +296,43 @@ namespace HuntAndPeck.Tests.Services
                 OverlayKeyboardHook.Classify(vk, false, true).Kind);
         }
 
-        // ---- `;` cycles grid layouts (Grid + GridLayouts only) ----
+        // ---- punctuation as label chars (`,./;'[]\`, captured when configured) ----
 
-        [Fact]
-        public void Semicolon_CyclesLayout_WhenEnabled()
+        [Theory]
+        [InlineData(User32.VK_OEM_1, ';')]      // ;
+        [InlineData(User32.VK_OEM_COMMA, ',')]  // ,
+        [InlineData(User32.VK_OEM_2, '/')]      // /
+        [InlineData(User32.VK_OEM_4, '[')]      // [
+        public void Punctuation_AppendsChar_WhenLabel(int vk, char expected)
         {
-            var act = OverlayKeyboardHook.Classify(User32.VK_OEM_1, false, false,
-                layoutCycle: true);
-            Assert.Equal(OverlayKeyActionKind.CycleLayout, act.Kind);
+            var act = OverlayKeyboardHook.Classify(vk, false, false, labelChars: ",/;[]\\");
+            Assert.Equal(OverlayKeyActionKind.AppendChar, act.Kind);
+            Assert.Equal(expected, act.Char);
         }
 
         [Fact]
-        public void Semicolon_PassesThrough_WhenDisabled()
+        public void Semicolon_PassesThrough_WhenNotLabel()
         {
-            // Default (no multi-layout configured): ; reaches the app beneath.
+            // `;` is no longer a hotkey; it reaches the app unless configured as a label.
             Assert.Equal(OverlayKeyActionKind.None,
                 OverlayKeyboardHook.Classify(User32.VK_OEM_1, false, false).Kind);
         }
 
         [Fact]
-        public void ShiftSemicolon_StillCyclesLayout()
+        public void ShiftSemicolon_StillAppendsChar()
         {
-            // OEM commands ignore Shift (matches backtick/backslash); Shift+; (:) cycles too.
-            var act = OverlayKeyboardHook.Classify(User32.VK_OEM_1, true, false, layoutCycle: true);
-            Assert.Equal(OverlayKeyActionKind.CycleLayout, act.Kind);
+            // Shift does not block label typing (Shift+; is still the `;` label).
+            var act = OverlayKeyboardHook.Classify(User32.VK_OEM_1, true, false, labelChars: ";");
+            Assert.Equal(OverlayKeyActionKind.AppendChar, act.Kind);
+            Assert.Equal(';', act.Char);
         }
 
         [Fact]
-        public void CtrlSemicolon_PassesThrough()
+        public void ShiftDigit3_StillCyclesLayout()
         {
-            // Ctrl+; is an app shortcut, not a layout cycle.
-            Assert.Equal(OverlayKeyActionKind.None,
-                OverlayKeyboardHook.Classify(User32.VK_OEM_1, false, true, layoutCycle: true).Kind);
+            // Digit functions ignore Shift (matches the old `;`/`\`); Shift+3 cycles too.
+            var act = OverlayKeyboardHook.Classify(User32.VK_3, true, false, layoutCycle: true);
+            Assert.Equal(OverlayKeyActionKind.CycleLayout, act.Kind);
         }
     }
 }

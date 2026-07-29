@@ -200,7 +200,12 @@ namespace HuntAndPeck.Services
             // pass through, so a numpad-mouse tool keeps working).
             bool extended = (k.flags & User32.LLKHF_EXTENDED) != 0;
 
-            var act = Classify(vk, shift, ctrl, win, extended, arrowPan, layoutCycle);
+            // The configured label-character set (uppercased HintCharacters). OEM
+            // punctuation is captured as label input only when its char is in this
+            // set; letters are always typeable. Read per keydown (EnsureFresh is a
+            // stat, not a parse) so an Options change hot-reloads immediately.
+            string labelChars = (OverlayActionConfig.ReadRawString("HintCharacters") ?? "").ToUpperInvariant();
+            var act = Classify(vk, shift, ctrl, win, extended, arrowPan, layoutCycle, labelChars);
             if (act.Kind == OverlayKeyActionKind.None)
             {
                 return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
@@ -227,7 +232,8 @@ namespace HuntAndPeck.Services
         /// <param name="arrowPan">If true, dedicated arrows pan the labels (legacy
         /// ArrowKeyBehavior=Pan); if false they pass through to the app beneath.</param>
         internal static OverlayKeyAction Classify(int vkCode, bool shift, bool ctrl,
-            bool win = false, bool extended = true, bool arrowPan = true, bool layoutCycle = false)
+            bool win = false, bool extended = true, bool arrowPan = true, bool layoutCycle = false,
+            string labelChars = null)
         {
             if (vkCode == User32.VK_ESCAPE) return Action(OverlayKeyActionKind.Escape);
             if (vkCode == User32.VK_SPACE) return Action(OverlayKeyActionKind.CycleMode);
@@ -267,24 +273,67 @@ namespace HuntAndPeck.Services
             }
 
             // A Ctrl/Win chord (Alt is gated out above) is an app shortcut, not a label
-            // char, so it passes through. hjkl pan chords were already handled above.
+            // char or overlay function, so it passes through. hjkl pan chords were
+            // already handled above.
             if (!(ctrl || win))
             {
+                // Digits are RESERVED for overlay functions (no longer label chars):
+                //   1 = close (Esc alias), 2 = suspend (was `\`), 3 = cycle layout
+                //   (was `;`, Grid + GridLayouts only). Other digits pass through.
+                // Shift does not gate them (matches the old `;`/`\` behavior).
+                if (vkCode == User32.VK_1) return Action(OverlayKeyActionKind.Escape);
+                if (vkCode == User32.VK_2) return Action(OverlayKeyActionKind.SuspendNow);
+                if (layoutCycle && vkCode == User32.VK_3) return Action(OverlayKeyActionKind.CycleLayout);
+
+                // Backtick toggles dim (NOT a label char).
                 if (vkCode == User32.VK_OEM_3) return Action(OverlayKeyActionKind.ToggleDimmed);
-                if (vkCode == User32.VK_OEM_5) return Action(OverlayKeyActionKind.SuspendNow);
-                // `;` cycles grid layouts (Grid + GridLayouts only). Ignored unless
-                // layoutCycle is set, so `;` reaches the app everywhere else.
-                if (layoutCycle && vkCode == User32.VK_OEM_1) return Action(OverlayKeyActionKind.CycleLayout);
-                if (vkCode >= User32.VK_0 && vkCode <= User32.VK_9)
+
+                // Label-character input: letters are always typeable; OEM punctuation
+                // only when its (US-layout) char is in the configured HintCharacters.
+                char? c = LabelCharForVk(vkCode, labelChars);
+                if (c.HasValue)
                 {
-                    return Char((char)('0' + (vkCode - User32.VK_0)));
-                }
-                if (vkCode >= User32.VK_A && vkCode <= User32.VK_Z)
-                {
-                    return Char((char)('A' + (vkCode - User32.VK_A)));
+                    return Char(c.Value);
                 }
             }
             return Action(OverlayKeyActionKind.None);
+        }
+
+        /// <summary>
+        /// Maps a virtual key to a label character if it is typeable as a label:
+        /// letters A-Z always; OEM punctuation only when its US-layout char is in
+        /// <paramref name="labelChars"/> (the configured HintCharacters, uppercased).
+        /// Digits are reserved for overlay functions and are never returned here.
+        /// </summary>
+        private static char? LabelCharForVk(int vkCode, string labelChars)
+        {
+            if (vkCode >= User32.VK_A && vkCode <= User32.VK_Z)
+            {
+                return (char)('A' + (vkCode - User32.VK_A));
+            }
+            char oc = OemCharForVk(vkCode);
+            if (oc != '\0' && labelChars != null && labelChars.IndexOf(oc) >= 0)
+            {
+                return oc;
+            }
+            return null;
+        }
+
+        /// <summary>US-layout mapping of OEM virtual keys to their unshifted char.</summary>
+        private static char OemCharForVk(int vkCode)
+        {
+            switch (vkCode)
+            {
+                case User32.VK_OEM_COMMA: return ',';
+                case User32.VK_OEM_PERIOD: return '.';
+                case User32.VK_OEM_2: return '/';   // / ?
+                case User32.VK_OEM_1: return ';';   // ; :
+                case User32.VK_OEM_7: return '\'';  // ' "
+                case User32.VK_OEM_4: return '[';   // [ {
+                case User32.VK_OEM_6: return ']';   // ] }
+                case User32.VK_OEM_5: return '\\';  // \ |
+                default: return '\0';
+            }
         }
 
         private Action Dispatch(OverlayKeyAction act)

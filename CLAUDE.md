@@ -122,8 +122,11 @@ Two kinds of settings:
   `Oemcomma`, which opens the overlay in one-shot mode regardless of
   `OverlayTriggerMode`).
 
-`HintCharacters` accepts any chars (letters **and** digits); the matching input
-allows `A–Z` and `D0–D9`.
+`HintCharacters` accepts letters **and** punctuation (`,./;'[]\`); the matching
+input captures `A–Z` plus any configured punctuation. **Digits are reserved for
+overlay functions** (`1`=close, `2`=suspend, `3`=cycle layout), so they are not
+labels — do not put `0–9` in `HintCharacters` (a generated digit label could
+never be typed).
 
 ## Runtime behavior (current)
 
@@ -169,19 +172,21 @@ allows `A–Z` and `D0–D9`.
   background, so dimmed labels are harder to see on dark surfaces (acceptable on light
   backgrounds; raise `HintDimOpacity` to improve). A two-tone-outline read-mode was tried and
   rejected as ugly/hard to read.
-- **Backslash suspends the overlay**: enters persistent suspend — the overlay stops
-  capturing keys AND **hides its labels** (opacity 0), leaving only the `SUSPENDED`
-  status, so you can type into the app beneath (vimium, Excel shortcuts) with zero key
-  collision. Clicks pass through (no dismiss). Resume by pressing the **main hotkey**
-  (`Ctrl+Shift+M` / `Capslock+f`) again; `Esc` closes. Per-session (resets each new
-  overlay).
-- **Semicolon cycles grid layouts** (Grid only): `GridLayouts` lists N geometry presets
-  (layouts separated by `||`, fields `edgeStep|centerStep|inset|edgeBandPercent|denseRegions`);
-  pressing `;` while the overlay is up regenerates the grid with the next preset and wraps
-  (badge shows e.g. `L2/2`). The active preset persists across Esc/reopen **and** a full
-  restart (`ActiveLayout`). Ships with 2: the dense edge grid and a uniform full-screen grid
-  (`Center` + equal steps). Omit `GridLayouts` to use the five flat knobs as before; `;`
-  then passes through. Automation ignores it (no grid concept) — `;` reaches the app.
+- **`2` suspends the overlay** (was `\`): enters persistent suspend — the overlay
+  stops capturing keys AND **hides its labels** (opacity 0), leaving only the
+  `SUSPENDED` status, so you can type into the app beneath (vimium, Excel shortcuts)
+  with zero key collision. Clicks pass through (no dismiss). Resume by pressing the
+  **main hotkey** (`Ctrl+Shift+M` / `Capslock+f`) again; `Esc`/`1` closes. Per-session
+  (resets each new overlay). (`\` is now a label char.)
+- **`3` cycles grid layouts** (Grid only; was `;`): `GridLayouts` lists N geometry
+  presets (layouts separated by `||`, fields
+  `edgeStep|centerStep|inset|edgeBandPercent|denseRegions`); pressing `3` while the
+  overlay is up regenerates the grid with the next preset and wraps (badge shows e.g.
+  `L2/2`). The active preset persists across Esc/reopen **and** a full restart
+  (`ActiveLayout`). Ships with 2: the dense edge grid and a uniform full-screen grid
+  (`Center` + equal steps). Omit `GridLayouts` to use the five flat knobs as before;
+  `3` then passes through. Automation ignores it (no grid concept) — `3` reaches the
+  app. (`;` is now a label char.)
 - **Labels are slightly transparent by design**: the pill fill is α≈0.8 by default
   (softened yellow, background peeks through) while the text stays fully opaque
   (crisp). Configurable via `HintPillOpacity` (0-100 percent; hot-reload). Base mode
@@ -192,14 +197,17 @@ allows `A–Z` and `D0–D9`.
   item, then `Esc`. `OneClick` closes the overlay after one click. Press the hotkey
   again while the overlay is up to toggle one-click ⇄ continuous (badge bottom-center).
   Automation ignores this and stays one-shot.
-- **Esc** clears the typed prefix if any has been typed (cancel the selection, stay up
-  so you can retype from scratch); if nothing is typed, it closes the overlay. Pan and
-  click-mode are kept on a clear. Any **mouse click** also dismisses the overlay (and still reaches
-  the app beneath).
-- **Doesn't dismiss open menus**: the overlay shows non-activated, so an open context
-  menu / popup stays open when you press the hotkey — you can label-click items inside
-  it. (Trade-off: the app is no longer fully key-isolated while the overlay is up —
-  non-label keystrokes, e.g. Ctrl-shortcuts, pass through to it.)
+- **Esc** (or **`1`**, an alias that's closer to type) clears the typed prefix if any
+  has been typed (cancel the selection, stay up so you can retype from scratch); if
+  nothing is typed, it closes the overlay. Pan and click-mode are kept on a clear. Any
+  **mouse click** also dismisses the overlay (and still reaches the app beneath).
+  Digits `4`–`0` (not `1`/`2`/`3`) are not labels and pass through to the app.
+- **Doesn't dismiss open menus**: the overlay shows non-activated (`ShowActivated=False`
+  + `WS_EX_NOACTIVATE`), so an open context menu / popup stays open when you press the
+  hotkey, and closing the overlay with `Esc`/`1`/a click no longer dismisses it either —
+  you can label-click items inside it. (Trade-off: the app is no longer fully key-
+  isolated while the overlay is up — non-label keystrokes, e.g. Ctrl-shortcuts, pass
+  through to it.)
 - **Tray icon** (WinForms `NotifyIcon` + `ContextMenuStrip` in `ShellView`):
   right-click or `Shift+F10` opens a keyboard-navigable menu (arrows, `O` Options,
   `E` Exit). The **Options** dialog exposes every hot-reload setting, so there is no

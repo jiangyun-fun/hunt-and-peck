@@ -68,6 +68,10 @@ namespace HuntAndPeck.NativeMethods
 
         public const int GWL_EXSTYLE = -20;
         public const int WS_EX_TRANSPARENT = 0x00000020;
+        // Never activate on show/click -- a click-through, non-activating overlay
+        // should not enter the activation chain at all, so closing it causes no
+        // foreground transition that would dismiss an open context menu beneath.
+        public const int WS_EX_NOACTIVATE = 0x08000000;
 
         // ---- Low-level hooks (WH_KEYBOARD_LL / WH_MOUSE_LL) ----
         // Used by OverlayKeyboardHook so the overlay can capture typed label
@@ -164,6 +168,9 @@ namespace HuntAndPeck.NativeMethods
         public const int VK_RIGHT = 0x27;
         public const int VK_DOWN = 0x28;
         public const int VK_0 = 0x30;
+        public const int VK_1 = 0x31;  // close overlay (Esc alias) -- digit labels retired
+        public const int VK_2 = 0x32;  // suspend (was `\`)
+        public const int VK_3 = 0x33;  // cycle grid layout (was `;`)
         public const int VK_9 = 0x39;
         public const int VK_A = 0x41;
         public const int VK_Z = 0x5A;
@@ -174,8 +181,16 @@ namespace HuntAndPeck.NativeMethods
         public const int VK_J = 0x4A;
         public const int VK_K = 0x4B;
         public const int VK_L = 0x4C;
-        public const int VK_OEM_1 = 0xBA;  // ; : (semicolon) -- cycle grid layout
-        public const int VK_OEM_3 = 0xC0;  // ` ~ (backtick) -- toggle label opacity
-        public const int VK_OEM_5 = 0xDC;  // \ | (backslash) -- enter suspend
+        // OEM punctuation usable as label characters (US-layout mapping). Each is
+        // captured as label input only when its char is in HintCharacters.
+        public const int VK_OEM_1 = 0xBA;     // ; :
+        public const int VK_OEM_2 = 0xBF;     // / ?
+        public const int VK_OEM_3 = 0xC0;     // ` ~ (toggle label dim -- NOT a label)
+        public const int VK_OEM_4 = 0xDB;     // [ {
+        public const int VK_OEM_5 = 0xDC;     // \ |
+        public const int VK_OEM_6 = 0xDD;     // ] }
+        public const int VK_OEM_7 = 0xDE;     // ' "
+        public const int VK_OEM_COMMA = 0xBC; // , <
+        public const int VK_OEM_PERIOD = 0xBE;// . >
     }
 }
