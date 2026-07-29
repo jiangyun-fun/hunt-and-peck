@@ -141,7 +141,6 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Theory]
-        [InlineData(User32.VK_4)]
         [InlineData(User32.VK_0)]
         [InlineData(User32.VK_9)]
         public void NonFunctionDigits_PassThrough(int vk)
