@@ -122,11 +122,12 @@ Two kinds of settings:
   `Oemcomma`, which opens the overlay in one-shot mode regardless of
   `OverlayTriggerMode`).
 
-`HintCharacters` accepts letters **and** punctuation (`,./;'[]\`); the matching
-input captures `A–Z` plus any configured punctuation. **Digits are reserved for
-overlay functions** (`1`=close, `2`=suspend, `3`=cycle layout), so they are not
-labels — do not put `0–9` in `HintCharacters` (a generated digit label could
-never be typed).
+`HintCharacters` defaults to `A–Z` (easy to recognize). The punctuation set
+`,./;'[]\` is also supported — add any of them here to opt in. The matching input
+captures `A–Z` plus any configured punctuation. **Digits are reserved for overlay
+functions** (`1`=close, `2`=suspend, `3`=cycle layout), so they are not labels —
+do not put `0–9` in `HintCharacters` (a generated digit label could never be
+typed).
 
 ## Runtime behavior (current)
 
