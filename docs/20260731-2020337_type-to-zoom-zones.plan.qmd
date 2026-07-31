@@ -1,0 +1,115 @@
+---
+title: "Type-to-Zoom Zones — Implementation Plan"
+author: "Yun Jiang"
+date: "2026-07-31"
+---
+
+# Plan — Type-to-Zoom Zones
+
+## Context
+
+In Grid + Screen mode the overlay labels the whole monitor at once. A hard cap
+keeps every label at ≤2 chars — `maxHints = HintCharacters²` (676 for A–Z) — and
+the grid **auto-coarsens** its step until the point count fits
+(`UiAutomationHintProviderService.cs:440-457`). On a large/dense screen the cap
+bites hard: labels end up far apart and the user must `Shift+hjkl`-pan a lot. That
+is the real meaning of "a‑z can't fill the screen" — it is *not* 3‑char labels
+(the cap prevents those).
+
+**Type-to-zoom zones** escape the cap *per region*. The overlay opens with 9 large
+1‑char labels (a 3×3 grid over the monitor); typing a zone char re-fills **only
+that zone's sub-rect** with the fine grid (~1/9 the points → far under 676 → the
+configured fine step survives → dense labels **and** ~19 one‑char labels). Opt-in,
+Grid + Screen only. Non‑zone paths stay byte‑identical (`_zonePhase` defaults to
+`Normal`).
+
+### Decisions (user)
+
+- **Q1 — Continuous mode in a zone:** configurable via `ZoneZoomReturnToPickOnFire`
+  (bool, default **false = stay in zone**; flip true to return to zone‑pick).
+- **Q2 — Layout cycle `3`:** **kept working** in zone mode (regenerates the current
+  zone; in zone‑pick it advances the preset for the next pick).
+
+## Architecture
+
+Two‑phase state machine on `OverlayViewModel`, reusing the session‑swap precedent
+(`CycleLayout` swaps `_sessions` via a delegate then `LoadSession`).
+
+- `ZonePhase { Normal, ZonePick, ZoneFilled }`, default `Normal`.
+- Zone ctor receives: the zone‑pick `HintSession` (9 synthetic `PointHint`s at zone
+  centers, absolute coords), monitor `Rect`, `cols`/`rows`, `zoneFontSizeRaw`,
+  layout state, cached `_zoneRects`, and `Func<Rect, GridLayout, HintSession>
+  buildZoneSession`. `_rebuildSessions` stays null.
+- `ZONE_PICK` → type zone char → `SelectZone` → `_buildZoneSession(zoneRect,
+  CurrentLayout)` → `LoadSession` (overlay auto‑resizes to the zone via the
+  existing `Bounds` subscription; `PointHint` targets absolute coords → clicks stay
+  correct, no coordinate fixup).
+- `ZONE_FILLED` → today's `ApplyMatch` fire path. `Esc` (empty match) → back to
+  `ZONE_PICK`; `Esc` in `ZONE_PICK` → close.
+
+### Reuse / non‑changes
+
+- Zone fine session = the **existing** `EnumGridHintsForBounds(hWnd, zoneRect,
+  layout)`. No new grid code.
+- `HintCanvas` **unchanged**. Font size is global per session, so big zone labels
+  come from swapping the size *string* per phase: `EffectiveFontSize` passed to
+  `new HintViewModel(...)`. Normal path identical.
+- `Classify` (pure, unit‑tested) **untouched**; routing branches in `Dispatch`.
+- `/hint`, `/tray` bypass `ShellViewModel` → unaffected.
+
+## Files
+
+### New
+
+- `src/HuntAndPeck/Services/ZoneService.cs` (+ `<Compile Include>` in
+  `HuntAndPeck.csproj`) — pure `SliceIntoZones`, `LabelToIndexMap`,
+  `BuildPickSession` (one `PointHint` per zone center, `OwningWindowBounds =
+  monitor`, mirroring `UiAutomationHintProviderService.cs:566-568`).
+- `src/HuntAndPeck.Tests/Services/ZoneServiceTest.cs` (+ `<Compile Include>` in
+  `HuntAndPeck.Tests.csproj`).
+
+### Modified
+
+- `OverlayActionConfig.cs` — `ParseBool` + `ReadZoneZoomEnabled`/`ReadZoneCols`/
+  `ReadZoneRows`/`ReadZoneFontSize`/`ReadZoneReturnToPickOnFire`.
+- `App.config` — `ZoneZoomEnabled=false`, `ZoneCols=3`, `ZoneRows=3`,
+  `ZoneFontSize=20`, `ZoneZoomReturnToPickOnFire=false`.
+- `OverlayViewModel.cs` — zone state + ctor + `EffectiveFontSize` in `LoadSession`
+  + `IsZonePick`/`ZoneLabel`/`ZoneBadgeVisibility`/`SelectZone`/`EnterZonePick`/
+  `EnterZoneFilled` + phase branches in `HandleEscape`/`CycleMonitor`/`ApplyMatch`/
+  `CycleLayout`; `LayoutCycleCapable` zone‑aware.
+- `OverlayKeyboardHook.cs` — one line in `Dispatch` AppendChar case.
+- `OverlayView.xaml` — zone badge (clone of layout badge).
+- `ShellViewModel.cs` — `cycleCapable` branch: `ReadZoneZoomEnabled` →
+  `BuildZoneOverlayViewModel` (foreground monitor only), gate `cols*rows ≤
+  HintCharacters.Length`.
+
+## Interaction matrix (zone mode)
+
+| Input | Behavior |
+|---|---|
+| Type zone char (ZonePick) | drill into zone |
+| Type label (ZoneFilled) | fire (today's path) |
+| Esc — match typed | clear match |
+| Esc — ZoneFilled, empty | back to ZonePick |
+| Esc — ZonePick | close overlay |
+| Continuous fire | stay in zone (default; configurable) |
+| `3` (layout cycle) | ZoneFilled: regen zone; ZonePick: advance preset |
+| Tab (monitor cycle) | disabled (foreground monitor only; v1) |
+| Suspend `2` / dim backtick / Space / hjkl+nudge | unchanged |
+
+## Test plan
+
+- `ZoneServiceTest.cs`: `SliceIntoZones_3x3`/`_NonZeroOrigin`/`_1x1`;
+  `LabelToIndexMap_AssignsByFirstChar`; `BuildPickSession` (count, bounds,
+  per‑hint `BoundingRectangle`).
+- Extend `OverlayActionConfigTest.cs`: `ParseBool` theory.
+- `OverlayKeyboardHookTest` stays green (`Classify` unchanged).
+
+## Verification
+
+CI (`.github/workflows/build.yml`, windows‑latest): `nuget restore` → `msbuild
+/p:Configuration=Release /p:Platform="Any CPU"` → `vstest`. Must compile (every
+new `.cs` in its `.csproj`) and all tests pass; then `ship-drop` + manual Windows
+run (zone labels → drill → fire at correct coord; Esc semantics; continuous
+toggle; `3` cycles; Tab no‑op; `/hint`,`/tray` unaffected; high‑DPI legibility).

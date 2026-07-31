@@ -113,7 +113,8 @@ Two kinds of settings:
   `HintSource`, `HintBoundsSource`, `OverlayTriggerMode`, `GridEdgeStep`,
   `GridCenterStep`, `GridDenseRegions`, `GridInset`, `GridEdgeBandPercent`,
   `HintCharacters`, `HintFontSize`, `HintPillOpacity`, `HintDimOpacity`, `NudgeStep`,
-  `NudgeStepFast`, `ClickModeOrder`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`.
+  `NudgeStepFast`, `ClickModeOrder`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
+  `ZoneZoomEnabled`, `ZoneCols`, `ZoneRows`, `ZoneFontSize`, `ZoneZoomReturnToPickOnFire`.
   (`ActiveLayout` is also in appSettings but is rewritten by the `;` key, not hand-edited.)
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
@@ -188,6 +189,20 @@ typed).
   (`Center` + equal steps). Omit `GridLayouts` to use the five flat knobs as before;
   `3` then passes through. Automation ignores it (no grid concept) — `3` reaches the
   app. (`;` is now a label char.)
+- **Type-to-zoom zones** (`ZoneZoomEnabled`, Grid + Screen only, hot-reload; default
+  off): instead of labeling the whole monitor at once (which the `HintCharacters²` cap
+  auto-coarsens into a sparse grid), the overlay opens with a `ZoneCols`×`ZoneRows`
+  (default 3×3) grid of large 1-char zone labels over the current monitor. Type a zone
+  label → the overlay zooms into that zone's sub-rectangle and fills it with the fine
+  grid (~1/9 the points → under the cap → dense labels AND more 1-char labels); type the
+  target label to fire. `Esc` (empty) returns to the zone-pick view; `Esc` again closes.
+  In Continuous mode the overlay stays in the zone after each click (set
+  `ZoneZoomReturnToPickOnFire=true` to re-zoom to the pick view each time). `3` cycles
+  the layout preset within the current zone; `Tab` monitor-cycling is disabled in zone
+  mode (foreground monitor only). Requires `ZoneCols*ZoneRows ≤ HintCharacters` count
+  (every zone needs a single-char label); otherwise zones are skipped and the overlay
+  falls back to the full-monitor grid. `ZoneFontSize` (default 20) sizes the pick labels.
+  Automation / Grid+Window / the `/hint`,`/tray` headless paths ignore zones.
 - **Labels are slightly transparent by design**: the pill fill is α≈0.8 by default
   (softened yellow, background peeks through) while the text stays fully opaque
   (crisp). Configurable via `HintPillOpacity` (0-100 percent; hot-reload). Base mode

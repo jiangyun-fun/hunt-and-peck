@@ -39,6 +39,20 @@ namespace HuntAndPeck.ViewModels
         private bool _dimmed;
         private bool _suspended;
 
+        // --- Type-to-zoom zones (Grid + Screen, ZoneZoomEnabled) ---
+        // ZonePick: show cols*rows large labels; type one to drill into its sub-rect.
+        // ZoneFilled: the fine grid for one zone; Esc returns to ZonePick.
+        // Normal: the feature is off (or non-Grid+Screen); all zone guards are no-ops.
+        private enum ZonePhase { Normal, ZonePick, ZoneFilled }
+        private ZonePhase _zonePhase = ZonePhase.Normal;
+        private readonly HintSession _zonePickSession;
+        private readonly string _zoneFontSizeRaw;
+        private readonly Rect[] _zoneRects;
+        private readonly Func<Rect, GridLayout, HintSession> _buildZoneSession;
+        private readonly bool _zoneReturnToPickOnFire;
+        private Dictionary<char, int> _zoneLabelToIndex;
+        private int _currentZoneIndex = -1;
+
         /// <summary>
         /// Single-session ctor: Automation, Grid+Window, and the headless /hint and
         /// /tray entry points. Wraps the session as a one-element list (Tab is a no-op).
@@ -95,6 +109,55 @@ namespace HuntAndPeck.ViewModels
         }
 
         /// <summary>
+        /// Zone (type-to-zoom) ctor: Grid + Screen with ZoneZoomEnabled. The overlay
+        /// opens in <see cref="ZonePhase.ZonePick"/> showing one large label per zone
+        /// (cols×rows over the monitor); <see cref="SelectZone"/> drills into a zone by
+        /// building its fine grid via <paramref name="buildZoneSession"/>. Layout cycling
+        /// (`3`) regenerates the current zone with the next preset. Monitor cycling (Tab)
+        /// is disabled (single foreground monitor). <paramref name="zonePickSession"/>
+        /// is the synthetic pick session from <see cref="ZoneService.BuildPickSession"/>.
+        /// Standalone (does not chain to the full ctor) so it can set _zonePhase before
+        /// LoadSession and keep _rebuildSessions null.
+        /// </summary>
+        public OverlayViewModel(
+            HintSession zonePickSession,
+            IHintLabelService hintLabelService,
+            IList<GridLayout> layouts,
+            int activeLayout,
+            Rect monitorBounds,
+            int zoneCols,
+            int zoneRows,
+            string zoneFontSizeRaw,
+            bool zoneReturnToPickOnFire,
+            Func<Rect, GridLayout, HintSession> buildZoneSession)
+        {
+            _hintLabelService = hintLabelService;
+            _zonePickSession = zonePickSession;
+            _sessions = new List<HintSession> { zonePickSession };
+            _currentSession = 0;
+            _layouts = layouts;
+            _activeLayout = (layouts == null || layouts.Count == 0)
+                ? 0
+                : GridLayoutConfig.ClampActiveLayout(activeLayout, layouts.Count);
+            _rebuildSessions = null; // zones build per-zone via _buildZoneSession, not the layout delegate
+            _modeOrder = OverlayActionConfig.ReadClickActionOrder();
+            _modeIndex = 0;
+
+            _fontSizeRaw = OverlayActionConfig.ReadHintFontSize()
+                ?? HuntAndPeck.Properties.Settings.Default.FontSize;
+            _pillOpacity = OverlayActionConfig.ReadHintPillOpacity();
+            _dimOpacity = OverlayActionConfig.ReadHintDimOpacity();
+
+            _zoneFontSizeRaw = zoneFontSizeRaw;
+            _zoneReturnToPickOnFire = zoneReturnToPickOnFire;
+            _zoneRects = ZoneService.SliceIntoZones(monitorBounds, zoneCols, zoneRows);
+            _buildZoneSession = buildZoneSession;
+            _zonePhase = ZonePhase.ZonePick;
+
+            LoadSession(zonePickSession);
+        }
+
+        /// <summary>
         /// Loads a session: sets Bounds and rebuilds the hint labels. Each monitor has
         /// its own point count, so labels are regenerated per monitor. Replacing the
         /// Hints collection (rather than clearing in place) makes HintCanvas rebuild its
@@ -108,7 +171,7 @@ namespace HuntAndPeck.ViewModels
             for (int i = 0; i < labels.Count; ++i)
             {
                 var hint = session.Hints[i];
-                fresh.Add(new HintViewModel(hint, _fontSizeRaw)
+                fresh.Add(new HintViewModel(hint, EffectiveFontSize)
                 {
                     Label = labels[i],
                     Active = true    // all highlighted (yellow) at init / on monitor switch
@@ -116,8 +179,97 @@ namespace HuntAndPeck.ViewModels
             }
             Hints = fresh;
             _match = "";
+            // Zone-pick: build the char -> zone-index map from the assigned labels so
+            // SelectZone can route a typed zone char to its zone. Null in other phases.
+            _zoneLabelToIndex = _zonePhase == ZonePhase.ZonePick
+                ? ZoneService.LabelToIndexMap(labels)
+                : null;
             NotifyOfPropertyChange(nameof(MatchString));
             NotifyOfPropertyChange(nameof(Bounds));
+        }
+
+        /// <summary>
+        /// Font size used for the current session's labels: the larger zone-pick size
+        /// while picking (so the 9 zone labels are prominent), the normal fine-grid
+        /// size otherwise. HintCanvas reads hints[0].FontSizeReadValue once per
+        /// session, so swapping this string per phase makes the pick labels big
+        /// without any HintCanvas change.
+        /// </summary>
+        private string EffectiveFontSize
+            => _zonePhase == ZonePhase.ZonePick ? _zoneFontSizeRaw : _fontSizeRaw;
+
+        /// <summary>True while the overlay shows the zone-pick labels (type a zone char to drill in).</summary>
+        public bool IsZonePick => _zonePhase == ZonePhase.ZonePick;
+
+        /// <summary>Overlay badge: the zone phase ("ZONES" while picking, "ZONE n" while filled).</summary>
+        public string ZoneLabel => _zonePhase == ZonePhase.ZonePick
+            ? "ZONES"
+            : (_zonePhase == ZonePhase.ZoneFilled ? "ZONE " + (_currentZoneIndex + 1).ToString() : "");
+
+        /// <summary>The zone badge shows only while a zone phase is active (Collapsed otherwise).</summary>
+        public Visibility ZoneBadgeVisibility => _zonePhase != ZonePhase.Normal
+            ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>
+        /// The current grid layout preset (null when no GridLayouts are configured).
+        /// Used by SelectZone / CycleLayout to build a zone session.
+        /// </summary>
+        private GridLayout CurrentLayout
+            => (_layouts != null && _layouts.Count > 0) ? _layouts[_activeLayout] : null;
+
+        /// <summary>
+        /// Zone-pick: type a zone label char to drill into that zone. Builds the fine
+        /// grid over the zone's sub-rect (via the buildZoneSession delegate) and loads
+        /// it; the overlay auto-resizes to the zone. No-op outside ZonePick or for an
+        /// unknown char (a mistype is swallowed, like a non-matching label char today).
+        /// </summary>
+        public void SelectZone(char c)
+        {
+            if (_zonePhase != ZonePhase.ZonePick || _zoneLabelToIndex == null)
+            {
+                return;
+            }
+            int idx;
+            if (!_zoneLabelToIndex.TryGetValue(char.ToUpperInvariant(c), out idx))
+            {
+                return;
+            }
+            if (idx < 0 || idx >= _zoneRects.Length)
+            {
+                return;
+            }
+            EnterZoneFilled(idx);
+        }
+
+        private void EnterZoneFilled(int idx)
+        {
+            var session = _buildZoneSession(_zoneRects[idx], CurrentLayout);
+            if (session == null || session.Hints == null || session.Hints.Count == 0)
+            {
+                return;
+            }
+            _currentZoneIndex = idx;
+            _zonePhase = ZonePhase.ZoneFilled;
+            _sessions = new List<HintSession> { session };
+            _currentSession = 0;
+            LoadSession(session);
+            OffsetX = 0;
+            OffsetY = 0;
+            NotifyOfPropertyChange(nameof(ZoneLabel));
+            NotifyOfPropertyChange(nameof(ZoneBadgeVisibility));
+        }
+
+        private void EnterZonePick()
+        {
+            _zonePhase = ZonePhase.ZonePick;
+            _currentZoneIndex = -1;
+            _sessions = new List<HintSession> { _zonePickSession };
+            _currentSession = 0;
+            LoadSession(_zonePickSession);
+            OffsetX = 0;
+            OffsetY = 0;
+            NotifyOfPropertyChange(nameof(ZoneLabel));
+            NotifyOfPropertyChange(nameof(ZoneBadgeVisibility));
         }
 
         /// <summary>
@@ -127,6 +279,11 @@ namespace HuntAndPeck.ViewModels
         /// </summary>
         public void CycleMonitor(int delta)
         {
+            // Zones cover the foreground monitor only; Tab monitor-cycling is disabled.
+            if (_zonePhase != ZonePhase.Normal)
+            {
+                return;
+            }
             if (_sessions == null || _sessions.Count <= 1)
             {
                 return;
@@ -143,7 +300,17 @@ namespace HuntAndPeck.ViewModels
         /// keyboard hook (whether `;` is captured) and the layout badge.
         /// </summary>
         public bool LayoutCycleCapable
-            => _layouts != null && _layouts.Count > 1 && _rebuildSessions != null;
+        {
+            get
+            {
+                if (_layouts == null || _layouts.Count <= 1)
+                {
+                    return false;
+                }
+                // Zones cycle the current zone via _buildZoneSession (no _rebuildSessions).
+                return _zonePhase != ZonePhase.Normal || _rebuildSessions != null;
+            }
+        }
 
         /// <summary>Overlay badge: the current preset, e.g. "L2/2". Empty when not cycle-capable.</summary>
         public string LayoutLabel => LayoutCycleCapable
@@ -173,6 +340,30 @@ namespace HuntAndPeck.ViewModels
 
             _activeLayout = (_activeLayout + 1) % _layouts.Count;
             GridLayoutConfig.WriteActiveLayout(_activeLayout);
+
+            if (_zonePhase == ZonePhase.ZoneFilled && _currentZoneIndex >= 0)
+            {
+                // Regenerate the current zone with the new preset; stay on the zone.
+                var zsession = _buildZoneSession(_zoneRects[_currentZoneIndex], _layouts[_activeLayout]);
+                if (zsession == null || zsession.Hints == null || zsession.Hints.Count == 0)
+                {
+                    return;
+                }
+                _sessions = new List<HintSession> { zsession };
+                _currentSession = 0;
+                LoadSession(zsession);
+                OffsetX = 0;
+                OffsetY = 0;
+                NotifyOfPropertyChange(nameof(LayoutLabel));
+                return;
+            }
+            if (_zonePhase == ZonePhase.ZonePick)
+            {
+                // The 9 zone dots do not depend on the preset; just persist + refresh
+                // the badge. The next SelectZone builds with the new preset.
+                NotifyOfPropertyChange(nameof(LayoutLabel));
+                return;
+            }
 
             var fresh = _rebuildSessions(_activeLayout);
             if (fresh == null || fresh.Count == 0)
@@ -394,11 +585,17 @@ namespace HuntAndPeck.ViewModels
             if (!string.IsNullOrEmpty(_match))
             {
                 ClearMatch();
+                return;
             }
-            else
+            // Zone-filled: Esc goes back to the zone-pick view (9 labels). Zone-pick
+            // always has an empty match (label chars route to SelectZone), so a second
+            // Esc falls through to close the overlay.
+            if (_zonePhase == ZonePhase.ZoneFilled)
             {
-                CloseOverlay?.Invoke();
+                EnterZonePick();
+                return;
             }
+            CloseOverlay?.Invoke();
         }
 
         private void ApplyMatch(string value)
@@ -442,6 +639,12 @@ namespace HuntAndPeck.ViewModels
                     // Stay up: reset for the next label (mode back to the first / Left
                     // by default, and every label re-highlighted).
                     ResetForNextClick();
+                    // Optional (ZoneZoomReturnToPickOnFire): re-zoom to the 9-label pick
+                    // view after each fire. Default stays in the zone for nearby repeats.
+                    if (_zonePhase == ZonePhase.ZoneFilled && _zoneReturnToPickOnFire)
+                    {
+                        EnterZonePick();
+                    }
                 }
                 else
                 {

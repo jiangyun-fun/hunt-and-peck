@@ -111,6 +111,7 @@
     <Compile Include="Services\OverlayKeyboardHook.cs" />
     <Compile Include="Services\UiAutomationPatternIds.cs" />
     <Compile Include="Services\UiAutomationHintProviderService.cs" />
+    <Compile Include="Services\ZoneService.cs" />
     <Compile Include="SingleLaunchMutex.cs" />
     <Compile Include="ViewModels\DebugHintViewModel.cs" />
     <Compile Include="ViewModels\DebugOverlayViewModel.cs" />

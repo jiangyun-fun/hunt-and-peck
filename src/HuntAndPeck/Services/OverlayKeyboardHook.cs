@@ -350,7 +350,10 @@ namespace HuntAndPeck.Services
                     return () => _vm.CycleMonitor(-1);
                 case OverlayKeyActionKind.AppendChar:
                     char c = act.Char;
-                    return () => _vm.AppendLabelChar(c);
+                    // Zone-pick: route the char as a zone selection instead of a label
+                    // char. Branching here (not in the pure Classify) keeps Classify and
+                    // its tests unchanged; _vm.IsZonePick reflects live overlay state.
+                    return () => { if (_vm.IsZonePick) _vm.SelectZone(c); else _vm.AppendLabelChar(c); };
                 case OverlayKeyActionKind.ToggleDimmed:
                     return () => _vm.ToggleDimmed();
                 case OverlayKeyActionKind.SuspendNow:

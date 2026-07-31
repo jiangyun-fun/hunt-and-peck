@@ -149,6 +149,25 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Parses a boolean (case-insensitive "true"/"false", or "1"/"0"). Returns
+        /// defaultValue when blank, unrecognized, or null so a bad config never
+        /// breaks the app. Pure + unit-tested.
+        /// </summary>
+        public static bool ParseBool(string raw, bool defaultValue)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return defaultValue;
+            }
+            var t = raw.Trim();
+            if (string.Equals(t, "true", StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(t, "false", StringComparison.OrdinalIgnoreCase)) return false;
+            if (t == "1") return true;
+            if (t == "0") return false;
+            return defaultValue;
+        }
+
+        /// <summary>
         /// Parses a HintBounds name (case-insensitive). Returns defaultValue when blank
         /// or unrecognized so a bad config never breaks the app.
         /// </summary>
@@ -344,6 +363,79 @@ namespace HuntAndPeck.Services
         public static int ReadNudgeStepFast()
         {
             return ReadIntSetting("NudgeStepFast", 15);
+        }
+
+        /// <summary>
+        /// Whether type-to-zoom zones are enabled (hot-reload). When true AND the hint
+        /// source is Grid + Screen, the overlay opens with a cols×rows grid of large
+        /// zone labels; typing one drills into that zone's sub-rectangle (dense + short
+        /// labels, escaping the per-monitor HintCharacters² cap). Default false.
+        /// </summary>
+        public static bool ReadZoneZoomEnabled()
+        {
+            try
+            {
+                EnsureFresh();
+                return ParseBool(ConfigurationManager.AppSettings["ZoneZoomEnabled"], false);
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return false;
+            }
+        }
+
+        /// <summary>Zone grid column count (hot-reload). Default 3.</summary>
+        public static int ReadZoneCols()
+        {
+            return ReadIntSetting("ZoneCols", 3);
+        }
+
+        /// <summary>Zone grid row count (hot-reload). Default 3.</summary>
+        public static int ReadZoneRows()
+        {
+            return ReadIntSetting("ZoneRows", 3);
+        }
+
+        /// <summary>
+        /// Zone-PICK label font size in px, as a string (hot-reload) -- flows into
+        /// HintViewModel.FontSizeReadValue like the normal HintFontSize, and is read
+        /// once per overlay. Default "20" (larger than the fine-grid size so the 9 zone
+        /// labels are prominent). Returns "20" when unset/invalid.
+        /// </summary>
+        public static string ReadZoneFontSize()
+        {
+            try
+            {
+                EnsureFresh();
+                var raw = ConfigurationManager.AppSettings["ZoneFontSize"];
+                int v;
+                return int.TryParse(raw, out v) && v > 0 ? raw : "20";
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return "20";
+            }
+        }
+
+        /// <summary>
+        /// Whether firing a label in a zone returns to the zone-pick view (hot-reload).
+        /// Default false = stay in the zone for repeated nearby clicks in Continuous
+        /// mode; set true to re-zoom from the 9-label pick view after every click.
+        /// </summary>
+        public static bool ReadZoneReturnToPickOnFire()
+        {
+            try
+            {
+                EnsureFresh();
+                return ParseBool(ConfigurationManager.AppSettings["ZoneZoomReturnToPickOnFire"], false);
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return false;
+            }
         }
 
         /// <summary>The Space-cycle order of click modes (hot-reload).</summary>

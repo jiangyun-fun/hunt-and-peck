@@ -36,6 +36,7 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="WindowsBase" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Core" />
     <Reference Include="System.IO.Compression" />
@@ -65,6 +66,7 @@
     <Compile Include="Services\OverlayActionConfigTest.cs" />
     <Compile Include="Services\GridLayoutConfigTest.cs" />
     <Compile Include="Services\OverlayKeyboardHookTest.cs" />
+    <Compile Include="Services\ZoneServiceTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\HuntAndPeck\HuntAndPeck.csproj">

@@ -138,6 +138,22 @@ namespace HuntAndPeck.ViewModels
             var sw = Stopwatch.StartNew();
             if (cycleCapable)
             {
+                // Type-to-zoom zones (opt-in): open with cols×rows large zone labels
+                // over the foreground monitor; type a zone label to drill in. Falls
+                // through to the full-monitor grid when zones are off or unavailable.
+                if (OverlayActionConfig.ReadZoneZoomEnabled())
+                {
+                    var zoneVm = BuildZoneOverlayViewModel(hWnd, layouts, activeLayout);
+                    if (zoneVm != null)
+                    {
+                        sw.Stop();
+                        TimingLog.Log("enum+merge " + sw.ElapsedMilliseconds + "ms  zones");
+                        ConfigureTriggerMode(zoneVm, gridSource, continuous);
+                        _showOverlay(zoneVm);
+                        return;
+                    }
+                }
+
                 var built = await Task.Run(() => BuildMonitorSessions(hWnd, layout));
                 sw.Stop();
                 var cur = built.Sessions.Count > 0 ? built.Sessions[built.Current] : null;
@@ -235,6 +251,69 @@ namespace HuntAndPeck.ViewModels
                     hWnd, new System.Windows.Rect(b.X, b.Y, b.Width, b.Height), layout));
             }
             return sessions;
+        }
+
+        /// <summary>
+        /// Builds a type-to-zoom zone <see cref="OverlayViewModel"/> for Grid + Screen +
+        /// ZoneZoomEnabled. The overlay opens with cols×rows large zone labels over the
+        /// FOREGROUND monitor only (Tab monitor-cycling is disabled in zone mode);
+        /// typing a zone label drills into that zone via
+        /// <see cref="IHintProviderService.EnumGridHintsForBounds(IntPtr, Rect, GridLayout)"/>.
+        /// Returns null (so the caller falls back to the full-monitor grid) when the
+        /// zone grid cannot be built, e.g. cols*rows exceeds the configured
+        /// HintCharacters (zone labels would no longer be single-char).
+        /// </summary>
+        private OverlayViewModel BuildZoneOverlayViewModel(IntPtr hWnd, IList<GridLayout> layouts, int activeLayout)
+        {
+            var screen = Screen.FromHandle(hWnd) ?? Screen.PrimaryScreen;
+            if (screen == null)
+            {
+                return null;
+            }
+            var monitor = new System.Windows.Rect(
+                screen.Bounds.X, screen.Bounds.Y, screen.Bounds.Width, screen.Bounds.Height);
+
+            int cols = OverlayActionConfig.ReadZoneCols();
+            int rows = OverlayActionConfig.ReadZoneRows();
+            int zoneCount = cols * rows;
+
+            // Gate: every zone needs a single-char label, so the zone count must fit
+            // the configured HintCharacters. On failure, return null so the caller
+            // falls back to the full-monitor grid instead of ambiguous multi-char zones.
+            int hintChars = HintCharacterCount();
+            if (zoneCount <= 0 || zoneCount > hintChars)
+            {
+                return null;
+            }
+
+            var pickSession = ZoneService.BuildPickSession(hWnd, monitor, cols, rows, 10.0);
+            return new OverlayViewModel(
+                pickSession,
+                _hintLabelService,
+                layouts,
+                activeLayout,
+                monitor,
+                cols,
+                rows,
+                OverlayActionConfig.ReadZoneFontSize(),
+                OverlayActionConfig.ReadZoneReturnToPickOnFire(),
+                (zoneRect, lay) => _hintProviderService.EnumGridHintsForBounds(hWnd, zoneRect, lay));
+        }
+
+        /// <summary>
+        /// Distinct char count in the configured HintCharacters (for the zone-count
+        /// gate). Mirrors HintLabelService: a blank HintCharacters means the 14-char
+        /// home-row default.
+        /// </summary>
+        private static int HintCharacterCount()
+        {
+            var raw = OverlayActionConfig.ReadRawString("HintCharacters");
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return 14;
+            }
+            var n = raw.Trim().ToUpperInvariant().Distinct().Count();
+            return n > 0 ? n : 14;
         }
 
         /// <summary>

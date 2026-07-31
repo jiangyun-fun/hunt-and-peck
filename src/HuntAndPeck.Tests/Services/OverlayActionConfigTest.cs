@@ -34,6 +34,21 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Theory]
+        [InlineData("true", false, true)]
+        [InlineData("False", false, false)]      // case-insensitive
+        [InlineData("TRUE", false, true)]
+        [InlineData("1", false, true)]
+        [InlineData("0", true, false)]
+        [InlineData("yes", true, true)]          // unrecognized -> default (true)
+        [InlineData("junk", false, false)]       // unrecognized -> default (false)
+        [InlineData("", true, true)]             // blank -> default
+        [InlineData(null, false, false)]
+        public void ParseBool_ParsesOrDefaults(string raw, bool defaultValue, bool expected)
+        {
+            Assert.Equal(expected, OverlayActionConfig.ParseBool(raw, defaultValue));
+        }
+
+        [Theory]
         [InlineData("Left,Right,Double,Move", 4)]
         [InlineData("", 4)]          // empty -> default order (4)
         [InlineData(null, 4)]

@@ -47,6 +47,12 @@
                        FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
                        Foreground="White" Background="DarkSlateGray" Padding="6,2"
                        Margin="6,0,0,0" Visibility="{Binding LayoutBadgeVisibility}" />
+            <!-- Type-to-zoom zone indicator: "ZONES" while picking, "ZONE n" while a
+                 zone is filled. Collapsed when zones are off (no regression). -->
+            <TextBlock Text="{Binding ZoneLabel}"
+                       FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
+                       Foreground="White" Background="MediumSeaGreen" Padding="6,2"
+                       Margin="6,0,0,0" Visibility="{Binding ZoneBadgeVisibility}" />
         </StackPanel>
     </Grid>
 </local:ForegroundWindow>
