@@ -47,6 +47,15 @@ namespace HuntAndPeck
             }
         }
 
+        /// <summary>
+        /// Closes the current overlay (if any) via its own idempotent close path. Used by a
+        /// quadrant hotkey to replace whatever overlay is open with the requested quadrant.
+        /// </summary>
+        private void CloseCurrentOverlay()
+        {
+            _currentVm?.CloseOverlay?.Invoke();
+        }
+
         private void ShowOverlay(OverlayViewModel vm)
         {
             // One overlay at a time. The overlay shows NON-activated (OverlayView.xaml
@@ -145,6 +154,7 @@ namespace HuntAndPeck
                     ShowOptions,
                     IsOverlayActive,
                     ToggleOverlayMode,
+                    CloseCurrentOverlay,
                     _hintLabelService,
                     _hintProviderService,
                     _hintProviderService,

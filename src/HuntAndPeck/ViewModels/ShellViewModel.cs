@@ -19,6 +19,7 @@ namespace HuntAndPeck.ViewModels
         private readonly Action<OptionsViewModel> _showOptions;
         private readonly Func<bool> _isOverlayActive;
         private readonly Action _toggleOverlayMode;
+        private readonly Action _closeOverlay;
         private readonly IHintLabelService _hintLabelService;
         private readonly IHintProviderService _hintProviderService;
         private readonly IDebugHintProviderService _debugHintProviderService;
@@ -29,6 +30,7 @@ namespace HuntAndPeck.ViewModels
             Action<OptionsViewModel> showOptions,
             Func<bool> isOverlayActive,
             Action toggleOverlayMode,
+            Action closeOverlay,
             IHintLabelService hintLabelService,
             IHintProviderService hintProviderService,
             IDebugHintProviderService debugHintProviderService,
@@ -39,6 +41,7 @@ namespace HuntAndPeck.ViewModels
             _showOptions = showOptions;
             _isOverlayActive = isOverlayActive;
             _toggleOverlayMode = toggleOverlayMode;
+            _closeOverlay = closeOverlay;
             _hintLabelService = hintLabelService;
             var keyListener1 = keyListener;
             _hintProviderService = hintProviderService;
@@ -217,12 +220,6 @@ namespace HuntAndPeck.ViewModels
         /// </summary>
         private async Task OpenQuadrantOverlayAsync(int quadrant)
         {
-            if (_isOverlayActive())
-            {
-                _toggleOverlayMode();
-                return;
-            }
-
             var hWnd = User32.GetForegroundWindow();
             if (hWnd == IntPtr.Zero)
             {
@@ -233,12 +230,20 @@ namespace HuntAndPeck.ViewModels
             var continuous = OverlayActionConfig.ComputeIsContinuous(
                 false, true, OverlayActionConfig.ReadTriggerMode());
 
+            // Build the new quadrant VM off-thread while the current overlay (if any) stays
+            // visible, then swap it in. A quadrant hotkey ALWAYS shows its quadrant -- it does
+            // NOT toggle one-click/continuous like the main hotkey does on a 2nd press.
             var vm = await Task.Run(() => BuildQuadrantOverlayViewModel(hWnd, quadrant));
-            if (vm != null)
+            if (vm == null)
             {
-                ConfigureTriggerMode(vm, true, continuous);
-                _showOverlay(vm);
+                return;
             }
+            if (_isOverlayActive())
+            {
+                _closeOverlay();
+            }
+            ConfigureTriggerMode(vm, true, continuous);
+            _showOverlay(vm);
         }
 
         /// <summary>
