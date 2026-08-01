@@ -116,14 +116,16 @@ Two kinds of settings:
   `NudgeStepSmall`, `NudgeStepMedium`, `NudgeStepLarge`, `NudgeKeysSmall`, `NudgeKeysMedium`, `NudgeKeysLarge`,
   `ClickModeOrder`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
   `ZoneZoomEnabled`, `ZoneCols`, `ZoneRows`, `ZoneFontSize`, `ZoneZoomReturnToPickOnFire`,
-  `ZoneGridStep`, `ZoneWidth`, `ZoneHeight`.
+  `ZoneGridStep`, `ZoneWidth`, `ZoneHeight`, `OverlayAutoCloseSec`, `HideNonMatchingLabels`.
   (`ActiveLayout` is also in appSettings but is rewritten by the `;` key, not hand-edited.)
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
-  dismisses open context menus even inside a chord); and the dedicated one-shot
+  dismisses open context menus even inside a chord); the dedicated one-shot
   hotkey `OneShotHotkeyKey`, `OneShotHotkeyModifier` (default `Ctrl+Shift+,` /
   `Oemcomma`, which opens the overlay in one-shot mode regardless of
-  `OverlayTriggerMode`).
+  `OverlayTriggerMode`); and the quadrant hotkeys `QuadrantHotkeyKeys`
+  (default `F1,F2,F3,F4` = TL/TR/BL/BR) + `QuadrantHotkeyModifier` (default `Control,Shift`),
+  which open the overlay scoped to one screen quadrant.
 
 `HintCharacters` defaults to `A–Z` (easy to recognize). The punctuation set
 `,./;'[]\` is also supported — add any of them here to opt in. The matching input
@@ -222,6 +224,16 @@ typed).
   item, then `Esc`. `OneClick` closes the overlay after one click. Press the hotkey
   again while the overlay is up to toggle one-click ⇄ continuous (badge bottom-center).
   Automation ignores this and stays one-shot.
+- **Hide non-matching labels** (`HideNonMatchingLabels`, default on): after you type the
+  first char of a 2-char label, labels that don't match **disappear** (not just dim) —
+  only the candidates for the typed prefix remain. Esc / continuous reset restores them.
+- **Auto-close** (`OverlayAutoCloseSec`, default 0 = off): when >0, the overlay closes after
+  that many seconds with no key/click activity (any captured input resets the clock); it
+  does not fire while suspended. A safety net for a misfire / walking away.
+- **Quadrant hotkeys** (`Ctrl+Shift+F1/F2/F3/F4`, startup-only): open the overlay scoped to
+  the TL/TR/BL/BR screen quadrant — a dense uniform grid (`ZoneGridStep`) over just that
+  quarter, on a full-screen overlay (labels only in the quadrant). One chord, no zone-pick.
+  Keys/modifier configurable via `QuadrantHotkeyKeys`/`QuadrantHotkeyModifier`.
 - **Esc** (or **`1`**, an alias that's closer to type) clears the typed prefix if any
   has been typed (cancel the selection, stay up so you can retype from scratch); if
   nothing is typed, it closes the overlay. Pan and click-mode are kept on a clear. Any

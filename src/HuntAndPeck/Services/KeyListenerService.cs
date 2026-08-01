@@ -12,6 +12,9 @@ namespace HuntAndPeck.Services
         public event EventHandler OnDebugHotKeyActivated;
         public event EventHandler OnOneShotHotKeyActivated;
 
+        /// <summary>Quadrant hotkey (Ctrl+Shift+F1..F4): carries the quadrant index 0..3 (TL/TR/BL/BR).</summary>
+        public event Action<int> OnQuadrantHotKeyActivated;
+
         /// <summary>
         /// Global counter for assigning ids to identiy the hot key registration
         /// </summary>
@@ -21,6 +24,7 @@ namespace HuntAndPeck.Services
         private HotKey _taskbarHotKey;
         private HotKey _debugHotKey;
         private HotKey _oneShotHotKey;
+        private HotKey[] _quadrantHotKeys;
 
         /// <summary>
         /// Re-registers the current hotkey, unregistering any previous key
@@ -101,6 +105,31 @@ namespace HuntAndPeck.Services
             }
         }
 
+        /// <summary>
+        /// The four quadrant hotkeys (TL/TR/BL/BR). Set once at startup; each is registered
+        /// via RegisterHotKey. On press, fires <see cref="OnQuadrantHotKeyActivated"/> with
+        /// the index. Null/empty entries are skipped (so a F-key left blank won't register).
+        /// </summary>
+        public HotKey[] QuadrantHotKeys
+        {
+            set
+            {
+                _quadrantHotKeys = value;
+                if (_quadrantHotKeys != null)
+                {
+                    foreach (var hk in _quadrantHotKeys)
+                    {
+                        if (hk == null)
+                        {
+                            continue;
+                        }
+                        hk.RegistrationId = _hotkeyIdCounter++;
+                        User32.RegisterHotKey(Handle, hk.RegistrationId, (uint)hk.Modifier, (uint)hk.Keys);
+                    }
+                }
+            }
+        }
+
         protected override void WndProc(ref Message m)
         {
             if (m.Msg == Constants.WM_HOTKEY)
@@ -141,6 +170,19 @@ namespace HuntAndPeck.Services
                     OnOneShotHotKeyActivated != null)
                 {
                     OnOneShotHotKeyActivated(this, new EventArgs());
+                }
+
+                // Quadrant hotkeys (Ctrl+Shift+F1..F4): 0=TL, 1=TR, 2=BL, 3=BR.
+                if (_quadrantHotKeys != null)
+                {
+                    for (int i = 0; i < _quadrantHotKeys.Length; i++)
+                    {
+                        var qk = _quadrantHotKeys[i];
+                        if (qk != null && e.Key == qk.Keys && e.Modifiers == qk.Modifier)
+                        {
+                            OnQuadrantHotKeyActivated?.Invoke(i);
+                        }
+                    }
                 }
             }
 

@@ -86,6 +86,9 @@ namespace HuntAndPeck.Services
         private IntPtr _kbHook = IntPtr.Zero;
         private IntPtr _msHook = IntPtr.Zero;
 
+        // Idle auto-close timer (OverlayAutoCloseSec). Null when the feature is off (0).
+        private DispatcherTimer _autoCloseTimer;
+
         public OverlayKeyboardHook()
         {
             // Captured on the (UI) thread that constructs us; callbacks arrive here.
@@ -110,6 +113,8 @@ namespace HuntAndPeck.Services
             var hMod = Kernel32.GetModuleHandle(null);
             _kbHook = User32.SetWindowsHookEx(User32.WH_KEYBOARD_LL, _kbProc, hMod, 0);
             _msHook = User32.SetWindowsHookEx(User32.WH_MOUSE_LL, _msProc, hMod, 0);
+
+            StartAutoCloseTimer();
         }
 
         /// <summary>Removes both hooks. Safe to call more than once.</summary>
@@ -124,6 +129,42 @@ namespace HuntAndPeck.Services
             {
                 User32.UnhookWindowsHookEx(_msHook);
                 _msHook = IntPtr.Zero;
+            }
+            if (_autoCloseTimer != null)
+            {
+                _autoCloseTimer.Stop();
+                _autoCloseTimer = null;
+            }
+        }
+
+        /// <summary>Starts the idle auto-close timer when OverlayAutoCloseSec > 0; else no-op.</summary>
+        private void StartAutoCloseTimer()
+        {
+            var sec = OverlayActionConfig.ReadAutoCloseSec();
+            if (sec > 0)
+            {
+                _autoCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(sec) };
+                _autoCloseTimer.Tick += OnAutoCloseTick;
+                _autoCloseTimer.Start();
+            }
+        }
+
+        /// <summary>Restarts the idle timer (call on any captured overlay input).</summary>
+        private void ResetAutoClose()
+        {
+            if (_autoCloseTimer != null)
+            {
+                _autoCloseTimer.Stop();
+                _autoCloseTimer.Start();
+            }
+        }
+
+        private void OnAutoCloseTick(object sender, EventArgs e)
+        {
+            // Don't auto-close while suspended (the user suspended to type into the app).
+            if (_vm != null && !_vm.Suspended)
+            {
+                _close?.Invoke();
             }
         }
 
@@ -225,6 +266,7 @@ namespace HuntAndPeck.Services
             // Defer the real work off the hook callback, but swallow the key now so
             // it never reaches the app beneath.
             _dispatcher.BeginInvoke(Dispatch(act));
+            ResetAutoClose();   // a captured key resets the idle auto-close timer
             return new IntPtr(1);
         }
 

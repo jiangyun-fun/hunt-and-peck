@@ -16,7 +16,7 @@
     <Grid x:Name="layoutGrid">
         <local:HintCanvas x:Name="hintCanvas" Width="{Binding Bounds.Width}" Height="{Binding Bounds.Height}"
                           HintsSource="{Binding Hints}" Opacity="{Binding LabelOpacity}"
-                          PillOpacity="{Binding PillOpacity}">
+                          PillOpacity="{Binding PillOpacity}" HideInactive="{Binding HideInactive}">
             <local:HintCanvas.RenderTransform>
                 <TranslateTransform X="{Binding OffsetX}" Y="{Binding OffsetY}" />
             </local:HintCanvas.RenderTransform>

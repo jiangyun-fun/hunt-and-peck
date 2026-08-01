@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Globalization;
 using System.IO;
 using System.Windows.Forms;
 using HuntAndPeck.NativeMethods;
@@ -238,6 +239,39 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Parses the overlay auto-close idle timeout in seconds (≥0; locale-tolerant
+        /// decimal). Returns defaultValue when blank/negative/unparseable. 0 = off.
+        /// Pure + unit-tested.
+        /// </summary>
+        public static double ParseAutoCloseSec(string raw, double defaultValue)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return defaultValue;
+            double v;
+            if (double.TryParse(raw.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v) && v >= 0) return v;
+            return defaultValue;
+        }
+
+        /// <summary>
+        /// Parses a comma/semicolon/pipe-separated list of <see cref="Keys"/> names into a
+        /// fixed-size array (expected count = fallback.Length). Returns fallback when blank,
+        /// wrong count, or any name is unrecognized. Pure + unit-tested.
+        /// </summary>
+        public static Keys[] ParseKeyList(string raw, Keys[] fallback)
+        {
+            if (string.IsNullOrWhiteSpace(raw) || fallback == null) return fallback;
+            var parts = raw.Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != fallback.Length) return fallback;
+            var result = new Keys[fallback.Length];
+            for (int i = 0; i < parts.Length; i++)
+            {
+                Keys k;
+                if (!Enum.TryParse(parts[i].Trim(), true, out k)) return fallback;
+                result[i] = k;
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Parses a HintBounds name (case-insensitive). Returns defaultValue when blank
         /// or unrecognized so a bad config never breaks the app.
         /// </summary>
@@ -445,6 +479,46 @@ namespace HuntAndPeck.Services
         {
             try { EnsureFresh(); return ParseNudgeKeys(ConfigurationManager.AppSettings["NudgeKeysLarge"], DefaultLargeNudgeKeys); }
             catch (Exception) { return DefaultLargeNudgeKeys; }
+        }
+
+        private static readonly Keys[] DefaultQuadrantKeys = { Keys.F1, Keys.F2, Keys.F3, Keys.F4 };
+
+        /// <summary>
+        /// Quadrant hotkey keys (read once at startup): 4 Keys names (F1..F4) for
+        /// TL/TR/BL/BR (Ctrl+Shift+F1..F4 opens the overlay scoped to that quadrant).
+        /// Default F1,F2,F3,F4.
+        /// </summary>
+        public static Keys[] ReadQuadrantHotkeyKeys()
+        {
+            try { EnsureFresh(); return ParseKeyList(ConfigurationManager.AppSettings["QuadrantHotkeyKeys"], DefaultQuadrantKeys); }
+            catch (Exception) { return DefaultQuadrantKeys; }
+        }
+
+        /// <summary>Quadrant hotkey modifier (read once at startup). Default Control|Shift.</summary>
+        public static KeyModifier ReadQuadrantHotkeyModifier()
+        {
+            try { EnsureFresh(); return ParseKeyModifiers(ConfigurationManager.AppSettings["QuadrantHotkeyModifier"], KeyModifier.Control | KeyModifier.Shift); }
+            catch (Exception) { return KeyModifier.Control | KeyModifier.Shift; }
+        }
+
+        /// <summary>
+        /// Overlay idle auto-close timeout in seconds (hot-reload, read when the overlay
+        /// arms). 0 = off (never auto-close). Default 0.
+        /// </summary>
+        public static double ReadAutoCloseSec()
+        {
+            try { EnsureFresh(); return ParseAutoCloseSec(ConfigurationManager.AppSettings["OverlayAutoCloseSec"], 0.0); }
+            catch (Exception) { return 0.0; }
+        }
+
+        /// <summary>
+        /// Whether non-matching labels are hidden (not just dimmed) after the first typed
+        /// char of a label (hot-reload). Default true.
+        /// </summary>
+        public static bool ReadHideNonMatchingLabels()
+        {
+            try { EnsureFresh(); return ParseBool(ConfigurationManager.AppSettings["HideNonMatchingLabels"], true); }
+            catch (Exception) { return true; }
         }
 
         /// <summary>

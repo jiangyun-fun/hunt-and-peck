@@ -97,6 +97,50 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Theory]
+        [InlineData("3", 0.0, 3.0)]
+        [InlineData("3.5", 0.0, 3.5)]   // locale-tolerant decimal
+        [InlineData("0", 5.0, 0.0)]     // 0 is valid (off)
+        [InlineData("-1", 7.0, 7.0)]    // negative -> default
+        [InlineData("", 7.0, 7.0)]
+        [InlineData("junk", 7.0, 7.0)]
+        [InlineData(null, 7.0, 7.0)]
+        public void ParseAutoCloseSec_ParsesOrDefault(string raw, double defaultValue, double expected)
+        {
+            Assert.Equal(expected, OverlayActionConfig.ParseAutoCloseSec(raw, defaultValue));
+        }
+
+        [Fact]
+        public void ParseKeyList_FourKeys_ReturnsKeysArray()
+        {
+            var fb = new[] { Keys.None, Keys.None, Keys.None, Keys.None };
+            Assert.Equal(new[] { Keys.F1, Keys.F2, Keys.F3, Keys.F4 },
+                OverlayActionConfig.ParseKeyList("F1,F2,F3,F4", fb));
+        }
+
+        [Fact]
+        public void ParseKeyList_WrongCount_ReturnsFallback()
+        {
+            var fb = new[] { Keys.A, Keys.B, Keys.C, Keys.D };
+            Assert.Same(fb, OverlayActionConfig.ParseKeyList("F1,F2,F3", fb));
+            Assert.Same(fb, OverlayActionConfig.ParseKeyList("F1,F2,F3,F4,F5", fb));
+        }
+
+        [Fact]
+        public void ParseKeyList_UnknownName_ReturnsFallback()
+        {
+            var fb = new[] { Keys.A, Keys.B, Keys.C, Keys.D };
+            Assert.Same(fb, OverlayActionConfig.ParseKeyList("F1,F2,F3,NotAKey", fb));
+        }
+
+        [Fact]
+        public void ParseKeyList_Blank_ReturnsFallback()
+        {
+            var fb = new[] { Keys.A, Keys.B, Keys.C, Keys.D };
+            Assert.Same(fb, OverlayActionConfig.ParseKeyList(null, fb));
+            Assert.Same(fb, OverlayActionConfig.ParseKeyList("", fb));
+        }
+
+        [Theory]
         [InlineData("Left,Right,Double,Move", 4)]
         [InlineData("", 4)]          // empty -> default order (4)
         [InlineData(null, 4)]

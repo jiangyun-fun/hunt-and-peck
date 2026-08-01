@@ -86,6 +86,8 @@ namespace HuntAndPeck.ViewModels
         public string ZoneWidth { get { return Get("ZoneWidth", "0"); } set { Set("ZoneWidth", value); OnPropertyChanged("ZoneWidth"); } }
         public string ZoneHeight { get { return Get("ZoneHeight", "0"); } set { Set("ZoneHeight", value); OnPropertyChanged("ZoneHeight"); } }
         public string ArrowKeyBehavior { get { return Get("ArrowKeyBehavior", "Passthrough"); } set { Set("ArrowKeyBehavior", value); OnPropertyChanged("ArrowKeyBehavior"); } }
+        public string OverlayAutoCloseSec { get { return Get("OverlayAutoCloseSec", "0"); } set { Set("OverlayAutoCloseSec", value); OnPropertyChanged("OverlayAutoCloseSec"); } }
+        public string HideNonMatchingLabels { get { return Get("HideNonMatchingLabels", "true"); } set { Set("HideNonMatchingLabels", value); OnPropertyChanged("HideNonMatchingLabels"); } }
 
         public bool TimingLogEnabled
         {

@@ -103,7 +103,13 @@
                     <TextBox Text="{Binding ZoneWidth}" Margin="0,2,0,6" />
 
                     <TextBlock Text="Zone lens height px (0 = auto)" FontWeight="Bold" />
-                    <TextBox Text="{Binding ZoneHeight}" Margin="0,2,0,10" />
+                    <TextBox Text="{Binding ZoneHeight}" Margin="0,2,0,6" />
+
+                    <TextBlock Text="Auto-close after N sec idle (0 = off)" FontWeight="Bold" />
+                    <TextBox Text="{Binding OverlayAutoCloseSec}" Margin="0,2,0,6" />
+
+                    <TextBlock Text="Hide non-matching labels after first char (true/false)" FontWeight="Bold" />
+                    <TextBox Text="{Binding HideNonMatchingLabels}" Margin="0,2,0,10" />
 
                     <TextBlock Text="Hotkey key (System.Windows.Forms.Keys name)" FontWeight="Bold" />
                     <TextBox Text="{Binding HotkeyKey}" Margin="0,2,0,10" />

@@ -1,0 +1,53 @@
+---
+title: "Auto-close, hide-non-matching, quadrant hotkeys — Plan"
+author: "Yun Jiang"
+date: "2026-08-01"
+---
+
+# Plan — Auto-close, hide-non-matching, quadrant hotkeys
+
+Three features on top of shipped zones.
+
+1. **Auto-close** — idle timeout: the overlay closes after N sec with no key/click
+   (`OverlayAutoCloseSec`, default 0 = off). Reset on any captured input; skipped while
+   suspended. Lives in `OverlayKeyboardHook` (owns `_close` + `_dispatcher` + lifecycle).
+2. **Hide non-matching** — after the first char of a 2-char label, non-matching labels are
+   hidden (today they are only dimmed). `HideNonMatchingLabels`, default **true**. A
+   `HideInactive` DP on `HintCanvas` (clone of `PillOpacity`) skips rendering `!Active`
+   hints; bound from `OverlayViewModel.HideInactive`.
+3. **Quadrant hotkeys** — `Ctrl+Shift+F1/F2/F3/F4` open TL/TR/BL/BR scoped overlays: a
+   uniform `ZoneGridStep` grid over `ZoneService.SliceIntoZones(monitor, 2, 2)[q]`, rebased
+   to the monitor (full-screen overlay, labels only in the quadrant). Reuses the lens trick.
+   `KeyListenerService` registers 4 hotkeys + fires `Action<int>`; `ShellViewModel`
+   `OpenQuadrantOverlayAsync` builds + shows.
+
+## Reuse
+
+- `ZoneService.SliceIntoZones(monitor, 2, 2)` → quadrant rects.
+- `ShellViewModel.RebaseTo` + `EnumGridHintsForBounds` → quadrant grid.
+- `OverlayActionConfig.ParseBool` / `ParseKeys` / `ParseKeyModifiers`.
+- `HintCanvas` `PillOpacity` DP pattern; `OverlayKeyboardHook._dispatcher`.
+
+## Config
+
+- `OverlayAutoCloseSec` (double, ≥0, default 0) — hot-reload (read at Arm).
+- `HideNonMatchingLabels` (bool, default true) — hot-reload.
+- `QuadrantHotkeyKeys` = `F1,F2,F3,F4`; `QuadrantHotkeyModifier` = `Control,Shift` —
+  startup-only (config-only).
+
+## Test plan
+
+- `OverlayActionConfigTest`: `ParseAutoCloseSec` (3→3, 0→0, -1→0, blank→default, junk→default);
+  `ParseQuadrantHotKeys` (4 keys + modifier → HotKey[4]; wrong count → fallback).
+- Timer / renderer / hotkey wiring are WPF/WinForms → manual Windows verification.
+
+## Verification
+
+CI (windows-latest): `msbuild` + `vstest` green; then `ship-drop`. Manual: idle auto-close +
+reset; hide-non-matching on first char; `Ctrl+Shift+F1..F4` quadrants; `/hint`,`/tray`, zones,
+main hotkey unaffected.
+
+## Sequencing
+
+1. Config + parser tests. 2. Hook timer. 3. HintCanvas HideInactive + VM + bind. 4. KeyListener
+quadrant + ShellViewModel. 5. Options + CLAUDE.md. 6. Build + tests + ship + report.

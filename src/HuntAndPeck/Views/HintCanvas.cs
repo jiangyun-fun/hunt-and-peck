@@ -81,6 +81,33 @@ namespace HuntAndPeck.Views
         }
 
         /// <summary>
+        /// When true, an inactive (non-matching) hint renders nothing instead of the dim
+        /// pill -- so after typing the first char of a label, only matching labels show.
+        /// Bound from the view-model; changing it re-renders every hint.
+        /// </summary>
+        public static readonly DependencyProperty HideInactiveProperty =
+            DependencyProperty.Register("HideInactive", typeof(bool), typeof(HintCanvas),
+                new FrameworkPropertyMetadata(false, OnHideInactiveChanged));
+
+        public bool HideInactive
+        {
+            get { return (bool)GetValue(HideInactiveProperty); }
+            set { SetValue(HideInactiveProperty, value); }
+        }
+
+        private static void OnHideInactiveChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var c = (HintCanvas)d;
+            if (c._hints != null)
+            {
+                for (int i = 0; i < c._hints.Count; i++)
+                {
+                    c.RenderHint(i);
+                }
+            }
+        }
+
+        /// <summary>
         /// Device scale factor (TransformToDevice) of the overlay's monitor. Label
         /// SIZE constants (font emSize, padding, corner radius) are scaled by this so
         /// they render DPI-correct; hint POSITIONS stay in physical px (they already
@@ -244,8 +271,14 @@ namespace HuntAndPeck.Views
         /// </summary>
         private void RenderHint(int i)
         {
-            var ft = _formatted[i];
             var h = _hints[i];
+            // Hide-non-matching: an inactive label renders nothing (clears its visual).
+            if (!h.Active && HideInactive)
+            {
+                using (var dc = _visualByHint[i].RenderOpen()) { }
+                return;
+            }
+            var ft = _formatted[i];
             var br = h.Hint.BoundingRectangle;
 
             // Scale the size constants by the device DPI so the pill renders at a

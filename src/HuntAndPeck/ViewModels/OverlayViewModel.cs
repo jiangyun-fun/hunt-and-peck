@@ -24,6 +24,7 @@ namespace HuntAndPeck.ViewModels
         private readonly string _fontSizeRaw;
         private readonly double _pillOpacity;
         private readonly double _dimOpacity;
+        private readonly bool _hideInactive;
         private IList<HintSession> _sessions;
         private int _currentSession;
         // Layout cycling (`;`): presets + the persisted active index + a delegate that
@@ -105,6 +106,7 @@ namespace HuntAndPeck.ViewModels
             _pillOpacity = OverlayActionConfig.ReadHintPillOpacity();
             // Dimmed-label opacity (0-1) read once per overlay; used by LabelOpacity.
             _dimOpacity = OverlayActionConfig.ReadHintDimOpacity();
+            _hideInactive = OverlayActionConfig.ReadHideNonMatchingLabels();
 
             if (_sessions.Count > 0)
             {
@@ -151,6 +153,7 @@ namespace HuntAndPeck.ViewModels
                 ?? HuntAndPeck.Properties.Settings.Default.FontSize;
             _pillOpacity = OverlayActionConfig.ReadHintPillOpacity();
             _dimOpacity = OverlayActionConfig.ReadHintDimOpacity();
+            _hideInactive = OverlayActionConfig.ReadHideNonMatchingLabels();
 
             _zoneRects = ZoneService.SliceIntoZones(monitorBounds, zoneCols, zoneRows);
             _zoneCellW = _zoneRects.Length > 0 ? _zoneRects[0].Width : monitorBounds.Width;
@@ -387,6 +390,12 @@ namespace HuntAndPeck.ViewModels
         /// text stays fully opaque. Hot-reload via the HintPillOpacity config key.
         /// </summary>
         public double PillOpacity => _pillOpacity;
+
+        /// <summary>
+        /// Whether non-matching labels are hidden (not just dimmed) after the first typed
+        /// char. Read once per overlay; bound to HintCanvas.HideInactive.
+        /// </summary>
+        public bool HideInactive => _hideInactive;
 
         private ClickAction CurrentAction
         {

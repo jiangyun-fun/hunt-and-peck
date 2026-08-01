@@ -65,6 +65,14 @@ namespace HuntAndPeck.ViewModels
                     KeyModifier.Control | KeyModifier.Shift)
             };
 
+            // Quadrant hotkeys (Ctrl+Shift+F1..F4): open the overlay scoped to TL/TR/BL/BR.
+            // Read once at startup; restart to apply. Default F1,F2,F3,F4 + Control,Shift.
+            var quadrantKeys = OverlayActionConfig.ReadQuadrantHotkeyKeys();
+            var quadrantMod = OverlayActionConfig.ReadQuadrantHotkeyModifier();
+            keyListener1.QuadrantHotKeys = quadrantKeys
+                .Select(k => new HotKey { Keys = k, Modifier = quadrantMod })
+                .ToArray();
+
 #if DEBUG
             keyListener1.DebugHotKey = new HotKey
             {
@@ -76,6 +84,7 @@ namespace HuntAndPeck.ViewModels
             keyListener1.OnHotKeyActivated += _keyListener_OnHotKeyActivated;
             keyListener1.OnOneShotHotKeyActivated += _keyListener_OnOneShotHotKeyActivated;
             keyListener1.OnDebugHotKeyActivated += _keyListener_OnDebugHotKeyActivated;
+            keyListener1.OnQuadrantHotKeyActivated += _keyListener_OnQuadrantHotKeyActivated;
 
             ShowOptionsCommand = new DelegateCommand(ShowOptions);
             ExitCommand = new DelegateCommand(Exit);
@@ -89,6 +98,9 @@ namespace HuntAndPeck.ViewModels
 
         private async void _keyListener_OnOneShotHotKeyActivated(object sender, EventArgs e)
             => await OpenOverlayAsync(forceOneShot: true);
+
+        private async void _keyListener_OnQuadrantHotKeyActivated(int quadrant)
+            => await OpenQuadrantOverlayAsync(quadrant);
 
         /// <summary>
         /// Opens the overlay. <paramref name="forceOneShot"/> (the dedicated one-shot hotkey)
@@ -196,6 +208,82 @@ namespace HuntAndPeck.ViewModels
         {
             vm.ContinuousCapable = gridSource;
             vm.IsContinuous = continuous;
+        }
+
+        /// <summary>
+        /// Opens the overlay scoped to one screen quadrant (Ctrl+Shift+F1..F4): a dense
+        /// uniform grid (ZoneGridStep) over that quarter, on a full-screen overlay (labels
+        /// only in the quadrant). Mirrors <see cref="OpenOverlayAsync"/> (active → toggle).
+        /// </summary>
+        private async Task OpenQuadrantOverlayAsync(int quadrant)
+        {
+            if (_isOverlayActive())
+            {
+                _toggleOverlayMode();
+                return;
+            }
+
+            var hWnd = User32.GetForegroundWindow();
+            if (hWnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            // A quadrant is always a Grid (ignores HintSource); Continuous follows config.
+            var continuous = OverlayActionConfig.ComputeIsContinuous(
+                false, true, OverlayActionConfig.ReadTriggerMode());
+
+            var vm = await Task.Run(() => BuildQuadrantOverlayViewModel(hWnd, quadrant));
+            if (vm != null)
+            {
+                ConfigureTriggerMode(vm, true, continuous);
+                _showOverlay(vm);
+            }
+        }
+
+        /// <summary>
+        /// Builds a single-session overlay whose grid covers one quadrant (TL/TR/BL/BR) at
+        /// ZoneGridStep, rebased to the full monitor so the overlay stays full-screen with
+        /// labels only in the quadrant. Returns null on a degenerate monitor/empty grid.
+        /// </summary>
+        private OverlayViewModel BuildQuadrantOverlayViewModel(IntPtr hWnd, int quadrant)
+        {
+            if (quadrant < 0 || quadrant > 3)
+            {
+                return null;
+            }
+            var screen = Screen.FromHandle(hWnd) ?? Screen.PrimaryScreen;
+            if (screen == null)
+            {
+                return null;
+            }
+            var monitor = new System.Windows.Rect(
+                screen.Bounds.X, screen.Bounds.Y, screen.Bounds.Width, screen.Bounds.Height);
+
+            var quadrantRect = ZoneService.SliceIntoZones(monitor, 2, 2)[quadrant];
+
+            int step = OverlayActionConfig.ReadZoneGridStep();
+            var layout = new GridLayout
+            {
+                EdgeStep = step,
+                CenterStep = step,
+                Inset = 0,
+                BandPercent = 0,
+                DenseRegions = "Center"
+            };
+
+            var session = _hintProviderService.EnumGridHintsForBounds(hWnd, quadrantRect, layout);
+            if (session == null || session.Hints == null || session.Hints.Count == 0)
+            {
+                return null;
+            }
+            // Full-screen overlay: rebase hint render-rects from the quadrant origin to the
+            // monitor origin, and report the full monitor as the bounds. PointHint cursor
+            // targets are already absolute, so clicks stay correct.
+            RebaseTo(session.Hints, quadrantRect.Left - monitor.Left, quadrantRect.Top - monitor.Top);
+            session.OwningWindowBounds = monitor;
+
+            return new OverlayViewModel(session, _hintLabelService);
         }
 
         private struct MonitorSessions
