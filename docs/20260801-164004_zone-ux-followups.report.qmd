@@ -1,0 +1,65 @@
+---
+title: "Zone UX Follow-ups — Completion Report"
+author: "Yun Jiang"
+date: "2026-08-01"
+---
+
+# Report — Zone UX follow-ups
+
+**Status: implemented; CI green (build + 191/191 tests); drop shipped.** Manual Windows
+verification pending.
+
+Plan: [`20260801-162352_zone-ux-followups.plan.qmd`](./20260801-162352_zone-ux-followups.plan.qmd).
+
+## What was done
+
+Five changes to the shipped v1 zones:
+
+1. **Status badge** now stays at the screen's bottom-center in zone-filled mode.
+2. **Labels** are no longer clipped to the zone rectangle.
+   - Both fixed by one change: the zone-filled overlay now covers the **full monitor**
+     (`OwningWindowBounds = monitor`). The fine grid is generated in a lens centered on the
+     zone, then hint bounds are rebased to the monitor (reusing `ShellViewModel.RebaseTo`).
+3. **`ZoneGridStep`** — a single uniform in-zone grid step (denser zones). Zone mode drops
+  `3` layout-cycling (one zone shape now).
+4. **3 nudge tiers** (Small/Medium/Large) with configurable keys + per-axis steps:
+   `Shift+uiop`=Large, `Shift+hjkl`=Medium, `Shift+m , . /`=Small (positional L,D,U,R).
+   Each step is `X,Y` px or `auto` (= one zone cell). `Ctrl+Shift+hjkl` retired; arrows
+   (Pan) use Medium/Large.
+5. **`ZoneWidth`/`ZoneHeight`** lens size. Because the lens grid is uniform, a Large `auto`
+   nudge pans it exactly one zone cell — a movable lens, no regeneration.
+
+## Key design points
+
+- `OverlayKeyAction.Fast` → `Tier` (`NudgeTier { Small, Medium, Large }`). `Classify`
+  matches the Shift+key against three configurable 4-key sets; `Dispatch` →
+  `_vm.Nudge(tier, dx, dy)`. **The VM resolves the step** (per-axis + `auto` → cellW/cellH),
+  which keeps `Classify` pure/testable and lets `auto` use VM state.
+- Zone-filled lens: `ZoneService.CenteredLens(zoneCenter, W, H)`; the `buildZoneSession`
+  delegate fills it via the existing `EnumGridHintsForBounds`, rebases hint bounds to the
+  monitor, sets `OwningWindowBounds = monitor`. `PointHint` targets stay absolute → clicks
+  correct, overlay stays full-screen.
+- Reused `EnumGridHintsForBounds` + `RebaseTo`; no new grid code.
+
+## Verification (evidence)
+
+- **CI** `.github/workflows/build.yml` run `30692159481` (commit `38daed4`,
+  windows-latest): Build (Release, Any CPU) ✓, Test ✓, artifact uploaded. `Total tests:
+  191  Passed: 191  Failed: 0`. Green on first try.
+- New tests: `ParseNudgeStep`/`ParseNudgeKeys` theories, `CenteredLens`, and nudge-tier
+  tests (`Shift+uiop`=Large, `Shift+m , . /`=Small, `Ctrl+Shift+<row>`→None, plain
+  u/m=AppendChar, arrow Medium / Shift-arrow Large). Existing `Classify` tests updated
+  `Fast`→`Tier`.
+- **Shipped** drop to `$HAP_WIN_TEST_DIR/hap-zones2/`; shipped `hap.exe.config` confirmed
+  to contain the new keys (`NudgeStepSmall=3,3`, `NudgeStepLarge=auto`, `NudgeKeysLarge=
+  U,I,O,P`, `ZoneGridStep=30`, `ZoneWidth=0`).
+
+## Still to do (manual, Windows box)
+
+Quit the old `hap.exe` (tray → Exit), launch `hap-zones2\hap.exe`, set
+`ZoneZoomEnabled=true` in `hap.exe.config`, then verify: (a) zone-filled badge at screen
+bottom-center + no clipping; (b) `ZoneGridStep` density; (c) `Shift+uiop`=Large,
+`Shift+hjkl`=Medium, `Shift+m , . /`=Small pan, and `NudgeStepLarge=auto` snaps one zone;
+(d) `ZoneWidth=500,ZoneHeight=500` → 500×500 centered lens; (e) `Ctrl+Shift+hjkl` passes
+through; (f) non-zone mode unchanged (`3` still cycles the main grid); (g) `/hint`,`/tray`
+unaffected.

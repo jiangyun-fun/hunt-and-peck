@@ -85,3 +85,13 @@ passthrough; non-zone `3` still cycles; `/hint`,`/tray` unaffected.
 1. Config layer + parser tests. 2. Hook (Tier/Classify/Dispatch) + tests. 3. VM Nudge + lens
 + ZoneService.CenteredLens + test. 4. ShellViewModel zone layout + lens delegate. 5. Options
 dialog + CLAUDE.md. 6. Build + tests + ship + report.
+
+## Outcome (actual)
+
+- **CI green first try** — run `30692159481` (commit `38daed4`): Build + Test + artifact ✓.
+  `Total tests: 191  Passed: 191`. (Was 167; +24 new nudge/lens/parser tests.)
+- Implemented exactly as planned; no architectural deviation. Reused `EnumGridHintsForBounds`
+  + `RebaseTo`; `Classify` stayed pure.
+- **Shipped** to `$HAP_WIN_TEST_DIR/hap-zones2/` (shipped config verified to carry the new
+  keys). Manual Windows verification still pending.
+- Report: `20260801-164004_zone-ux-followups.report.qmd`.
