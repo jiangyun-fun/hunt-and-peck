@@ -25,9 +25,11 @@ src/
     Services/
       UiAutomationHintProviderService.cs   hint enumeration (Grid + Automation)
       HintLabelService.cs                  vimium hint-string generation
-      OverlayActionConfig.cs               App.config readers (click modes, nudge, font, hotkey, timing)
-      KeyListenerService.cs                global hotkeys (RegisterHotKey)
+      OverlayActionConfig.cs               App.config readers (click modes, nudge, font, hotkey, timing, zones)
+      KeyListenerService.cs                global hotkeys (RegisterHotKey) + quadrant hotkeys
       OverlayKeyboardHook.cs               global LL keyboard/mouse hook for overlay input (non-activating)
+                                         + persistent Alt/Capslock tracker (above AutoHotkey)
+      ZoneService.cs                       type-to-zoom zone helpers (slice, pick session, centered lens)
       TimingLog.cs                         optional latency log (gated by TimingLogEnabled)
     ViewModels/
       ShellViewModel.cs         hotkey → enumerate → merge taskbar → show overlay
@@ -174,6 +176,13 @@ typed).
   is tracked from the raw hook events (not `GetAsyncKeyState`), so it still detects a
   Capslock AutoHotkey has neutralized for a custom combo — letting `Capslock+f` toggle
   continuous mode on the 2nd press. Also lets you Alt+Tab between apps mid-overlay.
+  A **persistent tracker hook** (armed once at app startup, above AutoHotkey) keeps this
+  state accurate even when an overlay opens while a modifier is already held (e.g. hold
+  Capslock and tap quadrant hotkeys). **Caveat:** if your AHK script fully remaps Capslock
+  (e.g. `CapsLock::Send, _`), the tracker must sit above AHK's hook, which only holds when
+  hap started *after* the last AHK reload — so **restart `hap.exe` after reloading your AHK
+  script** if Capslock combos stop passing through. (Raw input does not help here: AHK's
+  remap intercepts Capslock at the low-level-hook layer before raw input is generated.)
 - **Backtick dims the labels**: drops label opacity to the configured dim level
   (default ~20%, `HintDimOpacity`) so the text passage behind is readable, then press
   again to restore. Keys stay captured, so labels stay typeable while dim (you can still
