@@ -1,0 +1,75 @@
+---
+title: "Type-to-Zoom Zones — Completion Report"
+author: "Yun Jiang"
+date: "2026-08-01"
+---
+
+# Report — Type-to-Zoom Zones
+
+**Status: implemented; CI green (build + 167/167 tests).** Manual Windows verification
+still pending (the dev box is Linux; GUI runtime testing happens on the Windows box).
+
+Plan: [`20260731-2020337_type-to-zoom-zones.plan.qmd`](./20260731-2020337_type-to-zoom-zones.plan.qmd).
+
+## What was done
+
+An opt-in **type-to-zoom zones** mode for the Grid + Screen overlay. With
+`ZoneZoomEnabled=true`, the overlay opens with a `ZoneCols`×`ZoneRows` (default 3×3)
+grid of large 1-char zone labels over the foreground monitor; type a zone label → the
+overlay zooms into that zone's sub-rectangle and fills it with the fine grid (well under
+the `HintCharacters²` cap → dense labels AND more 1-char labels); type the target label
+to fire. This kills both pains the user raised — sparse labels (cap-driven coarsening)
+and long labels — at once, without touching the renderer or the pure key classifier.
+
+## Key results
+
+- **Zero-change reuse**: a zone fine-grid session is the existing
+  `EnumGridHintsForBounds(hWnd, zoneRect, layout)`. `PointHint` stores absolute screen
+  coords, so clicks stay correct and the overlay auto-resizes to the zone via the
+  existing `Bounds` subscription — no coordinate fixup, no new grid code.
+- **Renderer untouched**: `HintCanvas` keeps a global per-session font size, so big zone
+  labels come from swapping the size *string* per phase (`EffectiveFontSize`), not a
+  per-hint render change. The normal path is byte-identical (`_zonePhase` defaults to
+  `Normal`).
+- **Classifier untouched**: `OverlayKeyboardHook.Classify` (pure, unit-tested) is
+  unchanged; the zone-pick branch lives in `Dispatch` (one line), routed via a public
+  `IsZonePick` flag.
+- **`3` keeps working** in zone mode (regenerates the current zone with the next preset);
+  **Continuous stays in zone** by default (`ZoneZoomReturnToPickOnFire` opts back to the
+  pick view). Tab monitor-cycling is disabled in zone mode (foreground monitor only).
+
+## Files
+
+- New: `src/HuntAndPeck/Services/ZoneService.cs` (pure `SliceIntoZones` /
+  `LabelToIndexMap` / `BuildPickSession`), `src/HuntAndPeck.Tests/Services/ZoneServiceTest.cs`.
+- Modified: `OverlayViewModel.cs` (zone state machine + ctor),
+  `OverlayKeyboardHook.cs` (Dispatch branch), `OverlayActionConfig.cs` (`ParseBool` + 5
+  zone `Read*`), `ShellViewModel.cs` (`BuildZoneOverlayViewModel` + gate),
+  `OverlayView.xaml` (zone badge), `App.config` (5 keys), both `.csproj` (Compile +
+  WindowsBase test ref), `OverlayActionConfigTest.cs` (`ParseBool` theory), `CLAUDE.md`.
+
+## Verification (evidence)
+
+- **CI** `.github/workflows/build.yml` run `30687444861` (commit `3d77654`,
+  `jiangyun-fun/hunt-and-peck`, windows-latest): all steps ✓ — Build (Release, Any CPU),
+  Test, Upload artifact. `Total tests: 167  Passed: 167  Failed: 0`. (`gh run watch …
+  --exit-status` → exit 0.)
+- **Unit tests added**: `ZoneServiceTest` (slice geometry, label map, pick-session
+  bounds) + `ParseBool` theory. Existing `OverlayKeyboardHookTest` stayed green
+  (`Classify` unchanged).
+- **First CI run** (`30631165064`, commit `0b866ee`) failed 1/167: a wrong *expected
+  value* in `ZoneServiceTest.SliceIntoZones_NonZeroOrigin_OffsetsCells` (I wrote the
+  monitor's bottom-right corner `(400,500)` instead of the BR cell's top-left
+  `(300,400)`; the code was correct). Fixed test-only in `3d77654`.
+
+## Still to do (manual, Windows box)
+
+Cannot be done on Linux (WPF/.NET 4.5.1, Windows-only). Use the `ship-drop` skill to
+deliver the `HuntAndPeck-Release` artifact, then verify by hand:
+
+- `ZoneZoomEnabled=false` → no regression (full-monitor grid, no zone badge).
+- `=true`, Grid+Screen → 9 large zone labels; type a zone → overlay zooms to the zone,
+  dense short labels; type target → cursor lands at the correct absolute screen coord.
+- Esc semantics (ZoneFilled→pick, ZonePick→close); Continuous stay-in-zone vs
+  `ZoneZoomReturnToPickOnFire`; `3` cycles layout in zone; Tab no-op; `/hint`,`/tray`
+  unaffected; high-DPI legibility of `ZoneFontSize`.

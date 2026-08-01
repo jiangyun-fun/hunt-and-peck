@@ -106,7 +106,25 @@ Two‑phase state machine on `OverlayViewModel`, reusing the session‑swap prec
 - Extend `OverlayActionConfigTest.cs`: `ParseBool` theory.
 - `OverlayKeyboardHookTest` stays green (`Classify` unchanged).
 
-## Verification
+## Outcome (actual)
+
+- **CI green** — `.github/workflows/build.yml` run `30687444861` (commit `3d77654`,
+  windows-latest): Build (Release, Any CPU) ✓, Test ✓, Upload artifact ✓.
+  `Total tests: 167  Passed: 167  Failed: 0`.
+- First run (`30631165064`, `0b866ee`) failed 1/167 on a wrong *test expectation*
+  (`SliceIntoZones_NonZeroOrigin_OffsetsCells` used the monitor's bottom-right corner
+  instead of the BR cell's top-left; the code was correct). Fixed test-only.
+- Implementation matched this plan as-written (no architectural deviation); the only
+  late fix was the test expectation above.
+- **Manual Windows verification still pending** (dev box is Linux; GUI runtime testing
+  is on the Windows box): ship via `ship-drop`, then check `ZoneZoomEnabled=false`
+  (no regression) and `=true` (9 zones → drill → fire at correct absolute coord; Esc
+  semantics; continuous stay-in-zone vs `ZoneZoomReturnToPickOnFire`; `3` cycles; Tab
+  no-op; `/hint`,`/tray` unaffected; high-DPI legibility).
+
+Report: `20260801-141817_type-to-zoom-zones.report.qmd`.
+
+## Verification (planned)
 
 CI (`.github/workflows/build.yml`, windows‑latest): `nuget restore` → `msbuild
 /p:Configuration=Release /p:Platform="Any CPU"` → `vstest`. Must compile (every
