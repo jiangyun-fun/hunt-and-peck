@@ -46,7 +46,9 @@ namespace HuntAndPeck.Tests.Services
             var zones = ZoneService.SliceIntoZones(monitor, 3, 3);
 
             Assert.Equal(new Rect(100, 200, 100, 100), zones[0]);
-            Assert.Equal(new Rect(400, 500, 100, 100), zones[8]); // BR still 100x100
+            // BR cell (r=2, c=2): top-left = origin + 2*cell, still 100x100; its
+            // bottom-right corner (400, 500) is the monitor's bottom-right corner.
+            Assert.Equal(new Rect(300, 400, 100, 100), zones[8]);
         }
 
         [Fact]
