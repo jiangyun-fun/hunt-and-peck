@@ -112,9 +112,11 @@ Two kinds of settings:
 - **Hot-reload** (read each trigger; edit `hap.exe.config`, save, re-trigger):
   `HintSource`, `HintBoundsSource`, `OverlayTriggerMode`, `GridEdgeStep`,
   `GridCenterStep`, `GridDenseRegions`, `GridInset`, `GridEdgeBandPercent`,
-  `HintCharacters`, `HintFontSize`, `HintPillOpacity`, `HintDimOpacity`, `NudgeStep`,
-  `NudgeStepFast`, `ClickModeOrder`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
-  `ZoneZoomEnabled`, `ZoneCols`, `ZoneRows`, `ZoneFontSize`, `ZoneZoomReturnToPickOnFire`.
+  `HintCharacters`, `HintFontSize`, `HintPillOpacity`, `HintDimOpacity`,
+  `NudgeStepSmall`, `NudgeStepMedium`, `NudgeStepLarge`, `NudgeKeysSmall`, `NudgeKeysMedium`, `NudgeKeysLarge`,
+  `ClickModeOrder`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
+  `ZoneZoomEnabled`, `ZoneCols`, `ZoneRows`, `ZoneFontSize`, `ZoneZoomReturnToPickOnFire`,
+  `ZoneGridStep`, `ZoneWidth`, `ZoneHeight`.
   (`ActiveLayout` is also in appSettings but is rewritten by the `;` key, not hand-edited.)
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
@@ -152,10 +154,13 @@ typed).
   overlay. Set `ArrowKeyBehavior=Pan` to restore legacy arrow-panning (plain arrows 3 px,
   `Shift` 15 px). The **numpad** arrow keys (NumLock off) always pass through so a numpad-mouse
   tool (e.g. AutoHotkey `*NumpadRight`) keeps working while the overlay is up.
-- **hjkl pans the labels** (Vim-style): `Shift+hjkl` = large step (`NudgeStepFast`, 15 px),
-  `Ctrl+Shift+hjkl` = small step (`NudgeStep`, 3 px); `h`=←, `j`=↓, `k`=↑, `l`=→. Plain `hjkl`
-  still type hint chars (Shift is the pan gate), so label-typing is unaffected. `Win+Shift+hjkl`
-  passes through (not captured).
+- **Nudge (label pan), 3 tiers** (Vim-style): `Shift+uiop` = Large, `Shift+hjkl` = Medium,
+  `Shift+m , . /` = Small; each row maps positional L,D,U,R (`u/m`=←, `i/,`=↓, `o/.`=↑, `p//`=→).
+  Plain row keys still type hint chars (Shift is the pan gate), so label-typing is unaffected.
+  Each tier's step is `NudgeStep*` = `X,Y` px (X for ←/→, Y for ↑/↓) or `auto` (= the current
+  zone's cell size, so one Large nudge traverses exactly one zone). Defaults: Small 3,3 ;
+  Medium 15,15 ; Large auto. Dedicated arrows (when `ArrowKeyBehavior=Pan`) use Medium (plain)
+  / Large (Shift). `Ctrl+Shift+<row>` and `Win+Shift+<row>` pass through (not captured).
 - **Space** cycles the click mode (badge bottom-center): `Left → Right → Double → Move`
   (`ClickModeOrder`, wraps). `Move` positions without clicking. In continuous mode the
   mode reverts to the first (Left) after every click.
@@ -193,16 +198,20 @@ typed).
   off): instead of labeling the whole monitor at once (which the `HintCharacters²` cap
   auto-coarsens into a sparse grid), the overlay opens with a `ZoneCols`×`ZoneRows`
   (default 3×3) grid of large 1-char zone labels over the current monitor. Type a zone
-  label → the overlay zooms into that zone's sub-rectangle and fills it with the fine
-  grid (~1/9 the points → under the cap → dense labels AND more 1-char labels); type the
-  target label to fire. `Esc` (empty) returns to the zone-pick view; `Esc` again closes.
-  In Continuous mode the overlay stays in the zone after each click (set
-  `ZoneZoomReturnToPickOnFire=true` to re-zoom to the pick view each time). `3` cycles
-  the layout preset within the current zone; `Tab` monitor-cycling is disabled in zone
-  mode (foreground monitor only). Requires `ZoneCols*ZoneRows ≤ HintCharacters` count
-  (every zone needs a single-char label); otherwise zones are skipped and the overlay
-  falls back to the full-monitor grid. `ZoneFontSize` (default 20) sizes the pick labels.
-  Automation / Grid+Window / the `/hint`,`/tray` headless paths ignore zones.
+  label → the overlay fills a **lens** (a `ZoneWidth`×`ZoneHeight` window, default the
+  auto cell size, centered on the zone) with a uniform fine grid at `ZoneGridStep` (under
+  the cap → dense labels AND more 1-char labels); the overlay stays full-screen (badge
+  screen-centered, labels not clipped). Because the lens grid is uniform, a Large nudge
+  of `auto` pans it by exactly one zone cell (h/l horizontally, j/k vertically) — a
+  movable lens over the screen. Type the target label to fire. `Esc` (empty) returns to
+  the zone-pick view; `Esc` again closes. In Continuous mode the overlay stays in the
+  zone after each click (set `ZoneZoomReturnToPickOnFire=true` to re-zoom to the pick
+  view each time). `3` does nothing in zone mode (zones use a single `ZoneGridStep`);
+  `Tab` monitor-cycling is disabled (foreground monitor only). Requires `ZoneCols*ZoneRows
+  ≤ HintCharacters` count (every zone needs a single-char label); otherwise zones are
+  skipped and the overlay falls back to the full-monitor grid. `ZoneFontSize` (default 20)
+  sizes the pick labels. Automation / Grid+Window / the `/hint`,`/tray` headless paths
+  ignore zones.
 - **Labels are slightly transparent by design**: the pill fill is α≈0.8 by default
   (softened yellow, background peeks through) while the text stays fully opaque
   (crisp). Configurable via `HintPillOpacity` (0-100 percent; hot-reload). Base mode

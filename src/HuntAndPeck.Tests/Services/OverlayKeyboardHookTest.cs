@@ -1,5 +1,6 @@
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services;
+using System.Windows.Forms;
 using Xunit;
 
 namespace HuntAndPeck.Tests.Services
@@ -73,15 +74,15 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal(OverlayKeyActionKind.Nudge, act.Kind);
             Assert.Equal(dx, act.Dx);
             Assert.Equal(dy, act.Dy);
-            Assert.False(act.Fast);
+            Assert.Equal(NudgeTier.Medium, act.Tier);
         }
 
         [Fact]
-        public void ShiftArrow_IsFastNudge()
+        public void ShiftArrow_IsLargeNudge()
         {
             var act = OverlayKeyboardHook.Classify(User32.VK_UP, true, false);
             Assert.Equal(OverlayKeyActionKind.Nudge, act.Kind);
-            Assert.True(act.Fast);
+            Assert.Equal(NudgeTier.Large, act.Tier);
         }
 
         [Theory]
@@ -221,37 +222,74 @@ namespace HuntAndPeck.Tests.Services
                 OverlayKeyboardHook.Classify(vk, false, true).Kind);
         }
 
-        // ---- hjkl label-pan (h=left, j=down, k=up, l=right) ----
+        // ---- nudge tiers (Shift+row). Plain row keys still type labels. ----
+        // Medium = hjkl, Large = uiop, Small = m , . /  (positional L,D,U,R).
 
         [Theory]
         [InlineData(User32.VK_H, -1, 0)]
         [InlineData(User32.VK_J, 0, 1)]
         [InlineData(User32.VK_K, 0, -1)]
         [InlineData(User32.VK_L, 1, 0)]
-        public void ShiftHjkl_IsLargeNudge(int vk, int dx, int dy)
+        public void ShiftHjkl_IsMediumNudge(int vk, int dx, int dy)
         {
-            // Shift+hjkl pans all labels by the large step (NudgeStepFast).
+            // Shift+hjkl pans by the Medium step.
             var act = OverlayKeyboardHook.Classify(vk, true, false);
             Assert.Equal(OverlayKeyActionKind.Nudge, act.Kind);
             Assert.Equal(dx, act.Dx);
             Assert.Equal(dy, act.Dy);
-            Assert.True(act.Fast);
+            Assert.Equal(NudgeTier.Medium, act.Tier);
         }
 
         [Theory]
-        [InlineData(User32.VK_H, -1, 0)]
-        [InlineData(User32.VK_J, 0, 1)]
-        [InlineData(User32.VK_K, 0, -1)]
-        [InlineData(User32.VK_L, 1, 0)]
-        public void CtrlShiftHjkl_IsSmallNudge(int vk, int dx, int dy)
+        [InlineData((int)Keys.U, -1, 0)]
+        [InlineData((int)Keys.I, 0, 1)]
+        [InlineData((int)Keys.O, 0, -1)]
+        [InlineData((int)Keys.P, 1, 0)]
+        public void ShiftUiop_IsLargeNudge(int vk, int dx, int dy)
         {
-            // Ctrl+Shift+hjkl pans by the small step (NudgeStep) -- still captured even
-            // though Ctrl is held, because the hjkl branch runs before the ctrl gate.
-            var act = OverlayKeyboardHook.Classify(vk, true, true);
+            // Shift+uiop pans by the Large step (default "auto" = one zone cell).
+            var act = OverlayKeyboardHook.Classify(vk, true, false);
             Assert.Equal(OverlayKeyActionKind.Nudge, act.Kind);
             Assert.Equal(dx, act.Dx);
             Assert.Equal(dy, act.Dy);
-            Assert.False(act.Fast);
+            Assert.Equal(NudgeTier.Large, act.Tier);
+        }
+
+        [Theory]
+        [InlineData((int)Keys.M, -1, 0)]
+        [InlineData((int)Keys.Oemcomma, 0, 1)]
+        [InlineData((int)Keys.OemPeriod, 0, -1)]
+        [InlineData((int)Keys.Oem2, 1, 0)]
+        public void ShiftMOem_IsSmallNudge(int vk, int dx, int dy)
+        {
+            // Shift+m , . / pans by the Small step.
+            var act = OverlayKeyboardHook.Classify(vk, true, false);
+            Assert.Equal(OverlayKeyActionKind.Nudge, act.Kind);
+            Assert.Equal(dx, act.Dx);
+            Assert.Equal(dy, act.Dy);
+            Assert.Equal(NudgeTier.Small, act.Tier);
+        }
+
+        [Theory]
+        [InlineData(User32.VK_H)]
+        [InlineData((int)Keys.U)]
+        [InlineData((int)Keys.M)]
+        public void CtrlShiftNudgeKey_PassesThrough(int vk)
+        {
+            // Ctrl+Shift+<nudge row> is retired; Ctrl makes it an app shortcut -> None.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(vk, true, true).Kind);
+        }
+
+        [Theory]
+        [InlineData((int)Keys.U, 'U')]
+        [InlineData((int)Keys.M, 'M')]
+        public void PlainNudgeKey_StillAppendsChar(int vk, char expected)
+        {
+            // Plain (no Shift) nudge-row keys still type label chars.
+            var act = OverlayKeyboardHook.Classify(vk, false, false);
+            Assert.Equal(OverlayKeyActionKind.AppendChar, act.Kind);
+            Assert.Equal(expected, act.Char);
         }
 
         [Fact]

@@ -54,6 +54,19 @@ namespace HuntAndPeck.Services
     }
 
     /// <summary>
+    /// A label-pan step for one nudge tier. <see cref="IsAuto"/> means "match the current
+    /// zone cell" (cellW for horizontal, cellH for vertical) so a Large nudge traverses
+    /// exactly one zone; otherwise <see cref="X"/> (h/l) and <see cref="Y"/> (j/k) are
+    /// independent pixel amounts (per-axis so horizontal and vertical can differ).
+    /// </summary>
+    public struct NudgeStep
+    {
+        public bool IsAuto;
+        public int X;
+        public int Y;
+    }
+
+    /// <summary>
     /// Reads overlay and hotkey settings from hap.exe.config. Parsing is split
     /// into pure methods (unit-tested) and ConfigurationManager wrappers.
     /// Unknown or missing values fall back to safe defaults so a bad config
@@ -165,6 +178,63 @@ namespace HuntAndPeck.Services
             if (t == "1") return true;
             if (t == "0") return false;
             return defaultValue;
+        }
+
+        /// <summary>
+        /// Parses a per-axis nudge step: "<c>x,y</c>" (two positive px values), the literal
+        /// "<c>auto</c>" (match the current zone cell), or <paramref name="defaultValue"/>
+        /// when blank/malformed. Pure + unit-tested.
+        /// </summary>
+        public static NudgeStep ParseNudgeStep(string raw, NudgeStep defaultValue)
+        {
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                var t = raw.Trim();
+                if (string.Equals(t, "auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new NudgeStep { IsAuto = true };
+                }
+                var parts = t.Split(',');
+                int x, y;
+                if (parts.Length == 2
+                    && int.TryParse(parts[0].Trim(), out x)
+                    && int.TryParse(parts[1].Trim(), out y)
+                    && x > 0 && y > 0)
+                {
+                    return new NudgeStep { X = x, Y = y };
+                }
+            }
+            return defaultValue;
+        }
+
+        /// <summary>
+        /// Parses 4 virtual-key codes (the L,D,U,R nudge keys for one tier) from a
+        /// comma-separated list of <see cref="Keys"/> names. Returns <paramref name="fallback"/>
+        /// when blank, not exactly 4 names, or any name is unrecognized. Pure + unit-tested.
+        /// (<see cref="Keys"/> values are virtual-key codes, so the int cast is the VK code.)
+        /// </summary>
+        public static int[] ParseNudgeKeys(string raw, int[] fallback)
+        {
+            if (string.IsNullOrWhiteSpace(raw) || fallback == null || fallback.Length != 4)
+            {
+                return fallback;
+            }
+            var parts = raw.Split(',');
+            if (parts.Length != 4)
+            {
+                return fallback;
+            }
+            var result = new int[4];
+            for (int i = 0; i < 4; i++)
+            {
+                Keys k;
+                if (!Enum.TryParse(parts[i].Trim(), true, out k))
+                {
+                    return fallback;
+                }
+                result[i] = (int)k;
+            }
+            return result;
         }
 
         /// <summary>
@@ -295,10 +365,86 @@ namespace HuntAndPeck.Services
             return any ? result : fallback;
         }
 
-        /// <summary>Plain-arrow pan step (px). Default 3.</summary>
-        public static int ReadNudgeStep()
+        // Default nudge key sets (VK codes), in L,D,U,R order. Keys values ARE VK codes,
+        // so the int cast is the VK code Classify compares against.
+        private static readonly int[] DefaultSmallNudgeKeys =
+            { (int)Keys.M, (int)Keys.Oemcomma, (int)Keys.OemPeriod, (int)Keys.Oem2 };
+        private static readonly int[] DefaultMediumNudgeKeys =
+            { (int)Keys.H, (int)Keys.J, (int)Keys.K, (int)Keys.L };
+        private static readonly int[] DefaultLargeNudgeKeys =
+            { (int)Keys.U, (int)Keys.I, (int)Keys.O, (int)Keys.P };
+
+        /// <summary>
+        /// Small-tier pan step (hot-reload) for Shift+m , . / : "x,y" px or "auto".
+        /// Default "3,3".
+        /// </summary>
+        public static NudgeStep ReadNudgeStepSmall()
         {
-            return ReadIntSetting("NudgeStep", 3);
+            try
+            {
+                EnsureFresh();
+                return ParseNudgeStep(ConfigurationManager.AppSettings["NudgeStepSmall"], new NudgeStep { X = 3, Y = 3 });
+            }
+            catch (Exception)
+            {
+                return new NudgeStep { X = 3, Y = 3 };
+            }
+        }
+
+        /// <summary>
+        /// Medium-tier pan step (hot-reload) for Shift+hjkl: "x,y" px or "auto".
+        /// Default "15,15".
+        /// </summary>
+        public static NudgeStep ReadNudgeStepMedium()
+        {
+            try
+            {
+                EnsureFresh();
+                return ParseNudgeStep(ConfigurationManager.AppSettings["NudgeStepMedium"], new NudgeStep { X = 15, Y = 15 });
+            }
+            catch (Exception)
+            {
+                return new NudgeStep { X = 15, Y = 15 };
+            }
+        }
+
+        /// <summary>
+        /// Large-tier pan step (hot-reload) for Shift+uiop: "x,y" px or "auto" (auto = the
+        /// current zone's cellW/cellH, so one Large nudge traverses exactly one zone).
+        /// Default "auto".
+        /// </summary>
+        public static NudgeStep ReadNudgeStepLarge()
+        {
+            try
+            {
+                EnsureFresh();
+                return ParseNudgeStep(ConfigurationManager.AppSettings["NudgeStepLarge"], new NudgeStep { IsAuto = true });
+            }
+            catch (Exception)
+            {
+                return new NudgeStep { IsAuto = true };
+            }
+        }
+
+        /// <summary>The 4 VK codes (L,D,U,R) for the small tier (hot-reload). Default m , . /.</summary>
+        public static int[] ReadNudgeKeysSmall()
+        {
+            try { EnsureFresh(); return ParseNudgeKeys(ConfigurationManager.AppSettings["NudgeKeysSmall"], DefaultSmallNudgeKeys); }
+            catch (Exception) { return DefaultSmallNudgeKeys; }
+        }
+
+        /// <summary>The 4 VK codes (L,D,U,R) for the medium tier (hot-reload). Default h j k l.</summary>
+        public static int[] ReadNudgeKeysMedium()
+        {
+            try { EnsureFresh(); return ParseNudgeKeys(ConfigurationManager.AppSettings["NudgeKeysMedium"], DefaultMediumNudgeKeys); }
+            catch (Exception) { return DefaultMediumNudgeKeys; }
+        }
+
+        /// <summary>The 4 VK codes (L,D,U,R) for the large tier (hot-reload). Default u i o p.</summary>
+        public static int[] ReadNudgeKeysLarge()
+        {
+            try { EnsureFresh(); return ParseNudgeKeys(ConfigurationManager.AppSettings["NudgeKeysLarge"], DefaultLargeNudgeKeys); }
+            catch (Exception) { return DefaultLargeNudgeKeys; }
         }
 
         /// <summary>
@@ -359,10 +505,31 @@ namespace HuntAndPeck.Services
             }
         }
 
-        /// <summary>Shift+arrow pan step (px). Default 15.</summary>
-        public static int ReadNudgeStepFast()
+        /// <summary>
+        /// Uniform in-zone grid step in px (hot-reload). The zone-filled grid is a uniform
+        /// grid at this step (so translating it by one zone cell coincides with the next
+        /// zone). Default 30.
+        /// </summary>
+        public static int ReadZoneGridStep()
         {
-            return ReadIntSetting("NudgeStepFast", 15);
+            return ReadIntSetting("ZoneGridStep", 30);
+        }
+
+        /// <summary>
+        /// Zone-filled lens width in px (hot-reload); 0 = auto (= the monitor's auto cell
+        /// width). The fine grid fills a ZoneWidth x ZoneHeight window centered on the zone.
+        /// </summary>
+        public static int ReadZoneWidth()
+        {
+            try { EnsureFresh(); var raw = ConfigurationManager.AppSettings["ZoneWidth"]; int v; return int.TryParse(raw, out v) && v >= 0 ? v : 0; }
+            catch (Exception) { return 0; }
+        }
+
+        /// <summary>Zone-filled lens height in px (hot-reload); 0 = auto. See <see cref="ReadZoneWidth"/>.</summary>
+        public static int ReadZoneHeight()
+        {
+            try { EnsureFresh(); var raw = ConfigurationManager.AppSettings["ZoneHeight"]; int v; return int.TryParse(raw, out v) && v >= 0 ? v : 0; }
+            catch (Exception) { return 0; }
         }
 
         /// <summary>

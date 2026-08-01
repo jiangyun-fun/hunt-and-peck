@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 using System.Windows.Threading;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.ViewModels;
@@ -24,6 +25,12 @@ namespace HuntAndPeck.Services
     }
 
     /// <summary>
+    /// A label-pan step tier. Each tier has its own configurable 4-key row (L,D,U,R) and
+    /// a per-axis pixel step (read by the VM). Large defaults to "auto" (= one zone cell).
+    /// </summary>
+    internal enum NudgeTier { Small, Medium, Large }
+
+    /// <summary>
     /// A decoded overlay key action. <see cref="Classify"/> is a pure function of
     /// the virtual-key code and modifier state, so it is unit-testable without a
     /// window or a real hook.
@@ -34,7 +41,7 @@ namespace HuntAndPeck.Services
         public char Char;       // AppendChar
         public int Dx;          // Nudge unit direction (-1/0/1)
         public int Dy;          // Nudge unit direction (-1/0/1)
-        public bool Fast;       // Nudge with Shift held
+        public NudgeTier Tier;  // Nudge step tier
     }
 
     /// <summary>
@@ -205,7 +212,11 @@ namespace HuntAndPeck.Services
             // set; letters are always typeable. Read per keydown (EnsureFresh is a
             // stat, not a parse) so an Options change hot-reloads immediately.
             string labelChars = (OverlayActionConfig.ReadRawString("HintCharacters") ?? "").ToUpperInvariant();
-            var act = Classify(vk, shift, ctrl, win, extended, arrowPan, layoutCycle, labelChars);
+            int[] nudgeSmall = OverlayActionConfig.ReadNudgeKeysSmall();
+            int[] nudgeMedium = OverlayActionConfig.ReadNudgeKeysMedium();
+            int[] nudgeLarge = OverlayActionConfig.ReadNudgeKeysLarge();
+            var act = Classify(vk, shift, ctrl, win, extended, arrowPan, layoutCycle, labelChars,
+                nudgeSmall, nudgeMedium, nudgeLarge);
             if (act.Kind == OverlayKeyActionKind.None)
             {
                 return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
@@ -233,7 +244,8 @@ namespace HuntAndPeck.Services
         /// ArrowKeyBehavior=Pan); if false they pass through to the app beneath.</param>
         internal static OverlayKeyAction Classify(int vkCode, bool shift, bool ctrl,
             bool win = false, bool extended = true, bool arrowPan = true, bool layoutCycle = false,
-            string labelChars = null)
+            string labelChars = null,
+            int[] nudgeSmall = null, int[] nudgeMedium = null, int[] nudgeLarge = null)
         {
             if (vkCode == User32.VK_ESCAPE) return Action(OverlayKeyActionKind.Escape);
             if (vkCode == User32.VK_SPACE) return Action(OverlayKeyActionKind.CycleMode);
@@ -250,26 +262,30 @@ namespace HuntAndPeck.Services
                                      : OverlayKeyActionKind.CycleMonitorNext);
             }
 
-            // hjkl label-pan (Vim-style). Shift is required so plain hjkl still type
-            // hints; Ctrl picks the SMALL step (NudgeStep) and its absence the LARGE
-            // step (NudgeStepFast); Win is left for the OS so Win+Shift+hjkl passes
-            // through. Runs BEFORE the (ctrl||win) gate below because Ctrl+Shift+hjkl
-            // has ctrl==true and must still be captured.
-            if (shift && !win && IsHjkl(vkCode))
+            // Nudge chords: Shift + a configured tier key (no Ctrl/Win). Each tier's 4
+            // keys are [L,D,U,R]; the matched position gives the direction. Plain row keys
+            // (no Shift) still type hints. Ctrl+Shift+<row> is an app shortcut -> it passes
+            // through (the old Ctrl+Shift+hjkl small-pan is retired; use the Small tier).
+            if (shift && !ctrl && !win)
             {
-                return Nudge(HjklDx(vkCode), HjklDy(vkCode), fast: !ctrl);
+                int dir;
+                if (TryNudgeDir(vkCode, nudgeMedium ?? DefaultMediumKeys, out dir)) return Nudge(NudgeTier.Medium, DirDx(dir), DirDy(dir));
+                if (TryNudgeDir(vkCode, nudgeLarge ?? DefaultLargeKeys, out dir)) return Nudge(NudgeTier.Large, DirDx(dir), DirDy(dir));
+                if (TryNudgeDir(vkCode, nudgeSmall ?? DefaultSmallKeys, out dir)) return Nudge(NudgeTier.Small, DirDx(dir), DirDy(dir));
             }
 
             // Dedicated arrows: pan ONLY when arrowPan (legacy). When ArrowKeyBehavior
             // =Passthrough (default) they fall through to None so the app beneath gets
-            // them (Excel/list focus nav). Numpad nav keys (extended==false) always
-            // pass through regardless, so a numpad-mouse tool keeps working.
+            // them (Excel/list focus nav). Numpad nav keys (extended==false) always pass
+            // through regardless, so a numpad-mouse tool keeps working. Tier: plain arrow
+            // = Medium, Shift+arrow = Large.
             if (extended && arrowPan)
             {
-                if (vkCode == User32.VK_LEFT) return Nudge(-1, 0, shift);
-                if (vkCode == User32.VK_UP) return Nudge(0, -1, shift);
-                if (vkCode == User32.VK_RIGHT) return Nudge(1, 0, shift);
-                if (vkCode == User32.VK_DOWN) return Nudge(0, 1, shift);
+                var arrowTier = shift ? NudgeTier.Large : NudgeTier.Medium;
+                if (vkCode == User32.VK_LEFT) return Nudge(arrowTier, -1, 0);
+                if (vkCode == User32.VK_UP) return Nudge(arrowTier, 0, -1);
+                if (vkCode == User32.VK_RIGHT) return Nudge(arrowTier, 1, 0);
+                if (vkCode == User32.VK_DOWN) return Nudge(arrowTier, 0, 1);
             }
 
             // A Ctrl/Win chord (Alt is gated out above) is an app shortcut, not a label
@@ -363,14 +379,8 @@ namespace HuntAndPeck.Services
                 case OverlayKeyActionKind.Nudge:
                     int dx = act.Dx;
                     int dy = act.Dy;
-                    bool fast = act.Fast;
-                    return () =>
-                    {
-                        int step = fast
-                            ? OverlayActionConfig.ReadNudgeStepFast()
-                            : OverlayActionConfig.ReadNudgeStep();
-                        _vm.Nudge(dx * step, dy * step);
-                    };
+                    var tier = act.Tier;
+                    return () => _vm.Nudge(tier, dx, dy);
                 default:
                     return () => { };
             }
@@ -417,19 +427,34 @@ namespace HuntAndPeck.Services
         private static OverlayKeyAction Char(char c)
             => new OverlayKeyAction { Kind = OverlayKeyActionKind.AppendChar, Char = c };
 
-        private static OverlayKeyAction Nudge(int dx, int dy, bool fast)
-            => new OverlayKeyAction { Kind = OverlayKeyActionKind.Nudge, Dx = dx, Dy = dy, Fast = fast };
+        private static OverlayKeyAction Nudge(NudgeTier tier, int dx, int dy)
+            => new OverlayKeyAction { Kind = OverlayKeyActionKind.Nudge, Dx = dx, Dy = dy, Tier = tier };
 
-        // ---- hjkl direction decode (h=left, j=down, k=up, l=right) ----
+        // ---- configurable nudge-key decode ----
+        // Each tier's 4 keys are VK codes in [L, D, U, R] order. Keys enum values ARE VK
+        // codes, so the int cast is what Classify compares against. Defaults: Small=m , . /,
+        // Medium=h j k l, Large=u i o p (positional L,D,U,R like hjkl).
+        private static readonly int[] DefaultSmallKeys =
+            { (int)Keys.M, (int)Keys.Oemcomma, (int)Keys.OemPeriod, (int)Keys.Oem2 };
+        private static readonly int[] DefaultMediumKeys =
+            { (int)Keys.H, (int)Keys.J, (int)Keys.K, (int)Keys.L };
+        private static readonly int[] DefaultLargeKeys =
+            { (int)Keys.U, (int)Keys.I, (int)Keys.O, (int)Keys.P };
 
-        private static bool IsHjkl(int vkCode)
-            => vkCode == User32.VK_H || vkCode == User32.VK_J
-               || vkCode == User32.VK_K || vkCode == User32.VK_L;
+        /// <summary>True (and sets dir = 0=L,1=D,2=U,3=R) when <paramref name="vkCode"/> is keys[dir].</summary>
+        private static bool TryNudgeDir(int vkCode, int[] keys, out int dir)
+        {
+            dir = -1;
+            if (keys == null) return false;
+            for (int i = 0; i < keys.Length && i < 4; i++)
+            {
+                if (vkCode == keys[i]) { dir = i; return true; }
+            }
+            return false;
+        }
 
-        private static int HjklDx(int vkCode)
-            => vkCode == User32.VK_H ? -1 : vkCode == User32.VK_L ? 1 : 0;
-
-        private static int HjklDy(int vkCode)
-            => vkCode == User32.VK_J ? 1 : vkCode == User32.VK_K ? -1 : 0;
+        // dir 0=L (-1,0), 1=D (0,1), 2=U (0,-1), 3=R (1,0)
+        private static int DirDx(int dir) => dir == 0 ? -1 : dir == 3 ? 1 : 0;
+        private static int DirDy(int dir) => dir == 1 ? 1 : dir == 2 ? -1 : 0;
     }
 }

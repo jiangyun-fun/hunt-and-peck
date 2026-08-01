@@ -143,7 +143,7 @@ namespace HuntAndPeck.ViewModels
                 // through to the full-monitor grid when zones are off or unavailable.
                 if (OverlayActionConfig.ReadZoneZoomEnabled())
                 {
-                    var zoneVm = BuildZoneOverlayViewModel(hWnd, layouts, activeLayout);
+                    var zoneVm = BuildZoneOverlayViewModel(hWnd);
                     if (zoneVm != null)
                     {
                         sw.Stop();
@@ -256,14 +256,14 @@ namespace HuntAndPeck.ViewModels
         /// <summary>
         /// Builds a type-to-zoom zone <see cref="OverlayViewModel"/> for Grid + Screen +
         /// ZoneZoomEnabled. The overlay opens with cols×rows large zone labels over the
-        /// FOREGROUND monitor only (Tab monitor-cycling is disabled in zone mode);
-        /// typing a zone label drills into that zone via
-        /// <see cref="IHintProviderService.EnumGridHintsForBounds(IntPtr, Rect, GridLayout)"/>.
-        /// Returns null (so the caller falls back to the full-monitor grid) when the
-        /// zone grid cannot be built, e.g. cols*rows exceeds the configured
-        /// HintCharacters (zone labels would no longer be single-char).
+        /// FOREGROUND monitor only (Tab monitor-cycling is disabled in zone mode); typing
+        /// a zone label drills into a uniform fine-grid lens (ZoneGridStep) centered on the
+        /// zone (ZoneWidth×ZoneHeight, default the auto cell size). The lens session is
+        /// rebased to the full monitor so the overlay stays full-screen (badge centered,
+        /// nothing clipped). Returns null (-> caller falls back to the full-monitor grid)
+        /// when cols*rows exceeds HintCharacters (zone labels would not be single-char).
         /// </summary>
-        private OverlayViewModel BuildZoneOverlayViewModel(IntPtr hWnd, IList<GridLayout> layouts, int activeLayout)
+        private OverlayViewModel BuildZoneOverlayViewModel(IntPtr hWnd)
         {
             var screen = Screen.FromHandle(hWnd) ?? Screen.PrimaryScreen;
             if (screen == null)
@@ -277,27 +277,52 @@ namespace HuntAndPeck.ViewModels
             int rows = OverlayActionConfig.ReadZoneRows();
             int zoneCount = cols * rows;
 
-            // Gate: every zone needs a single-char label, so the zone count must fit
-            // the configured HintCharacters. On failure, return null so the caller
-            // falls back to the full-monitor grid instead of ambiguous multi-char zones.
+            // Gate: every zone needs a single-char label, so the zone count must fit the
+            // configured HintCharacters. On failure, return null so the caller falls back
+            // to the full-monitor grid instead of ambiguous multi-char zones.
             int hintChars = HintCharacterCount();
             if (zoneCount <= 0 || zoneCount > hintChars)
             {
                 return null;
             }
 
+            // The in-zone grid is uniform at ZoneGridStep (Center-only => edge-to-edge fill),
+            // so translating it by one cell-width coincides with the next zone (pan-lens).
+            int step = OverlayActionConfig.ReadZoneGridStep();
+            var zoneLayout = new GridLayout
+            {
+                EdgeStep = step,
+                CenterStep = step,
+                Inset = 0,
+                BandPercent = 0,
+                DenseRegions = "Center"
+            };
+
             var pickSession = ZoneService.BuildPickSession(hWnd, monitor, cols, rows, 10.0);
             return new OverlayViewModel(
                 pickSession,
                 _hintLabelService,
-                layouts,
-                activeLayout,
                 monitor,
                 cols,
                 rows,
                 OverlayActionConfig.ReadZoneFontSize(),
+                OverlayActionConfig.ReadZoneWidth(),
+                OverlayActionConfig.ReadZoneHeight(),
                 OverlayActionConfig.ReadZoneReturnToPickOnFire(),
-                (zoneRect, lay) => _hintProviderService.EnumGridHintsForBounds(hWnd, zoneRect, lay));
+                lensRect =>
+                {
+                    var s = _hintProviderService.EnumGridHintsForBounds(hWnd, lensRect, zoneLayout);
+                    if (s != null)
+                    {
+                        // Keep the overlay full-screen: rebase hint render-rects from the
+                        // lens origin to the monitor origin and report the full monitor as
+                        // OwningWindowBounds. PointHint cursor targets are already absolute,
+                        // so clicks stay correct.
+                        RebaseTo(s.Hints, lensRect.Left - monitor.Left, lensRect.Top - monitor.Top);
+                        s.OwningWindowBounds = monitor;
+                    }
+                    return s;
+                });
         }
 
         /// <summary>

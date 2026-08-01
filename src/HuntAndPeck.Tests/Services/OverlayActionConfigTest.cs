@@ -49,6 +49,54 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Theory]
+        [InlineData("15,15", 3, 3, 15, 15, false)]   // basic
+        [InlineData("450,500", 3, 3, 450, 500, false)] // per-axis (x != y)
+        [InlineData("auto", 3, 3, 0, 0, true)]        // auto
+        [InlineData("AUTO", 3, 3, 0, 0, true)]        // case-insensitive
+        [InlineData("", 7, 9, 7, 9, false)]           // blank -> default
+        [InlineData("1", 7, 9, 7, 9, false)]          // not x,y -> default
+        [InlineData("0,5", 7, 9, 7, 9, false)]        // non-positive -> default
+        [InlineData("-3,5", 7, 9, 7, 9, false)]
+        [InlineData(null, 7, 9, 7, 9, false)]
+        public void ParseNudgeStep_ParsesOrAutoOrDefault(string raw, int defX, int defY, int expX, int expY, bool expAuto)
+        {
+            var s = OverlayActionConfig.ParseNudgeStep(raw, new NudgeStep { X = defX, Y = defY });
+            Assert.Equal(expAuto, s.IsAuto);
+            Assert.Equal(expX, s.X);
+            Assert.Equal(expY, s.Y);
+        }
+
+        [Fact]
+        public void ParseNudgeKeys_FourKeys_ReturnsVkCodes()
+        {
+            var k = OverlayActionConfig.ParseNudgeKeys("H,J,K,L", new[] { 0, 0, 0, 0 });
+            Assert.Equal(new[] { (int)Keys.H, (int)Keys.J, (int)Keys.K, (int)Keys.L }, k);
+        }
+
+        [Fact]
+        public void ParseNudgeKeys_WrongCount_ReturnsFallback()
+        {
+            var fb = new[] { 1, 2, 3, 4 };
+            Assert.Same(fb, OverlayActionConfig.ParseNudgeKeys("H,J", fb));
+            Assert.Same(fb, OverlayActionConfig.ParseNudgeKeys("H,J,K,L,M", fb));
+        }
+
+        [Fact]
+        public void ParseNudgeKeys_UnknownName_ReturnsFallback()
+        {
+            var fb = new[] { 1, 2, 3, 4 };
+            Assert.Same(fb, OverlayActionConfig.ParseNudgeKeys("H,J,K,NotAKey", fb));
+        }
+
+        [Fact]
+        public void ParseNudgeKeys_BlankOrBadFallback_ReturnsFallback()
+        {
+            var fb = new[] { 1, 2, 3, 4 };
+            Assert.Same(fb, OverlayActionConfig.ParseNudgeKeys(null, fb));
+            Assert.Same(fb, OverlayActionConfig.ParseNudgeKeys("", fb));
+        }
+
+        [Theory]
         [InlineData("Left,Right,Double,Move", 4)]
         [InlineData("", 4)]          // empty -> default order (4)
         [InlineData(null, 4)]

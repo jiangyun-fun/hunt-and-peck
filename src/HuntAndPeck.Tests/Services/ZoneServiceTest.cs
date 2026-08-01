@@ -94,6 +94,22 @@ namespace HuntAndPeck.Tests.Services
             Assert.Empty(map);
         }
 
+        // ---- CenteredLens ----
+
+        [Fact]
+        public void CenteredLens_CentersSizeOnPoint()
+        {
+            var lens = ZoneService.CenteredLens(new Point(500, 500), 500, 500);
+            Assert.Equal(new Rect(250, 250, 500, 500), lens);
+        }
+
+        [Fact]
+        public void CenteredLens_NegativeSize_ClampedToZero()
+        {
+            var lens = ZoneService.CenteredLens(new Point(100, 200), -50, -10);
+            Assert.Equal(new Rect(100, 200, 0, 0), lens);
+        }
+
         // ---- BuildPickSession ----
 
         [Fact]

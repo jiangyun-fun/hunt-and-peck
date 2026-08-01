@@ -1,0 +1,87 @@
+---
+title: "Zone UX Follow-ups — Implementation Plan"
+author: "Yun Jiang"
+date: "2026-08-01"
+---
+
+# Plan — Zone UX follow-ups (full-screen lens + 3-tier nudge + zone-grid step)
+
+Builds on shipped v1 zones (`20260731-2020337_type-to-zoom-zones.*.qmd`, commit `b6d1dc0`).
+Five changes from real Windows use:
+
+1. Status badge should sit at the **screen's** bottom-center (today: the zone's).
+2. Labels must not be **clipped** to the zone rect.
+3. A **separate in-zone label gap** (`ZoneGridStep`) to make zone grids denser.
+4. **3 nudge tiers** (Small/Medium/Large) with **configurable keys + per-axis sizes**.
+5. **Fixed zone dimensions** (`ZoneWidth`/`ZoneHeight`) so a large nudge = one zone.
+
+## Root cause + key insight
+
+Issues 1 & 2: in zone-filled, `OwningWindowBounds = zoneRect` → the overlay window shrinks
+to the zone. **Insight:** because the in-zone grid is uniform (issue 3), translating it by
+cellW/cellH coincides with the next zone's grid — so "next zone" = a PAN, no regeneration.
+The zone becomes a **movable fixed-size lens** on a full-screen overlay.
+
+## Agreed decisions
+
+- 1 & 2: overlay stays **full-monitor** in zone-filled; grid generated only in the lens.
+- 3: single **`ZoneGridStep`** (uniform). Consequence: zone mode drops `3` layout-cycling
+  (reverts v1's zone-CycleLayout).
+- 4: **3 tiers**, positional L,D,U,R rows, configurable **sizes + keys**, per-axis steps;
+  drop `Ctrl+Shift+hjkl`; arrows under Pan = plain Medium / Shift Large.
+- 5: **`ZoneWidth`/`ZoneHeight`** lens centered on the auto zone center (default auto cell);
+  pan-lens model; `NudgeStepLarge="auto"` = cellW/cellH.
+
+## Config schema
+
+- `NudgeStepSmall/Medium/Large` = `"<x>,<y>"` or `"auto"` (default `3,3` / `15,15` / `auto`).
+- `NudgeKeysSmall/Medium/Large` = 4 Keys names, L,D,U,R (default `M,Oemcomma,Oemperiod,Oem2`
+  / `H,J,K,L` / `U,I,O,P`).
+- `ZoneGridStep` (default 30); `ZoneWidth`/`ZoneHeight` (default 0 = auto cellW/cellH).
+- Replaces `NudgeStep`/`NudgeStepFast`.
+
+## Design
+
+- `OverlayKeyAction.Fast` → `Tier` (`NudgeTier { Small, Medium, Large }`). `Classify` matches
+  the Shift+key (no Ctrl/Win) against three configurable 4-key sets → `Nudge(tier, dx, dy)`.
+  `Dispatch` → `_vm.Nudge(tier, dx, dy)`; **VM resolves the step** (per-axis + `"auto"` via
+  cellW/cellH).
+- Zone-filled lens: `SelectZone` builds `CenteredLens(zoneCenter, W, H)`; the
+  `buildZoneSession` delegate fills the lens via `EnumGridHintsForBounds` then **rebases
+  hint bounds to the monitor** + `OwningWindowBounds = monitor` (mirrors `RebaseTo`) →
+  full-screen overlay.
+
+## Files
+
+- `OverlayKeyboardHook.cs` — `Tier` + `NudgeTier`; configurable `MatchNudgeKey` + dir map;
+  Classify gains 3 key-set params (defaults = shipped sets); hjkl needs `!ctrl`; arrows
+  Medium/Large; Dispatch → `_vm.Nudge(tier,dx,dy)`.
+- `OverlayActionConfig.cs` — `NudgeStep{IsAuto,X,Y}` + `ParseNudgeStep` / `ParseNudgeKeys`
+  (pure); `Read*` for the 6 nudge + 3 zone keys; remove `ReadNudgeStep`/`Fast`.
+- `OverlayViewModel.cs` — `Nudge(NudgeTier,dx,dy)` per-axis + auto; zone ctor lens params +
+  cellW/cellH; `SelectZone` centered lens; drop v1 zone-CycleLayout; revert
+  `LayoutCycleCapable` to non-zone-only.
+- `ShellViewModel.cs` — uniform zone `GridLayout` from `ZoneGridStep`; lens delegate +
+  `RebaseToMonitor`; pass new params.
+- `ZoneService.cs` — add pure `CenteredLens(Point, w, h)`.
+- `App.config`, `OptionsViewModel.cs`, `OptionsView.xaml`, `CLAUDE.md`.
+
+## Test plan
+
+- `OverlayActionConfigTest`: `ParseNudgeStep` / `ParseNudgeKeys` theories.
+- `ZoneServiceTest`: `CenteredLens`.
+- `OverlayKeyboardHookTest`: `Fast`→`Tier`; `Ctrl+Shift+hjkl`→None; add `Shift+uiop`=Large,
+  `Shift+m,./`=Small, plain u/m=AppendChar; arrow Medium / Shift-arrow Large.
+
+## Verification
+
+CI (windows-latest): `msbuild /p:Configuration=Release /p:Platform="Any CPU"` + `vstest`
+green; then `ship-drop`. Manual (Windows): badge screen-centered + no clipping; `ZoneGridStep`
+density; 3 nudge tiers + `auto` snaps one zone; `ZoneWidth/Height` lens; `Ctrl+Shift+hjkl`
+passthrough; non-zone `3` still cycles; `/hint`,`/tray` unaffected.
+
+## Sequencing
+
+1. Config layer + parser tests. 2. Hook (Tier/Classify/Dispatch) + tests. 3. VM Nudge + lens
++ ZoneService.CenteredLens + test. 4. ShellViewModel zone layout + lens delegate. 5. Options
+dialog + CLAUDE.md. 6. Build + tests + ship + report.

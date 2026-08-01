@@ -76,8 +76,15 @@ namespace HuntAndPeck.ViewModels
         public string GridLayouts { get { return Get("GridLayouts", GridLayoutConfig.DefaultGridLayouts); } set { Set("GridLayouts", value); OnPropertyChanged("GridLayouts"); } }
         public string ClickModeOrder { get { return Get("ClickModeOrder", "Left,Right,Double,Move"); } set { Set("ClickModeOrder", value); OnPropertyChanged("ClickModeOrder"); } }
 
-        public string NudgeStep { get { return Get("NudgeStep", "3"); } set { Set("NudgeStep", value); OnPropertyChanged("NudgeStep"); } }
-        public string NudgeStepFast { get { return Get("NudgeStepFast", "15"); } set { Set("NudgeStepFast", value); OnPropertyChanged("NudgeStepFast"); } }
+        public string NudgeStepSmall { get { return Get("NudgeStepSmall", "3,3"); } set { Set("NudgeStepSmall", value); OnPropertyChanged("NudgeStepSmall"); } }
+        public string NudgeStepMedium { get { return Get("NudgeStepMedium", "15,15"); } set { Set("NudgeStepMedium", value); OnPropertyChanged("NudgeStepMedium"); } }
+        public string NudgeStepLarge { get { return Get("NudgeStepLarge", "auto"); } set { Set("NudgeStepLarge", value); OnPropertyChanged("NudgeStepLarge"); } }
+        public string NudgeKeysSmall { get { return Get("NudgeKeysSmall", "M,Oemcomma,Oemperiod,Oem2"); } set { Set("NudgeKeysSmall", value); OnPropertyChanged("NudgeKeysSmall"); } }
+        public string NudgeKeysMedium { get { return Get("NudgeKeysMedium", "H,J,K,L"); } set { Set("NudgeKeysMedium", value); OnPropertyChanged("NudgeKeysMedium"); } }
+        public string NudgeKeysLarge { get { return Get("NudgeKeysLarge", "U,I,O,P"); } set { Set("NudgeKeysLarge", value); OnPropertyChanged("NudgeKeysLarge"); } }
+        public string ZoneGridStep { get { return Get("ZoneGridStep", "30"); } set { Set("ZoneGridStep", value); OnPropertyChanged("ZoneGridStep"); } }
+        public string ZoneWidth { get { return Get("ZoneWidth", "0"); } set { Set("ZoneWidth", value); OnPropertyChanged("ZoneWidth"); } }
+        public string ZoneHeight { get { return Get("ZoneHeight", "0"); } set { Set("ZoneHeight", value); OnPropertyChanged("ZoneHeight"); } }
         public string ArrowKeyBehavior { get { return Get("ArrowKeyBehavior", "Passthrough"); } set { Set("ArrowKeyBehavior", value); OnPropertyChanged("ArrowKeyBehavior"); } }
 
         public bool TimingLogEnabled

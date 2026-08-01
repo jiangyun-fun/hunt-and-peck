@@ -76,13 +76,34 @@
                         <ComboBoxItem>Passthrough</ComboBoxItem>
                         <ComboBoxItem>Pan</ComboBoxItem>
                     </ComboBox>
-                    <TextBlock Text="Passthrough: arrows move focus in the app beneath. Pan: arrows pan the labels (legacy). Either way Shift+hjkl = large pan, Ctrl+Shift+hjkl = small pan." FontStyle="Italic" Foreground="Gray" Margin="0,0,0,10" TextWrapping="Wrap" />
+                    <TextBlock Text="Passthrough: arrows move focus in the app beneath. Pan: arrows pan the labels (legacy). Nudge tiers: Shift+uiop = Large, Shift+hjkl = Medium, Shift+m , . / = Small. Each step is 'X,Y' px (X for the left/right keys, Y for up/down) or 'auto' (= one zone cell)." FontStyle="Italic" Foreground="Gray" Margin="0,0,0,10" TextWrapping="Wrap" />
 
-                    <TextBlock Text="Small pan step (Ctrl+Shift+hjkl, px)" FontWeight="Bold" />
-                    <TextBox Text="{Binding NudgeStep}" Margin="0,2,0,10" />
+                    <TextBlock Text="Small pan step 'X,Y' px or 'auto' (Shift+m , . /)" FontWeight="Bold" />
+                    <TextBox Text="{Binding NudgeStepSmall}" Margin="0,2,0,6" />
 
-                    <TextBlock Text="Large pan step (Shift+hjkl, px)" FontWeight="Bold" />
-                    <TextBox Text="{Binding NudgeStepFast}" Margin="0,2,0,10" />
+                    <TextBlock Text="Medium pan step 'X,Y' px or 'auto' (Shift+hjkl)" FontWeight="Bold" />
+                    <TextBox Text="{Binding NudgeStepMedium}" Margin="0,2,0,6" />
+
+                    <TextBlock Text="Large pan step 'X,Y' px or 'auto' (Shift+uiop)" FontWeight="Bold" />
+                    <TextBox Text="{Binding NudgeStepLarge}" Margin="0,2,0,6" />
+
+                    <TextBlock Text="Small nudge keys (4 Keys names, L,D,U,R)" FontWeight="Bold" />
+                    <TextBox Text="{Binding NudgeKeysSmall}" Margin="0,2,0,6" />
+
+                    <TextBlock Text="Medium nudge keys (4 Keys names, L,D,U,R)" FontWeight="Bold" />
+                    <TextBox Text="{Binding NudgeKeysMedium}" Margin="0,2,0,6" />
+
+                    <TextBlock Text="Large nudge keys (4 Keys names, L,D,U,R)" FontWeight="Bold" />
+                    <TextBox Text="{Binding NudgeKeysLarge}" Margin="0,2,0,6" />
+
+                    <TextBlock Text="In-zone grid step px (Zones)" FontWeight="Bold" />
+                    <TextBox Text="{Binding ZoneGridStep}" Margin="0,2,0,6" />
+
+                    <TextBlock Text="Zone lens width px (0 = auto)" FontWeight="Bold" />
+                    <TextBox Text="{Binding ZoneWidth}" Margin="0,2,0,6" />
+
+                    <TextBlock Text="Zone lens height px (0 = auto)" FontWeight="Bold" />
+                    <TextBox Text="{Binding ZoneHeight}" Margin="0,2,0,10" />
 
                     <TextBlock Text="Hotkey key (System.Windows.Forms.Keys name)" FontWeight="Bold" />
                     <TextBox Text="{Binding HotkeyKey}" Margin="0,2,0,10" />

@@ -48,7 +48,11 @@ namespace HuntAndPeck.ViewModels
         private readonly HintSession _zonePickSession;
         private readonly string _zoneFontSizeRaw;
         private readonly Rect[] _zoneRects;
-        private readonly Func<Rect, GridLayout, HintSession> _buildZoneSession;
+        private readonly double _zoneCellW;     // auto zone-cell size (for NudgeStep "auto")
+        private readonly double _zoneCellH;
+        private readonly double _zoneLensW;     // zone-filled lens size (CenteredLens)
+        private readonly double _zoneLensH;
+        private readonly Func<Rect, HintSession> _buildZoneSession;
         private readonly bool _zoneReturnToPickOnFire;
         private Dictionary<char, int> _zoneLabelToIndex;
         private int _currentZoneIndex = -1;
@@ -112,34 +116,34 @@ namespace HuntAndPeck.ViewModels
         /// Zone (type-to-zoom) ctor: Grid + Screen with ZoneZoomEnabled. The overlay
         /// opens in <see cref="ZonePhase.ZonePick"/> showing one large label per zone
         /// (cols×rows over the monitor); <see cref="SelectZone"/> drills into a zone by
-        /// building its fine grid via <paramref name="buildZoneSession"/>. Layout cycling
-        /// (`3`) regenerates the current zone with the next preset. Monitor cycling (Tab)
-        /// is disabled (single foreground monitor). <paramref name="zonePickSession"/>
-        /// is the synthetic pick session from <see cref="ZoneService.BuildPickSession"/>.
-        /// Standalone (does not chain to the full ctor) so it can set _zonePhase before
-        /// LoadSession and keep _rebuildSessions null.
+        /// building a fine-grid <paramref name="buildZoneSession"/> over a lens (size
+        /// <paramref name="zoneWidth"/>×<paramref name="zoneHeight"/>, default the auto cell
+        /// size) centered on the zone. The in-zone grid uses a single ZoneGridStep (uniform),
+        /// so layout cycling (`3`) is disabled in zone mode. Monitor cycling (Tab) is disabled
+        /// (single foreground monitor). <paramref name="zonePickSession"/> is the synthetic
+        /// pick session from <see cref="ZoneService.BuildPickSession"/>. Standalone (does not
+        /// chain to the full ctor) so it can set _zonePhase before LoadSession and keep
+        /// _rebuildSessions/_layouts null.
         /// </summary>
         public OverlayViewModel(
             HintSession zonePickSession,
             IHintLabelService hintLabelService,
-            IList<GridLayout> layouts,
-            int activeLayout,
             Rect monitorBounds,
             int zoneCols,
             int zoneRows,
             string zoneFontSizeRaw,
+            int zoneWidth,
+            int zoneHeight,
             bool zoneReturnToPickOnFire,
-            Func<Rect, GridLayout, HintSession> buildZoneSession)
+            Func<Rect, HintSession> buildZoneSession)
         {
             _hintLabelService = hintLabelService;
             _zonePickSession = zonePickSession;
             _sessions = new List<HintSession> { zonePickSession };
             _currentSession = 0;
-            _layouts = layouts;
-            _activeLayout = (layouts == null || layouts.Count == 0)
-                ? 0
-                : GridLayoutConfig.ClampActiveLayout(activeLayout, layouts.Count);
-            _rebuildSessions = null; // zones build per-zone via _buildZoneSession, not the layout delegate
+            _layouts = null;       // zone mode uses a single ZoneGridStep, not GridLayouts
+            _activeLayout = 0;
+            _rebuildSessions = null;
             _modeOrder = OverlayActionConfig.ReadClickActionOrder();
             _modeIndex = 0;
 
@@ -148,9 +152,13 @@ namespace HuntAndPeck.ViewModels
             _pillOpacity = OverlayActionConfig.ReadHintPillOpacity();
             _dimOpacity = OverlayActionConfig.ReadHintDimOpacity();
 
+            _zoneRects = ZoneService.SliceIntoZones(monitorBounds, zoneCols, zoneRows);
+            _zoneCellW = _zoneRects.Length > 0 ? _zoneRects[0].Width : monitorBounds.Width;
+            _zoneCellH = _zoneRects.Length > 0 ? _zoneRects[0].Height : monitorBounds.Height;
+            _zoneLensW = zoneWidth > 0 ? zoneWidth : _zoneCellW;
+            _zoneLensH = zoneHeight > 0 ? zoneHeight : _zoneCellH;
             _zoneFontSizeRaw = zoneFontSizeRaw;
             _zoneReturnToPickOnFire = zoneReturnToPickOnFire;
-            _zoneRects = ZoneService.SliceIntoZones(monitorBounds, zoneCols, zoneRows);
             _buildZoneSession = buildZoneSession;
             _zonePhase = ZonePhase.ZonePick;
 
@@ -211,17 +219,11 @@ namespace HuntAndPeck.ViewModels
             ? Visibility.Visible : Visibility.Collapsed;
 
         /// <summary>
-        /// The current grid layout preset (null when no GridLayouts are configured).
-        /// Used by SelectZone / CycleLayout to build a zone session.
-        /// </summary>
-        private GridLayout CurrentLayout
-            => (_layouts != null && _layouts.Count > 0) ? _layouts[_activeLayout] : null;
-
-        /// <summary>
-        /// Zone-pick: type a zone label char to drill into that zone. Builds the fine
-        /// grid over the zone's sub-rect (via the buildZoneSession delegate) and loads
-        /// it; the overlay auto-resizes to the zone. No-op outside ZonePick or for an
-        /// unknown char (a mistype is swallowed, like a non-matching label char today).
+        /// Zone-pick: type a zone label char to drill into that zone. Builds the fine grid
+        /// over a lens (CenteredLens on the zone center) via the buildZoneSession delegate
+        /// and loads it; the delegate sets OwningWindowBounds = monitor, so the overlay
+        /// stays full-screen (badge screen-centered, labels not clipped). No-op outside
+        /// ZonePick or for an unknown char (a mistype is swallowed).
         /// </summary>
         public void SelectZone(char c)
         {
@@ -243,7 +245,11 @@ namespace HuntAndPeck.ViewModels
 
         private void EnterZoneFilled(int idx)
         {
-            var session = _buildZoneSession(_zoneRects[idx], CurrentLayout);
+            var zone = _zoneRects[idx];
+            var lens = ZoneService.CenteredLens(
+                new Point(zone.Left + zone.Width / 2.0, zone.Top + zone.Height / 2.0),
+                _zoneLensW, _zoneLensH);
+            var session = _buildZoneSession(lens);
             if (session == null || session.Hints == null || session.Hints.Count == 0)
             {
                 return;
@@ -300,17 +306,7 @@ namespace HuntAndPeck.ViewModels
         /// keyboard hook (whether `;` is captured) and the layout badge.
         /// </summary>
         public bool LayoutCycleCapable
-        {
-            get
-            {
-                if (_layouts == null || _layouts.Count <= 1)
-                {
-                    return false;
-                }
-                // Zones cycle the current zone via _buildZoneSession (no _rebuildSessions).
-                return _zonePhase != ZonePhase.Normal || _rebuildSessions != null;
-            }
-        }
+            => _layouts != null && _layouts.Count > 1 && _rebuildSessions != null;
 
         /// <summary>Overlay badge: the current preset, e.g. "L2/2". Empty when not cycle-capable.</summary>
         public string LayoutLabel => LayoutCycleCapable
@@ -340,30 +336,6 @@ namespace HuntAndPeck.ViewModels
 
             _activeLayout = (_activeLayout + 1) % _layouts.Count;
             GridLayoutConfig.WriteActiveLayout(_activeLayout);
-
-            if (_zonePhase == ZonePhase.ZoneFilled && _currentZoneIndex >= 0)
-            {
-                // Regenerate the current zone with the new preset; stay on the zone.
-                var zsession = _buildZoneSession(_zoneRects[_currentZoneIndex], _layouts[_activeLayout]);
-                if (zsession == null || zsession.Hints == null || zsession.Hints.Count == 0)
-                {
-                    return;
-                }
-                _sessions = new List<HintSession> { zsession };
-                _currentSession = 0;
-                LoadSession(zsession);
-                OffsetX = 0;
-                OffsetY = 0;
-                NotifyOfPropertyChange(nameof(LayoutLabel));
-                return;
-            }
-            if (_zonePhase == ZonePhase.ZonePick)
-            {
-                // The 9 zone dots do not depend on the preset; just persist + refresh
-                // the badge. The next SelectZone builds with the new preset.
-                NotifyOfPropertyChange(nameof(LayoutLabel));
-                return;
-            }
 
             var fresh = _rebuildSessions(_activeLayout);
             if (fresh == null || fresh.Count == 0)
@@ -669,10 +641,45 @@ namespace HuntAndPeck.ViewModels
         /// Pans ALL labels by (dx, dy) px via the offset (the panel's
         /// TranslateTransform moves every label together).
         /// </summary>
-        public void Nudge(int dx, int dy)
+        public void Nudge(NudgeTier tier, int dx, int dy)
         {
-            OffsetX += dx;
-            OffsetY += dy;
+            var ns = NudgeStepFor(tier);
+            int sx, sy;
+            if (ns.IsAuto)
+            {
+                // "auto" = one zone cell (zone mode: cellW for h/l, cellH for j/k); a tier
+                // default otherwise (non-zone mode has no zone cell).
+                sx = _zoneCellW > 0 ? (int)Math.Round(_zoneCellW) : AutoFallback(tier);
+                sy = _zoneCellH > 0 ? (int)Math.Round(_zoneCellH) : AutoFallback(tier);
+            }
+            else
+            {
+                sx = ns.X;
+                sy = ns.Y;
+            }
+            // dx/dy are unit directions (-1/0/1); the 0-axis contributes nothing.
+            OffsetX += dx * sx;
+            OffsetY += dy * sy;
+        }
+
+        private static NudgeStep NudgeStepFor(NudgeTier tier)
+        {
+            switch (tier)
+            {
+                case NudgeTier.Small: return OverlayActionConfig.ReadNudgeStepSmall();
+                case NudgeTier.Large: return OverlayActionConfig.ReadNudgeStepLarge();
+                default: return OverlayActionConfig.ReadNudgeStepMedium();
+            }
+        }
+
+        private static int AutoFallback(NudgeTier tier)
+        {
+            switch (tier)
+            {
+                case NudgeTier.Small: return 3;
+                case NudgeTier.Large: return 300;
+                default: return 15;
+            }
         }
 
         /// <summary>Advances to the next click mode (Space); wraps around.</summary>

@@ -51,6 +51,19 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// A rectangle of size <paramref name="width"/>×<paramref name="height"/> centered
+        /// on <paramref name="center"/>. Clamps a negative size to 0. Pure. This is the
+        /// zone-filled fine-grid lens: a uniform grid generated inside it can be panned by
+        /// one cell-width to coincide with the next zone.
+        /// </summary>
+        public static Rect CenteredLens(Point center, double width, double height)
+        {
+            if (width < 0) width = 0;
+            if (height < 0) height = 0;
+            return new Rect(center.X - width / 2.0, center.Y - height / 2.0, width, height);
+        }
+
+        /// <summary>
         /// Builds a char → zone-index map from the zone-pick label list
         /// (<c>label[i][0] → i</c>, uppercased). The labels are the single-char zone
         /// labels from <see cref="HintLabelService.GetHintStrings"/>, so each first
