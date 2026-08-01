@@ -1,0 +1,48 @@
+---
+title: "Auto-close, hide-non-matching, quadrant hotkeys — Report"
+author: "Yun Jiang"
+date: "2026-08-01"
+---
+
+# Report — Auto-close, hide-non-matching, quadrant hotkeys
+
+**Status: implemented; CI green (build + 202/202 tests); drop shipped.** Manual Windows
+verification pending.
+
+Plan: [`20260801-180323_autoclose-quadrant.plan.qmd`](./20260801-180323_autoclose-quadrant.plan.qmd).
+
+## What was done
+
+1. **Auto-close** (`OverlayAutoCloseSec`, default 0 = off) — an idle timeout in
+   `OverlayKeyboardHook` (a `DispatcherTimer`): the overlay closes after N sec with no
+   captured key/click; any captured input resets it; skipped while suspended. Chose the
+   hook because it already owns `_close`, the UI `_dispatcher`, all input, and the lifecycle.
+2. **Hide non-matching** (`HideNonMatchingLabels`, default on) — a `HideInactive` DP on
+   `HintCanvas` (clone of `PillOpacity`): when `!Active && HideInactive`, `RenderHint` draws
+   nothing, so after the first char only matching labels show. Bound from
+   `OverlayViewModel.HideInactive`. Doesn't affect zone-pick.
+3. **Quadrant hotkeys** (`Ctrl+Shift+F1..F4`, startup-only) — open TL/TR/BL/BR-scoped
+   overlays: a dense uniform `ZoneGridStep` grid over `ZoneService.SliceIntoZones(monitor,
+   2, 2)[q]`, rebased to the monitor (full-screen, labels only in the quadrant). Reuses the
+   lens machinery. `KeyListenerService` registers 4 + fires `Action<int>`;
+   `ShellViewModel.OpenQuadrantOverlayAsync` builds + shows; `App.xaml.cs` unchanged.
+
+## Verification (evidence)
+
+- **CI** `.github/workflows/build.yml` run `30695267723` (commit `9ddac76`, windows-latest):
+  Build + Test + artifact ✓. `Total tests: 202  Passed: 202`. (First run `30695217282`
+  failed compile — `ShellViewModel` holds `IKeyListenerService`, so the new quadrant members
+  had to be on the interface; fixed in `9ddac76`.)
+- New tests: `ParseAutoCloseSec`, `ParseKeyList` theories (+11). The hook timer, renderer,
+  and hotkey wiring are WPF/WinForms → manual Windows verification.
+- **Shipped** to `$HAP_WIN_TEST_DIR/hap-quadrant/`; shipped `hap.exe.config` confirmed to
+  carry `OverlayAutoCloseSec=0`, `HideNonMatchingLabels=true`, `QuadrantHotkeyKeys=F1,F2,F3,F4`,
+  `QuadrantHotkeyModifier=Control,Shift`.
+
+## Still to do (manual, Windows box)
+
+Quit the old `hap.exe` (tray → Exit), launch `hap-quadrant\hap.exe`. Verify: (a)
+`OverlayAutoCloseSec=3` → closes after 3 s idle, any key resets, stays while suspended;
+(b) typing `A` hides non-A* labels (Esc restores); (c) `Ctrl+Shift+F1..F4` open TL/TR/BL/BR
+dense grids (full-screen, labels in the quadrant) — and the chords don't conflict with your
+apps; (d) zones, main hotkey, `/hint`,`/tray` unaffected; high-DPI legibility.
