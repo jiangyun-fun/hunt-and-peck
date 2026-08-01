@@ -10,18 +10,18 @@ namespace HuntAndPeck.NativeMethods
     /// LL hook above ours on script reload -- cannot hide the held modifier from us. Raw
     /// input taps the keyboard driver directly and is delivered regardless of LL hooks.
     /// </summary>
-    internal static class RawInput
+    public static class RawInput
     {
-        internal const int WM_INPUT = 0x00FF;
-        internal const uint RIM_TYPEKEYBOARD = 1;
-        internal const uint RID_INPUT = 0x10000003;
-        internal const uint RIDEV_INPUTSINK = 0x00000100; // receive input even when not foreground
-        internal const ushort UsagePageGenericDesktop = 0x01;
-        internal const ushort UsageKeyboard = 0x06;
-        internal const ushort RI_KEY_BREAK = 0x01;        // otherwise MAKE (keydown)
+        public const int WM_INPUT = 0x00FF;
+        public const uint RIM_TYPEKEYBOARD = 1;
+        public const uint RID_INPUT = 0x10000003;
+        public const uint RIDEV_INPUTSINK = 0x00000100; // receive input even when not foreground
+        public const ushort UsagePageGenericDesktop = 0x01;
+        public const ushort UsageKeyboard = 0x06;
+        public const ushort RI_KEY_BREAK = 0x01;        // otherwise MAKE (keydown)
 
         [StructLayout(LayoutKind.Sequential)]
-        internal struct RAWINPUTDEVICE
+        public struct RAWINPUTDEVICE
         {
             public ushort usUsagePage;
             public ushort usUsage;
@@ -30,7 +30,7 @@ namespace HuntAndPeck.NativeMethods
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        internal struct RAWINPUTHEADER
+        public struct RAWINPUTHEADER
         {
             public uint dwType;
             public uint dwSize;
@@ -39,7 +39,7 @@ namespace HuntAndPeck.NativeMethods
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        internal struct RAWKEYBOARD
+        public struct RAWKEYBOARD
         {
             public ushort MakeCode;
             public ushort Flags;
@@ -50,7 +50,7 @@ namespace HuntAndPeck.NativeMethods
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        internal struct RAWINPUT
+        public struct RAWINPUT
         {
             public RAWINPUTHEADER header;
             // The Windows RAWINPUT data is a union; we only consume the keyboard member,
@@ -60,11 +60,11 @@ namespace HuntAndPeck.NativeMethods
 
         [DllImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        internal static extern bool RegisterRawInputDevices(
+        public static extern bool RegisterRawInputDevices(
             [In] RAWINPUTDEVICE[] pRawInputDevices, uint uiNumDevices, uint cbSize);
 
         [DllImport("user32.dll", SetLastError = true)]
-        internal static extern uint GetRawInputData(IntPtr hRawInput, uint uiCommand,
+        public static extern uint GetRawInputData(IntPtr hRawInput, uint uiCommand,
             out RAWINPUT pData, ref uint pcbSize, uint cbSizeHeader);
     }
 }
