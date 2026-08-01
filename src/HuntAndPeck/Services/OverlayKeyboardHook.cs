@@ -75,9 +75,15 @@ namespace HuntAndPeck.Services
         private readonly Dispatcher _dispatcher;
 
         // Physical held-state for Alt / Capslock, tracked from raw key events (not
-        // GetAsyncKeyState, which misses a Capslock AutoHotkey has neutralized).
-        private bool _altHeld;
-        private bool _capsHeld;
+        // GetAsyncKeyState, which misses a Capslock AutoHotkey has neutralized). STATIC:
+        // a persistent tracker hook (armed at app startup, above AutoHotkey) keeps these
+        // accurate even BEFORE an overlay opens -- e.g. holding Capslock and tapping
+        // quadrant hotkeys (Capslock+j -> Ctrl+Shift+F2 opens the overlay mid-hold); the
+        // per-overlay hook arms too late to see that Capslock keydown.
+        private static bool _sAltHeld;
+        private static bool _sCapsHeld;
+        private static IntPtr _sTrackerHook = IntPtr.Zero;
+        private static readonly User32.HookProc _sTrackerProc = TrackerKeyboardProc;
 
         // The delegates MUST be kept in fields: if they are garbage-collected
         // while Windows still holds the callback pointer, the process crashes.
@@ -106,9 +112,10 @@ namespace HuntAndPeck.Services
         {
             _vm = vm;
             _close = close;
-            // Seed held-state in case a modifier is already down when the overlay opens.
-            _altHeld = IsDown(User32.VK_MENU);
-            _capsHeld = IsDown(User32.VK_CAPITAL);
+            // The persistent tracker (installed above AutoHotkey at app startup) keeps
+            // _sAltHeld/_sCapsHeld accurate, including modifiers held before this overlay
+            // opened (which the per-overlay hook would arm too late to see).
+            EnsurePersistentTracker();
 
             var hMod = Kernel32.GetModuleHandle(null);
             _kbHook = User32.SetWindowsHookEx(User32.WH_KEYBOARD_LL, _kbProc, hMod, 0);
@@ -170,6 +177,49 @@ namespace HuntAndPeck.Services
 
         public void Dispose() => Disarm();
 
+        /// <summary>
+        /// Installs a one-time, app-lifetime low-level keyboard hook (above AutoHotkey, since
+        /// the app starts after AHK) that ONLY tracks physical Alt/Capslock held-state into
+        /// the static fields. It never swallows keys (always CallNextHookEx) -- an inert
+        /// observer. This keeps _sAltHeld/_sCapsHeld accurate even when an overlay opens
+        /// while a modifier is already held (e.g. holding Capslock and tapping quadrant
+        /// hotkeys), which the per-overlay hook misses (it arms after the modifier keydown,
+        /// and GetAsyncKeyState misses an AHK-neutralized Capslock).
+        /// </summary>
+        public static void EnsurePersistentTracker()
+        {
+            if (_sTrackerHook != IntPtr.Zero)
+            {
+                return;
+            }
+            var hMod = Kernel32.GetModuleHandle(null);
+            _sTrackerHook = User32.SetWindowsHookEx(User32.WH_KEYBOARD_LL, _sTrackerProc, hMod, 0);
+        }
+
+        private static IntPtr TrackerKeyboardProc(int code, IntPtr wParam, IntPtr lParam)
+        {
+            if (code == User32.HC_ACTION)
+            {
+                int msg = wParam.ToInt32();
+                bool down = msg == User32.WM_KEYDOWN || msg == User32.WM_SYSKEYDOWN;
+                bool up = msg == User32.WM_KEYUP || msg == User32.WM_SYSKEYUP;
+                if (down || up)
+                {
+                    var k = (User32.KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(User32.KBDLLHOOKSTRUCT));
+                    int vk = (int)k.vkCode;
+                    if (vk == User32.VK_MENU || vk == User32.VK_LMENU || vk == User32.VK_RMENU)
+                    {
+                        _sAltHeld = down;
+                    }
+                    else if (vk == User32.VK_CAPITAL)
+                    {
+                        _sCapsHeld = down;
+                    }
+                }
+            }
+            return User32.CallNextHookEx(_sTrackerHook, code, wParam, lParam);
+        }
+
         // ---- Keyboard ----
 
         private IntPtr KeyboardProc(int code, IntPtr wParam, IntPtr lParam)
@@ -197,11 +247,11 @@ namespace HuntAndPeck.Services
             // but the raw event still reaches us. Update on both down and up.
             if (vk == User32.VK_MENU || vk == User32.VK_LMENU || vk == User32.VK_RMENU)
             {
-                _altHeld = down;
+                _sAltHeld = down;
             }
             else if (vk == User32.VK_CAPITAL)
             {
-                _capsHeld = down;
+                _sCapsHeld = down;
             }
 
             // Suspend overlay key-capture while Alt or Capslock is held, OR while the
@@ -215,8 +265,8 @@ namespace HuntAndPeck.Services
             // the OS window switcher. GetAsyncKeyState(VK_MENU) reads Alt reliably here.
             // (Capslock stays event-only: GetAsyncKeyState(VK_CAPITAL) misses a Capslock
             // AutoHotkey has neutralized for a custom combo.)
-            bool altHeld = _altHeld || IsDown(User32.VK_MENU);
-            if (altHeld || _capsHeld || (_vm != null && _vm.Suspended))
+            bool altHeld = _sAltHeld || IsDown(User32.VK_MENU);
+            if (altHeld || _sCapsHeld || (_vm != null && _vm.Suspended))
             {
                 return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
             }

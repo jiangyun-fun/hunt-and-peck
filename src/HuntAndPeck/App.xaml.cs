@@ -123,6 +123,12 @@ namespace HuntAndPeck
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            // Install an inert, app-lifetime Alt/Capslock tracker (above AutoHotkey) so the
+            // overlay knows a modifier held BEFORE it opened (e.g. holding Capslock and tapping
+            // quadrant hotkeys). Must run on the UI thread (this one), which owns the message
+            // loop that delivers LL-hook callbacks.
+            OverlayKeyboardHook.EnsurePersistentTracker();
+
             if (e.Args.Contains("/hint"))
             {
                 // support headless mode
