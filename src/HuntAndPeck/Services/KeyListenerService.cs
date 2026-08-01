@@ -1,5 +1,6 @@
 ﻿using HuntAndPeck.NativeMethods;
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using HuntAndPeck.Services.Interfaces;
@@ -214,8 +215,23 @@ namespace HuntAndPeck.Services
                 dwFlags = RawInput.RIDEV_INPUTSINK,
                 hwndTarget = this.Handle
             };
-            RawInput.RegisterRawInputDevices(new[] { dev }, 1,
+            bool ok = RawInput.RegisterRawInputDevices(new[] { dev }, 1,
                 (uint)Marshal.SizeOf(typeof(RawInput.RAWINPUTDEVICE)));
+            LogRaw("registered=" + ok + " win32err=" + Marshal.GetLastWin32Error()
+                + " hwnd=" + this.Handle);
+        }
+
+        // Diagnostic: append to %TEMP%\hap-rawinput.log (temporary -- pinpoints whether
+        // raw input registers and sees Capslock when AutoHotkey intercepts it).
+        private static void LogRaw(string msg)
+        {
+            try
+            {
+                File.AppendAllText(Path.Combine(Path.GetTempPath(), "hap-rawinput.log"), msg + "\n");
+            }
+            catch (Exception)
+            {
+            }
         }
 
         /// <summary>
@@ -227,9 +243,11 @@ namespace HuntAndPeck.Services
         {
             RawInput.RAWINPUT ri;
             uint size = (uint)Marshal.SizeOf(typeof(RawInput.RAWINPUT));
-            if (RawInput.GetRawInputData(hRawInput, RawInput.RID_INPUT, out ri, ref size,
-                    (uint)Marshal.SizeOf(typeof(RawInput.RAWINPUTHEADER))) == 0)
+            uint got = RawInput.GetRawInputData(hRawInput, RawInput.RID_INPUT, out ri, ref size,
+                    (uint)Marshal.SizeOf(typeof(RawInput.RAWINPUTHEADER)));
+            if (got == 0)
             {
+                LogRaw("getrawinputdata=0 win32err=" + Marshal.GetLastWin32Error());
                 return;
             }
             if (ri.header.dwType != RawInput.RIM_TYPEKEYBOARD)
@@ -238,6 +256,7 @@ namespace HuntAndPeck.Services
             }
             bool down = (ri.keyboard.Flags & RawInput.RI_KEY_BREAK) == 0;
             ushort vk = ri.keyboard.VKey;
+            LogRaw("vk=0x" + vk.ToString("X2") + " flags=0x" + ri.keyboard.Flags.ToString("X2") + " down=" + down);
             if (vk == User32.VK_CAPITAL)
             {
                 OverlayKeyboardHook.SetCapsHeld(down);
