@@ -1,5 +1,6 @@
 ﻿using HuntAndPeck.NativeMethods;
 using System;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using HuntAndPeck.Services.Interfaces;
 
@@ -132,6 +133,10 @@ namespace HuntAndPeck.Services
 
         protected override void WndProc(ref Message m)
         {
+            if (m.Msg == RawInput.WM_INPUT)
+            {
+                HandleRawInput(m.LParam);
+            }
             if (m.Msg == Constants.WM_HOTKEY)
             {
                 var e = new HotKeyEventArgs(m.LParam);
@@ -193,6 +198,54 @@ namespace HuntAndPeck.Services
         {
             // Ensures that the window will never be displayed
             base.SetVisibleCore(false);
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            // Register for raw keyboard input (RIDEV_INPUTSINK: receives it even when not
+            // foreground). This taps the keyboard driver independently of the low-level hook
+            // chain, so physical Alt/Capslock held-state stays accurate even when AutoHotkey
+            // fully intercepts Capslock or re-arms its LL hook above ours.
+            var dev = new RawInput.RAWINPUTDEVICE
+            {
+                usUsagePage = RawInput.UsagePageGenericDesktop,
+                usUsage = RawInput.UsageKeyboard,
+                dwFlags = RawInput.RIDEV_INPUTSINK,
+                hwndTarget = this.Handle
+            };
+            RawInput.RegisterRawInputDevices(new[] { dev }, 1,
+                (uint)Marshal.SizeOf(typeof(RawInput.RAWINPUTDEVICE)));
+        }
+
+        /// <summary>
+        /// Decodes a WM_INPUT keyboard event and updates the overlay hook's physical
+        /// Capslock/Alt held-state. Raw input bypasses the LL-hook chain, so this is the
+        /// source of truth that survives AutoHotkey intercepting Capslock.
+        /// </summary>
+        private void HandleRawInput(IntPtr hRawInput)
+        {
+            RawInput.RAWINPUT ri;
+            uint size = (uint)Marshal.SizeOf(typeof(RawInput.RAWINPUT));
+            if (RawInput.GetRawInputData(hRawInput, RawInput.RID_INPUT, out ri, ref size,
+                    (uint)Marshal.SizeOf(typeof(RawInput.RAWINPUTHEADER))) == 0)
+            {
+                return;
+            }
+            if (ri.header.dwType != RawInput.RIM_TYPEKEYBOARD)
+            {
+                return;
+            }
+            bool down = (ri.keyboard.Flags & RawInput.RI_KEY_BREAK) == 0;
+            ushort vk = ri.keyboard.VKey;
+            if (vk == User32.VK_CAPITAL)
+            {
+                OverlayKeyboardHook.SetCapsHeld(down);
+            }
+            else if (vk == User32.VK_MENU || vk == User32.VK_LMENU || vk == User32.VK_RMENU)
+            {
+                OverlayKeyboardHook.SetAltHeld(down);
+            }
         }
     }
 }

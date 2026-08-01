@@ -177,6 +177,12 @@ namespace HuntAndPeck.Services
 
         public void Dispose() => Disarm();
 
+        /// <summary>Updates physical Capslock held-state (from the raw-input tracker).</summary>
+        internal static void SetCapsHeld(bool down) { _sCapsHeld = down; }
+
+        /// <summary>Updates physical Alt held-state (from the raw-input tracker).</summary>
+        internal static void SetAltHeld(bool down) { _sAltHeld = down; }
+
         /// <summary>
         /// Installs a one-time, app-lifetime low-level keyboard hook (above AutoHotkey, since
         /// the app starts after AHK) that ONLY tracks physical Alt/Capslock held-state into
