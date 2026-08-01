@@ -25,9 +25,15 @@ namespace HuntAndPeck.Services.Interfaces
         event EventHandler OnDebugHotKeyActivated;
         event EventHandler OnOneShotHotKeyActivated;
 
+        /// <summary>Quadrant hotkey (Ctrl+Shift+F1..F4): carries the quadrant index 0..3 (TL/TR/BL/BR).</summary>
+        event Action<int> OnQuadrantHotKeyActivated;
+
         HotKey TaskbarHotKey { get; set; }
         HotKey HotKey { get; set; }
         HotKey DebugHotKey { get; set; }
         HotKey OneShotHotKey { get; set; }
+
+        /// <summary>The four quadrant hotkeys (TL/TR/BL/BR); set once at startup to register.</summary>
+        HotKey[] QuadrantHotKeys { set; }
     }
 }
