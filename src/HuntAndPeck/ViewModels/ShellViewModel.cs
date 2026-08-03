@@ -247,9 +247,14 @@ namespace HuntAndPeck.ViewModels
         }
 
         /// <summary>
-        /// Builds a single-session overlay whose grid covers one quadrant (TL/TR/BL/BR) at
-        /// ZoneGridStep, rebased to the full monitor so the overlay stays full-screen with
-        /// labels only in the quadrant. Returns null on a degenerate monitor/empty grid.
+        /// Builds a multi-session overlay covering all four quadrants (TL/TR/BL/BR) at
+        /// ZoneGridStep, one <see cref="HintSession"/> per quarter, starting on the pressed
+        /// <paramref name="quadrant"/>. Each session is rebased to the full monitor so the
+        /// overlay stays full-screen with labels only in the active quadrant; the VM is
+        /// marked <see cref="OverlayViewModel.IsQuadrantMode"/> so plain Tab cycles the
+        /// quadrants via <see cref="OverlayViewModel.CycleMonitor"/> (the same path monitor
+        /// cycling uses). Returns null on a degenerate monitor or when the pressed quadrant
+        /// itself yields no grid points.
         /// </summary>
         private OverlayViewModel BuildQuadrantOverlayViewModel(IntPtr hWnd, int quadrant)
         {
@@ -265,7 +270,9 @@ namespace HuntAndPeck.ViewModels
             var monitor = new System.Windows.Rect(
                 screen.Bounds.X, screen.Bounds.Y, screen.Bounds.Width, screen.Bounds.Height);
 
-            var quadrantRect = ZoneService.SliceIntoZones(monitor, 2, 2)[quadrant];
+            // SliceIntoZones(monitor, 2, 2) -> [TL, TR, BL, BR] in scan order, so the
+            // quadrant index (0..3) the hotkey carries maps 1:1 to the list position.
+            var quadRects = ZoneService.SliceIntoZones(monitor, 2, 2);
 
             int step = OverlayActionConfig.ReadZoneGridStep();
             var layout = new GridLayout
@@ -277,18 +284,45 @@ namespace HuntAndPeck.ViewModels
                 DenseRegions = "Center"
             };
 
-            var session = _hintProviderService.EnumGridHintsForBounds(hWnd, quadrantRect, layout);
-            if (session == null || session.Hints == null || session.Hints.Count == 0)
+            // Build exactly four sessions (one per quadrant) so _currentSession stays the
+            // quadrant index and the Q n/4 badge is correct. A uniform grid always yields
+            // points for a non-zero rect, but defensively substitute an empty session if a
+            // non-pressed quarter comes back null (0 hints -> GetHintStrings(0) is empty ->
+            // renders nothing; Tab still cycles through it). The pressed quadrant must be
+            // non-empty, else give up (return null) as before.
+            var sessions = new List<HintSession>(4);
+            for (int q = 0; q < 4; q++)
             {
-                return null;
+                var qr = quadRects[q];
+                var s = _hintProviderService.EnumGridHintsForBounds(hWnd, qr, layout);
+                if (s == null || s.Hints == null || s.Hints.Count == 0)
+                {
+                    if (q == quadrant)
+                    {
+                        return null;
+                    }
+                    s = new HintSession
+                    {
+                        Hints = new List<Hint>(),
+                        OwningWindow = hWnd,
+                        OwningWindowBounds = monitor
+                    };
+                }
+                else
+                {
+                    // Full-screen overlay: rebase hint render-rects from the quadrant origin
+                    // to the monitor origin. PointHint cursor targets are already absolute,
+                    // so clicks stay correct.
+                    RebaseTo(s.Hints, qr.Left - monitor.Left, qr.Top - monitor.Top);
+                    s.OwningWindowBounds = monitor;
+                }
+                sessions.Add(s);
             }
-            // Full-screen overlay: rebase hint render-rects from the quadrant origin to the
-            // monitor origin, and report the full monitor as the bounds. PointHint cursor
-            // targets are already absolute, so clicks stay correct.
-            RebaseTo(session.Hints, quadrantRect.Left - monitor.Left, quadrantRect.Top - monitor.Top);
-            session.OwningWindowBounds = monitor;
 
-            return new OverlayViewModel(session, _hintLabelService);
+            return new OverlayViewModel(sessions, quadrant, _hintLabelService)
+            {
+                IsQuadrantMode = true
+            };
         }
 
         private struct MonitorSessions

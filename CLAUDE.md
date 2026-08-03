@@ -242,6 +242,9 @@ typed).
 - **Quadrant hotkeys** (`Ctrl+Shift+F1/F2/F3/F4`, startup-only): open the overlay scoped to
   the TL/TR/BL/BR screen quadrant — a dense uniform grid (`ZoneGridStep`) over just that
   quarter, on a full-screen overlay (labels only in the quadrant). One chord, no zone-pick.
+  The overlay holds all four quadrants and starts on the pressed one, so **plain Tab/Shift+Tab
+  cycles the quarters** (badge `Q n/4`); `Ctrl+Tab`/`Ctrl+Shift+Tab`/`Win+Tab` still pass
+  through. Each cycle resets the typed prefix + pan (same as monitor cycling).
   Keys/modifier configurable via `QuadrantHotkeyKeys`/`QuadrantHotkeyModifier`.
 - **Esc** (or **`1`**, an alias that's closer to type) clears the typed prefix if any
   has been typed (cancel the selection, stay up so you can retype from scratch); if

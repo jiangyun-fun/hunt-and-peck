@@ -1,0 +1,58 @@
+---
+title: "Quadrant Tab-cycle — report"
+author: "Yun Jiang"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+---
+
+# Report — Tab cycles quadrants in `Ctrl+Shift+F1..F4` mode
+
+**Plan:** [`20260803-133250_quadrant-tab-cycle.plan.qmd`](./20260803-133250_quadrant-tab-cycle.plan.qmd)
+
+## What was done
+
+Plain **Tab / Shift+Tab** now cycles the four screen quadrants when the overlay was opened
+by a quadrant hotkey (`Ctrl+Shift+F1..F4`). Implemented as planned — quadrant mode became a
+4-session `OverlayViewModel`, reusing the existing `CycleMonitor` path. **No hook change, no
+new key-action kind, no new config key.**
+
+### Changes
+
+- `OverlayViewModel.cs` — added `_isQuadrantMode` + `IsQuadrantMode` (notifying),
+  `QuadrantLabel` (`"Q{n}/4"`, reads `_currentSession`), `QuadrantBadgeVisibility`; added
+  `NotifyOfPropertyChange(nameof(QuadrantLabel))` in `CycleMonitor` so the badge updates per Tab.
+- `ShellViewModel.cs` — `BuildQuadrantOverlayViewModel` now builds all four quadrant sessions
+  (fixed 4-slot list, empty-session substitution for a degenerate non-pressed quarter, give-up
+  on an empty *pressed* quarter), rebases each to the full monitor, and returns the multi-session
+  VM starting at the pressed quadrant with `IsQuadrantMode = true`.
+- `OverlayView.xaml` — added a `Q n/4` badge `TextBlock` (SlateBlue) to the status strip.
+- `App.config` / `CLAUDE.md` — documented Tab cycling on the quadrant hotkey.
+
+## Verification
+
+- **Static (pre-CI read-through):** `CycleMonitor` guards pass in quadrant mode
+  (`_zonePhase == Normal`, `_sessions.Count == 4`); the 3-arg ctor leaves `_zonePhase` at its
+  default `Normal`; `_currentSession` is clamped to `quadrant` (0..3) so the badge is correct;
+  `IsQuadrantMode` is set via object initializer after the ctor's `LoadSession` (initial badge
+  value is pulled by WPF on bind, same pattern as `IsContinuous`); empty-session path is safe
+  (`GetHintStrings(0)` returns empty, `HintLabelService.cs:22-25`); `Visibility`/`Hint`/
+  `HintSession`/`List<>` all in scope.
+- **Compile gate:** GitHub Actions CI (the only gate on Linux). *Status: push + `gh run watch`
+  below.*
+- **Runtime (deferred to user):** open via each F-key; Tab cycles TL→TR→BR→BL→wrap; badge
+  updates; Shift+Tab reverses; Ctrl+Tab/Ctrl+Shift+Tab/Win+Tab still reach the browser; clicks
+  land in each quarter; continuous mode stays on the clicked quarter. Ship via `ship-drop`.
+
+## Risks accepted
+
+- 4 quadrants built upfront on the trigger (off-thread; Grid point-gen is arithmetic;
+  `FormattedText` only builds for the loaded session). No measurable trigger latency expected.
+
+## Out of scope (unchanged)
+
+- ZoneZoom pick-view Tab cycling (separate feature, not requested).
+- Lazy/on-demand quadrant build.

@@ -58,6 +58,14 @@ namespace HuntAndPeck.ViewModels
         private Dictionary<char, int> _zoneLabelToIndex;
         private int _currentZoneIndex = -1;
 
+        // --- Quadrant mode (Ctrl+Shift+F1..F4) ---
+        // The overlay holds one session per screen quadrant (TL/TR/BL/BR) so plain Tab
+        // can cycle them via CycleMonitor (the same path monitor-cycling uses). False
+        // in every other mode. _currentSession doubles as the quadrant index (0..3),
+        // so the Q n/4 badge reads it directly. Set once by the builder (ShellViewModel)
+        // after construction.
+        private bool _isQuadrantMode;
+
         /// <summary>
         /// Single-session ctor: Automation, Grid+Window, and the headless /hint and
         /// /tray entry points. Wraps the session as a one-element list (Tab is a no-op).
@@ -222,6 +230,31 @@ namespace HuntAndPeck.ViewModels
             ? Visibility.Visible : Visibility.Collapsed;
 
         /// <summary>
+        /// True when the overlay was opened by a quadrant hotkey (Ctrl+Shift+F1..F4): the
+        /// VM holds one session per screen quadrant (TL/TR/BL/BR) so plain Tab cycles them
+        /// via <see cref="CycleMonitor"/>. False in every other mode. Drives the Q n/4 badge.
+        /// </summary>
+        public bool IsQuadrantMode
+        {
+            get { return _isQuadrantMode; }
+            set
+            {
+                _isQuadrantMode = value;
+                NotifyOfPropertyChange(nameof(QuadrantLabel));
+                NotifyOfPropertyChange(nameof(QuadrantBadgeVisibility));
+            }
+        }
+
+        /// <summary>Overlay badge: "Q n/4" in quadrant mode (mirrors LayoutLabel's "L n/N"); empty otherwise.
+        /// _currentSession is the quadrant index 0..3 (TL/TR/BL/BR), so the badge reads it directly.</summary>
+        public string QuadrantLabel => _isQuadrantMode && _currentSession >= 0 && _currentSession < 4
+            ? string.Format("Q{0}/4", _currentSession + 1)
+            : string.Empty;
+
+        /// <summary>The quadrant badge shows only in quadrant mode (Collapsed otherwise).</summary>
+        public Visibility QuadrantBadgeVisibility => _isQuadrantMode ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>
         /// Zone-pick: type a zone label char to drill into that zone. Builds the fine grid
         /// over a lens (CenteredLens on the zone center) via the buildZoneSession delegate
         /// and loads it; the delegate sets OwningWindowBounds = monitor, so the overlay
@@ -301,6 +334,9 @@ namespace HuntAndPeck.ViewModels
             LoadSession(_sessions[_currentSession]);
             OffsetX = 0;
             OffsetY = 0;
+            // Quadrant mode: _currentSession is the new quadrant index, so refresh the
+            // Q n/4 badge. Harmless in monitor mode (QuadrantLabel is empty there).
+            NotifyOfPropertyChange(nameof(QuadrantLabel));
         }
 
         /// <summary>

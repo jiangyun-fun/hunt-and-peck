@@ -53,6 +53,12 @@
                        FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
                        Foreground="White" Background="MediumSeaGreen" Padding="6,2"
                        Margin="6,0,0,0" Visibility="{Binding ZoneBadgeVisibility}" />
+            <!-- Quadrant indicator (Ctrl+Shift+F1..F4): "Q n/4" while in quadrant mode;
+                 plain Tab cycles the four quarters. Collapsed otherwise. -->
+            <TextBlock Text="{Binding QuadrantLabel}"
+                       FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
+                       Foreground="White" Background="SlateBlue" Padding="6,2"
+                       Margin="6,0,0,0" Visibility="{Binding QuadrantBadgeVisibility}" />
         </StackPanel>
     </Grid>
 </local:ForegroundWindow>

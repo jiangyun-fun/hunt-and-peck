@@ -1,0 +1,103 @@
+---
+title: "Quadrant Tab-cycle"
+author: "Yun Jiang"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+---
+
+# Plan — Tab cycles quadrants in `Ctrl+Shift+F1..F4` mode
+
+**Status: implemented** — see
+[`20260803-133516_quadrant-tab-cycle.report.qmd`](./20260803-133516_quadrant-tab-cycle.report.qmd).
+No deviations from the plan below.
+
+## Objective
+
+When the overlay is opened by a quadrant hotkey (`Ctrl+Shift+F1..F4`), let **plain
+Tab / Shift+Tab** cycle the four screen quadrants (TL → TR → BR → BL → wrap), so the
+user can scan all four quarters without Esc + re-pressing a different F-key. Previously Tab
+was captured in quadrant mode but swallowed (the VM held a single session, so `CycleMonitor`
+no-ops).
+
+## Approach (as implemented)
+
+**Quadrant mode = a 4-session `OverlayViewModel`.** Reused the existing monitor-cycling
+machinery verbatim — Tab maps to `CycleMonitor(±1)` (`OverlayKeyboardHook.cs:344-358`,
+`:455-458`), and `CycleMonitor` advances `_currentSession`, reloads, and resets pan
+(`OverlayViewModel.cs`, `CycleMonitor`). No new key-action kind, no hook change. The whole
+feature was a reshape of `BuildQuadrantOverlayViewModel` + a badge.
+
+### Why this is cheap
+
+- Grid quadrant sessions are **synthetic point arithmetic** (no UI Automation walk), so
+  building 4 is ≈ the point-gen cost of one full-screen grid.
+- `FormattedText` is built per *loaded* session in `LoadSession`/`HintCanvas`, not for all
+  four upfront (`HintViewModel.cs:11-17` just stores a font-size string). So render cost
+  still scales with the one visible quarter.
+- Enum runs off-thread (`Task.Run` in `OpenQuadrantOverlayAsync`), so the UI never freezes.
+
+## Files changed
+
+1. **`OverlayViewModel.cs`** — added quadrant-mode state + badge:
+   - `private bool _isQuadrantMode;`
+   - `public bool IsQuadrantMode` (setter raises `QuadrantLabel` + `QuadrantBadgeVisibility`;
+     set by `ShellViewModel` after construction via object initializer).
+   - `public string QuadrantLabel` → `"Q{n}/4"` in quadrant mode (mirrors `LayoutLabel`'s
+     `L{n}/{N}`), empty otherwise. `_currentSession` is the quadrant index 0..3 (TL/TR/BL/BR),
+     so the badge reads it directly.
+   - `public Visibility QuadrantBadgeVisibility` → `Visible` in quadrant mode.
+   - In `CycleMonitor`, after the session swap, `NotifyOfPropertyChange(nameof(QuadrantLabel))`
+     so the badge updates on each Tab (harmless in monitor mode where it is empty/Collapsed).
+
+2. **`ShellViewModel.cs`** — rewrote `BuildQuadrantOverlayViewModel`:
+   - `SliceIntoZones(monitor, 2, 2)` → `[TL, TR, BL, BR]` (`ZoneService.cs:33-51`).
+   - Built one session per quadrant at `ZoneGridStep` (uniform `Center` layout), rebased each
+     to the full monitor (labels only in that quarter; cursor targets already absolute).
+   - Kept `_currentSession` == pressed quadrant index via a fixed 4-slot build; a non-pressed
+     quadrant returning null/empty is substituted with an empty session (0 hints →
+     `GetHintStrings(0)` returns empty → renders nothing; safe per `HintLabelService.cs:22-25`);
+     an empty **pressed** quadrant returns null (preserves the prior give-up behavior).
+   - Returned `new OverlayViewModel(sessions, quadrant, _hintLabelService) { IsQuadrantMode = true }`.
+
+3. **`OverlayView.xaml`** — added a `Q n/4` `TextBlock` (SlateBlue) to the bottom-center
+   status strip, mirroring `LayoutLabel`/`ZoneLabel`.
+
+4. **`App.config`** — extended the quadrant comment to note Tab cycles quadrants.
+
+5. **`CLAUDE.md`** — extended the quadrant-hotkey bullet with the Tab behavior.
+
+No new `.cs` files → no `.csproj` edits. No new config key (cycling is automatic when opened
+via a quadrant hotkey).
+
+## Behavior contract
+
+- Press `Ctrl+Shift+F2` (TR) → overlay opens on TR; badge `Q2/4`. Tab → BR `Q3/4` → BL
+  `Q4/4` → TL `Q1/4` → wrap to TR. Shift+Tab reverses.
+- Each cycle resets the typed prefix (`LoadSession` clears `_match`) and the pan offset —
+  same as monitor cycling.
+- `Ctrl+Tab` / `Ctrl+Shift+Tab` / `Win+Tab` still pass through (browser/Task View) —
+  unchanged, only *plain* Tab is captured.
+- Continuous mode composes: stay up, Tab across quarters, click targets in each.
+- No collision with ZoneZoom: zone overlays guard Tab out (`_zonePhase != Normal`);
+  quadrant VMs are `ZonePhase.Normal`.
+- Terminology: these are **quadrants**, not *zones* (zones = `ZoneZoomEnabled`). Badge/config
+  text uses "Q" to avoid confusion with `ZoneCols`/`ZoneRows`.
+
+## Risks / verification
+
+- **Index↔quadrant bijection** holds for the badge — guaranteed by the fixed 4-slot build
+  (no skipping); confirmed by read-through.
+- **CI compile** is the only gate on Linux (`.github/workflows/build.yml`) — push +
+  `gh run watch --exit-status`.
+- **Runtime** (manual, on Windows): open via each F-key; Tab cycles; badge updates; clicks
+  land correctly in each quarter; Ctrl+Tab still reaches the browser. Deferred to user test
+  via `ship-drop`.
+
+## Out of scope
+
+- Cycling zones in the ZoneZoom *pick* view (separate feature; not requested).
+- Lazy/on-demand quadrant build (premature; upfront is cheap per above).
