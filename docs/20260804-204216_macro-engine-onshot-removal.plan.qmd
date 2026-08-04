@@ -1,0 +1,172 @@
+---
+title: "Macro engine + one-shot hotkey removal"
+author: "Yun Jiang"
+date: 2026-08-04
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+---
+
+# Macro engine + one-shot hotkey removal
+
+**Status:** plan (pending approval) · **Slug:** `macro-engine-onshot-removal`
+**Report:** `20260804-204216_macro-engine-onshot-removal.report.qmd` (written after completion)
+
+## Objective
+
+Two workstreams, agreed in the design conversation:
+
+1. **Remove the dedicated one-shot overlay hotkey** (`Ctrl+Shift+,`), hotkey-only
+   scope: delete the registration, handler, Options/config UI. **Keep**
+   `OverlayTriggerMode.OneClick` and the press-again one-click⇄continuous toggle.
+2. **Add a macro engine inside hap** (typed + raw step model; recording deferred to
+   phase 2). A global hotkey opens a lightweight non-activating picker listing
+   `hotkey \t name`; typing a macro's single char runs its step list. Example macro:
+   open Feishu, open the hap overlay, nudge, type label `AG` to click, then send
+   Feishu's `Ctrl+N` (new task).
+
+Macros persist to `%APPDATA%\hap\macros.json` (personal data; **not** in git).
+
+## Grounding evidence (verified in code)
+
+| Claim | Evidence |
+|---|---|
+| One-shot hotkey is isolated | `src/HuntAndPeck/ViewModels/ShellViewModel.cs:64-69` (set), `:88,:102-103` (wire+handle); `KeyListenerService.cs:95-106,:166-173`; `IKeyListenerService.cs:26,:34`; `OverlayActionConfig.cs:843-863`; `OptionsViewModel.cs:104-105`; `OptionsView.xaml:120-124`; `App.config:45-47` |
+| `forceOneShot` is driven ONLY by the dedicated hotkey | `ShellViewModel.cs:114` `OpenOverlayAsync(forceOneShot)`; sole `true` caller is `_keyListener_OnOneShotHotKeyActivated` (`:102-103`) |
+| hap has NO keyboard synthesis | only `mouse_event` at `OverlayViewModel.cs:740-756`; no `keybd_event`/`SendInput`/`INPUT_KEYBOARD` in `src/` |
+| No window enumeration; `FindWindow` is exact title/class only | `NativeMethods/User32.cs:45` (`FindWindow`), `:30` (`GetWindowThreadProcessId`), `:33` (`SetForegroundWindow`); no `EnumWindows` |
+| Overlay open is async | `ShellViewModel.OpenOverlayAsync` (`:114+`): capture foreground → enumerate off-thread → show; capture hook armed in `App.ShowOverlay` |
+| Keyboard hook does NOT filter injected keys (fine for us) | only mouse checks `LLMHF_INJECTED` (`OverlayKeyboardHook.cs:499`); keyboard path (`:230-319`) routes injected == physical — so macro-sent keys behave like typed ones |
+| Coordinate click is nearly free | `User32.GetWindowRect` (`User32.cs:15`); `PointHint` already clicks a stored absolute `_screenPoint` via `SetCursorPos` (`PointHint.cs:14,35`); `mouse_event` at `OverlayViewModel.cs:740-756` |
+| csproj uses explicit `<Compile Include>` | `HuntAndPeck.csproj` (44 includes) — every new `.cs`/`.xaml` must be added |
+| `ComputeIsContinuous` test references `forceOneShot` | `OverlayActionConfigTest.cs:237-244` (only test to reconcile) |
+
+## Scope & decisions (locked)
+
+- **Macro engine location:** in hap (not AutoHotkey). Rationale: avoids the
+  AHK↔hap Capslock/hook-ordering fragility documented in `CLAUDE.md`.
+- **Step model:** **both** — runner supports typed and raw step kinds.
+- **Recording:** **phase 2**. v1 ships the runner (both kinds) + hand-authored
+  typed macros; the recorder that emits raw steps comes later.
+- **One-shot deletion:** hotkey only; keep `OneClick` mode + the toggle.
+- **Click-step strategy (mitigates the positional `AG` fragility):** three click
+  step types — `overlayType { label }` (label-relative, fragile to grid change),
+  `clickAbs { x, y }` (absolute screen coord, fragile to window move), and
+  `clickRel { dx, dy }` (window-relative via `GetWindowRect`, robust to both —
+  **recommended**). Runner supports all three from day one. v1's hand-authored
+  example keeps `overlayType: AG` (coords aren't hand-measurable); the phase-2
+  recorder defaults to `clickRel` so recorded macros are grid-immune.
+
+## Workstream A — remove one-shot hotkey
+
+Files (delete the one-shot surface; keep `OneClick` mode + toggle):
+
+1. `ShellViewModel.cs` — remove `OneShotHotKey` setup (`:64-69`), the
+   `OnOneShotHotKeyActivated` wiring (`:88`) + handler (`:102-103`).
+   Simplify `OpenOverlayAsync(forceOneShot)` → `OpenOverlayAsync()`; drop the
+   `forceOneShot` arg at the `:142-143` `ComputeIsContinuous` call (pass nothing /
+   refactor signature). **Keep** the 2nd-press toggle branch (`:116-122`).
+2. `KeyListenerService.cs` — remove field (`:26`), property (`:95-106`), event
+   (`:13`), `WM_HOTKEY` branch (`:166-173`).
+3. `IKeyListenerService.cs` — remove event (`:26`) + property (`:34`).
+4. `OverlayActionConfig.cs` — remove `ReadOneShotHotkeyKey/Modifier` (`:843-863`);
+   drop the `forceOneShot` parameter from `ComputeIsContinuous` (`:323-325`) and
+   simplify (always treat as false; `OneClick` config still respected).
+5. `OptionsViewModel.cs` — remove `OneShotHotkeyKey/Modifier` (`:104-105`).
+6. `OptionsView.xaml` — remove one-shot hotkey UI block (`:120-124`).
+7. `App.config` — remove `OneShotHotkeyKey/Modifier` entries + comment (`:43-47`).
+8. `OverlayActionConfigTest.cs` — update `ComputeIsContinuous` test (`:237-244`):
+   drop the `forceOneShot` dimension (no caller passes true anymore).
+9. `CLAUDE.md` — remove one-shot hotkey references (startup-only list, runtime
+   paragraph).
+
+## Workstream B — macro engine (phased)
+
+### B1 — foundation: picker, send, wait, focusWindow, JSON store
+
+New / changed:
+
+- `NativeMethods/User32.cs` — add P/Invoke: `SendInput`, `INPUT` +
+  `INPUT_KEYBOARD` + `KEYBDINPUT` structs, `KEYEVENTF_*` flags, `EnumWindows` +
+  `EnumWindowsProc`, `GetWindowText`/`GetWindowTextLength`, `IsWindowVisible`.
+- `Services/Macro/MacroStep.cs` — step model with a `type` discriminator:
+  `send` (mods+key), `wait` (ms), `openOverlay`, `overlayType` (label),
+  `clickAbs` (x,y), `clickRel` (dx,dy — resolved via `GetWindowRect` of the
+  focused/target window at run time), `nudge` (dir+tier), `focusWindow`
+  (title, match=exact), `rawReplay` (vk up/down + ms gaps — the recording
+  output shape; runner supports it now, nothing produces it yet).
+- `Services/Macro/InputSynthesis.cs` — `SendInput` wrappers: `SendChord(mods,key)`
+  and `ReplayRaw(events)` (the raw-step primitive that phase-2 recording targets).
+- `Services/Macro/WindowFinder.cs` — `EnumWindows` exact-title match; return
+  **abort** on 0 matches or >1 match (the user's safety rule).
+- `Services/Macro/MacroStore.cs` — load/save `%APPDATA%\hap\macros.json`;
+  define the file format (`[{hotkey,name,steps:[...]}]`).
+- `Services/Macro/MacroService.cs` — execute a macro's steps in order.
+- `ViewModels/MacroPickerViewModel.cs` + `Views/MacroPickerView.xaml(.cs)` —
+  non-activating WPF palette (sibling of `OverlayView`: `ShowActivated=False` +
+  global-hook input, single-char selection).
+- `KeyListenerService.cs` + `IKeyListenerService.cs` + `ShellViewModel.cs` — add a
+  `MacroHotKey` (startup-only; default `Ctrl+Shift+;`, no Alt) reusing the
+  registration pattern. Fires `OnMacroHotKeyActivated` → opens the picker.
+- `App.config` — `MacroHotkeyKey`/`MacroHotkeyModifier` (startup-only).
+- `HuntAndPeck.csproj` — add every new `.cs` (`<Compile Include>`) and `.xaml`
+  (`<Page Include>` / `<DependentUpon>`).
+
+### B2 — overlay integration (the hard part)
+
+- Overlay-ready signal: expose a completion/event from the overlay show path
+  (`App.ShowOverlay` / `OverlayViewModel`) so `MacroService.openOverlay` **waits**
+  for ready (not a blind sleep) before the next step.
+- Click-fired signal: `overlayType` waits for the label's click to fire before
+  the next step (hook into the existing click path in `OverlayViewModel`).
+- `nudge` maps to the existing pan API (`OverlayViewModel` offset / nudge tiers).
+- **Recommendation:** `openOverlay`/`overlayType`/`nudge` call hap's internal
+  APIs directly (clean signals), NOT synthesized `Ctrl+Shift+,`. `send` (e.g.
+  `Ctrl+Shift+Q` open Feishu, `Ctrl+N` new task) IS synthesized via `SendInput`.
+
+### B3 — recording (phase 2, not in this change)
+
+- Capture physical keystrokes via the persistent tracker hook
+  (`OverlayKeyboardHook.cs:85-86,189`) with timestamps → emit `rawReplay` steps.
+
+## Risks
+
+- **Overlay-ready timing** — the async signal is the crux; a wrong signal makes
+  overlay steps misfire. Mitigation: hook a real event, never fixed sleeps.
+- **UIPI / integrity level** — `SendInput` is blocked if the target (Feishu) runs
+  **elevated** and hap does not. Runtime caveat to document; mitigation = run hap
+  elevated too (documented trade-off).
+- **Label `AG` is positional** — if grid/resolution shifts, `AG` points elsewhere.
+  **Mitigated:** `clickRel` (window-relative) is grid-immune and is the recorder's
+  default output; only v1 hand-authored macros using `overlayType` are exposed.
+  A Feishu *UI* change (button moves within the window) still breaks all methods
+  except UIA-by-name (out of scope).
+- **Global macro hotkey collision** — avoid Alt (dismisses menus); `Ctrl+Shift+;`
+  is free (no longer a label-cycle key; `3` cycles layouts now).
+- **csproj omissions** — non-SDK explicit includes; CI will fail to compile a
+  `.cs` not listed. Mitigation: checklist every new file.
+
+## Verification
+
+- **CI compile gate** (`.github/workflows/build.yml`, `windows-latest` MSBuild +
+  vstest) must stay green — this is the only build/test gate on Linux.
+- **Unit tests:** `MacroStore` parse/serialize round-trip; `WindowFinder`
+  exact-match + 0-match abort + >1-match abort; `OverlayActionConfigTest`
+  updated `ComputeIsContinuous`; existing suite unchanged.
+- **Manual test on Windows** (via `ship-drop` skill): run the `create lark task`
+  macro end-to-end (open Feishu → overlay → nudge → `AG` click → `Ctrl+N`).
+- **Regression:** main hotkey `Ctrl+Shift+M`, quadrant hotkeys, the
+  press-again toggle, and `OneClick` trigger-mode all still work after A.
+
+## Build order
+
+1. **A first** (independent, low-risk, immediately shippable via `ship-drop`).
+2. **B1** (picker + send + wait + focusWindow + JSON; one macro authored by hand).
+3. **B2** (overlay-ready/click-fired signals; `openOverlay`/`overlayType`/`nudge`).
+4. **B3 deferred.**
+
+Each step is a separate commit-to-`master` + CI + optional `ship-drop`, per the
+Linux-edit → CI → Windows-test loop.

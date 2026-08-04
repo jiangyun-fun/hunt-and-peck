@@ -122,12 +122,10 @@ Two kinds of settings:
   (`ActiveLayout` is also in appSettings but is rewritten by the `;` key, not hand-edited.)
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
-  dismisses open context menus even inside a chord); the dedicated one-shot
-  hotkey `OneShotHotkeyKey`, `OneShotHotkeyModifier` (default `Ctrl+Shift+,` /
-  `Oemcomma`, which opens the overlay in one-shot mode regardless of
-  `OverlayTriggerMode`); and the quadrant hotkeys `QuadrantHotkeyKeys`
-  (default `F1,F2,F3,F4` = TL/TR/BL/BR) + `QuadrantHotkeyModifier` (default `Control,Shift`),
-  which open the overlay scoped to one screen quadrant.
+  dismisses open context menus even inside a chord); and the quadrant hotkeys
+  `QuadrantHotkeyKeys` (default `F1,F2,F3,F4` = TL/TR/BL/BR) +
+  `QuadrantHotkeyModifier` (default `Control,Shift`), which open the overlay
+  scoped to one screen quadrant.
 
 `HintCharacters` defaults to `A–Z` (easy to recognize). The punctuation set
 `,./;'[]\` is also supported — add any of them here to opt in. The matching input
@@ -146,10 +144,8 @@ typed).
   / Win+Tab pass through** (browser/app tab switch, Task View) — only plain Tab/Shift+Tab
   cycle monitors. (Cycling is Grid + Screen only; Automation / Grid+Window stay
   single-session.)
-- **One-shot hotkey** `Ctrl+Shift+,` (`OneShotHotkeyKey`/`OneShotHotkeyModifier`,
-  startup-only) → opens the overlay in **one-shot** mode regardless of `OverlayTriggerMode`
-  — handy for a quick single click when the default is Continuous. Pressing either hotkey
-  while the overlay is already up toggles one-click ⇄ continuous.
+- **Press the hotkey again while the overlay is up** to toggle one-click ⇄ continuous
+  (Grid only). `OverlayTriggerMode=OneClick` (hot-reload) makes every open one-shot.
 - **Labels are all highlighted (yellow) at start**; typing narrows the highlight to the
   matching labels; a unique match fires. (In continuous mode the highlight resets to
   all-yellow after each click.)
