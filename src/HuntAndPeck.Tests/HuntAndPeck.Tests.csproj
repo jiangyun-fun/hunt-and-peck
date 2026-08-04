@@ -59,6 +59,9 @@
     <Reference Include="xunit.execution.desktop, Version=2.2.0.3545, Culture=neutral, PublicKeyToken=8d05b1bb7a6fdb6c, processorArchitecture=MSIL">
       <HintPath>..\packages\xunit.extensibility.execution.2.2.0\lib\net452\xunit.execution.desktop.dll</HintPath>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -67,6 +70,9 @@
     <Compile Include="Services\GridLayoutConfigTest.cs" />
     <Compile Include="Services\OverlayKeyboardHookTest.cs" />
     <Compile Include="Services\ZoneServiceTest.cs" />
+    <Compile Include="Services\InputSynthesisTest.cs" />
+    <Compile Include="Services\WindowFinderTest.cs" />
+    <Compile Include="Services\MacroStoreTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\HuntAndPeck\HuntAndPeck.csproj">
