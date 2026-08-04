@@ -211,7 +211,7 @@ namespace HuntAndPeck.ViewModels
 
             // A quadrant is always a Grid (ignores HintSource); Continuous follows config.
             var continuous = OverlayActionConfig.ComputeIsContinuous(
-                false, true, OverlayActionConfig.ReadTriggerMode());
+                true, OverlayActionConfig.ReadTriggerMode());
 
             // Build the new quadrant VM off-thread while the current overlay (if any) stays
             // visible, then swap it in. A quadrant hotkey ALWAYS shows its quadrant -- it does
