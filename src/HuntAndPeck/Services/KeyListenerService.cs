@@ -10,6 +10,7 @@ namespace HuntAndPeck.Services
         public event EventHandler OnHotKeyActivated;
         public event EventHandler OnTaskbarHotKeyActivated;
         public event EventHandler OnDebugHotKeyActivated;
+        public event EventHandler OnMacroHotKeyActivated;
 
         /// <summary>Quadrant hotkey (Ctrl+Shift+F1..F4): carries the quadrant index 0..3 (TL/TR/BL/BR).</summary>
         public event Action<int> OnQuadrantHotKeyActivated;
@@ -22,6 +23,7 @@ namespace HuntAndPeck.Services
         private HotKey _hotKey;
         private HotKey _taskbarHotKey;
         private HotKey _debugHotKey;
+        private HotKey _macroHotKey;
         private HotKey[] _quadrantHotKeys;
 
         /// <summary>
@@ -86,6 +88,16 @@ namespace HuntAndPeck.Services
             }
         }
 
+        /// <summary>Macro picker hotkey (default Ctrl+Shift+;): opens the macro palette.</summary>
+        public HotKey MacroHotKey
+        {
+            get { return _macroHotKey; }
+            set
+            {
+                _macroHotKey = value;
+                ReRegisterHotKey(_macroHotKey);
+            }
+        }
 
         /// <summary>
         /// The four quadrant hotkeys (TL/TR/BL/BR). Set once at startup; each is registered
@@ -143,6 +155,15 @@ namespace HuntAndPeck.Services
                     OnDebugHotKeyActivated != null)
                 {
                     OnDebugHotKeyActivated(this, new EventArgs());
+                }
+
+                // Macro hotkey (opens the macro picker palette)
+                if (_macroHotKey != null &&
+                    e.Key == _macroHotKey.Keys &&
+                    e.Modifiers == _macroHotKey.Modifier &&
+                    OnMacroHotKeyActivated != null)
+                {
+                    OnMacroHotKeyActivated(this, new EventArgs());
                 }
 
 

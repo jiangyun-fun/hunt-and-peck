@@ -3,6 +3,7 @@ using System.Windows;
 using HuntAndPeck.ViewModels;
 using System.Linq;
 using HuntAndPeck.Services;
+using HuntAndPeck.Services.Macro;
 using HuntAndPeck.Views;
 using HuntAndPeck.NativeMethods;
 
@@ -16,6 +17,7 @@ namespace HuntAndPeck
         private readonly SingleLaunchMutex _singleLaunchMutex = new SingleLaunchMutex();
         private readonly UiAutomationHintProviderService _hintProviderService = new UiAutomationHintProviderService();
         private readonly HintLabelService _hintLabelService = new HintLabelService();
+        private readonly MacroService _macroService = new MacroService();
         private KeyListenerService _keyListenerService;
         private OverlayView _currentOverlayView;
         private OverlayViewModel _currentVm;
@@ -121,6 +123,23 @@ namespace HuntAndPeck
             view.ShowDialog();
         }
 
+        private void ShowMacroPicker()
+        {
+            var file = MacroStore.Load();
+            var view = new MacroPickerView(file);
+            view.Closed += (s, e) =>
+            {
+                var macro = view.Result;
+                if (macro != null)
+                {
+                    // Run on a background thread; the first step is usually focusWindow,
+                    // which moves foreground off the (closing) picker before any keys land.
+                    _ = _macroService.RunAsync(macro);
+                }
+            };
+            view.Show();
+        }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             // Install an inert, app-lifetime Alt/Capslock tracker (above AutoHotkey) so the
@@ -161,6 +180,7 @@ namespace HuntAndPeck
                     IsOverlayActive,
                     ToggleOverlayMode,
                     CloseCurrentOverlay,
+                    ShowMacroPicker,
                     _hintLabelService,
                     _hintProviderService,
                     _hintProviderService,

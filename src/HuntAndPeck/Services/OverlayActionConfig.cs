@@ -833,6 +833,34 @@ namespace HuntAndPeck.Services
             }
         }
 
+        /// <summary>The macro-picker hotkey key (read once at startup). Default OemSemicolon (the ";" key).</summary>
+        public static Keys ReadMacroHotkeyKey(Keys fallback)
+        {
+            try
+            {
+                EnsureFresh();
+                return ParseKeys(ConfigurationManager.AppSettings["MacroHotkeyKey"], fallback);
+            }
+            catch (Exception)
+            {
+                return fallback;
+            }
+        }
+
+        /// <summary>The macro-picker hotkey modifiers (read once at startup). Fallback when missing/invalid.</summary>
+        public static KeyModifier ReadMacroHotkeyModifier(KeyModifier fallback)
+        {
+            try
+            {
+                EnsureFresh();
+                return ParseKeyModifiers(ConfigurationManager.AppSettings["MacroHotkeyModifier"], fallback);
+            }
+            catch (Exception)
+            {
+                return fallback;
+            }
+        }
+
         private static int ReadIntSetting(string key, int defaultValue)
         {
             try

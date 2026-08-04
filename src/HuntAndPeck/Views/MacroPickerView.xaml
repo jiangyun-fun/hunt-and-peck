@@ -1,0 +1,42 @@
+<Window x:Class="HuntAndPeck.Views.MacroPickerView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="hap macros"
+        Width="380" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
+        Focusable="True"
+        PreviewKeyDown="MacroPickerView_OnPreviewKeyDown">
+    <Border Padding="12" Background="White">
+        <StackPanel>
+            <TextBlock Text="Macros" FontWeight="Bold" FontSize="13" Margin="0,0,0,6" />
+            <ItemsControl ItemsSource="{Binding Macros}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="28" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding Hotkey}"
+                                       FontWeight="Bold"
+                                       FontFamily="Consolas"
+                                       FontSize="14" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding Name}"
+                                       FontSize="13"
+                                       Margin="8,0,0,0"
+                                       TextTrimming="CharacterEllipsis" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="{Binding Status}"
+                       Foreground="Gray"
+                       FontSize="11"
+                       Margin="0,10,0,0"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</Window>

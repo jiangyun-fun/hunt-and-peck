@@ -127,6 +127,7 @@
     <Compile Include="ViewModels\HintViewModel.cs" />
     <Compile Include="ViewModels\NotifyPropertyChanged.cs" />
     <Compile Include="ViewModels\OptionsViewModel.cs" />
+    <Compile Include="ViewModels\MacroPickerViewModel.cs" />
     <Compile Include="ViewModels\ShellViewModel.cs" />
     <Compile Include="ViewModels\OverlayViewModel.cs" />
     <Compile Include="Views\DebugOverlayView.xaml.cs">
@@ -142,6 +143,9 @@
     </Compile>
     <Compile Include="Views\OverlayView.xaml.cs">
       <DependentUpon>OverlayView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\MacroPickerView.xaml.cs">
+      <DependentUpon>MacroPickerView.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
   <ItemGroup>
@@ -189,6 +193,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Views\OverlayView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\MacroPickerView.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

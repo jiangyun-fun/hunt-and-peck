@@ -20,6 +20,7 @@ namespace HuntAndPeck.ViewModels
         private readonly Func<bool> _isOverlayActive;
         private readonly Action _toggleOverlayMode;
         private readonly Action _closeOverlay;
+        private readonly Action _showMacroPicker;
         private readonly IHintLabelService _hintLabelService;
         private readonly IHintProviderService _hintProviderService;
         private readonly IDebugHintProviderService _debugHintProviderService;
@@ -31,6 +32,7 @@ namespace HuntAndPeck.ViewModels
             Func<bool> isOverlayActive,
             Action toggleOverlayMode,
             Action closeOverlay,
+            Action showMacroPicker,
             IHintLabelService hintLabelService,
             IHintProviderService hintProviderService,
             IDebugHintProviderService debugHintProviderService,
@@ -42,6 +44,7 @@ namespace HuntAndPeck.ViewModels
             _isOverlayActive = isOverlayActive;
             _toggleOverlayMode = toggleOverlayMode;
             _closeOverlay = closeOverlay;
+            _showMacroPicker = showMacroPicker;
             _hintLabelService = hintLabelService;
             var keyListener1 = keyListener;
             _hintProviderService = hintProviderService;
@@ -66,6 +69,15 @@ namespace HuntAndPeck.ViewModels
                 .Select(k => new HotKey { Keys = k, Modifier = quadrantMod })
                 .ToArray();
 
+            // Macro picker hotkey (default Ctrl+Shift+;): opens the macro palette.
+            // Read once at startup; restart to apply.
+            keyListener1.MacroHotKey = new HotKey
+            {
+                Keys = OverlayActionConfig.ReadMacroHotkeyKey(Keys.OemSemicolon),
+                Modifier = OverlayActionConfig.ReadMacroHotkeyModifier(
+                    KeyModifier.Control | KeyModifier.Shift)
+            };
+
 #if DEBUG
             keyListener1.DebugHotKey = new HotKey
             {
@@ -77,6 +89,7 @@ namespace HuntAndPeck.ViewModels
             keyListener1.OnHotKeyActivated += _keyListener_OnHotKeyActivated;
             keyListener1.OnDebugHotKeyActivated += _keyListener_OnDebugHotKeyActivated;
             keyListener1.OnQuadrantHotKeyActivated += _keyListener_OnQuadrantHotKeyActivated;
+            keyListener1.OnMacroHotKeyActivated += _keyListener_OnMacroHotKeyActivated;
 
             ShowOptionsCommand = new DelegateCommand(ShowOptions);
             ExitCommand = new DelegateCommand(Exit);
@@ -90,6 +103,9 @@ namespace HuntAndPeck.ViewModels
 
         private async void _keyListener_OnQuadrantHotKeyActivated(int quadrant)
             => await OpenQuadrantOverlayAsync(quadrant);
+
+        private void _keyListener_OnMacroHotKeyActivated(object sender, EventArgs e)
+            => _showMacroPicker();
 
         /// <summary>
         /// Opens the overlay. If the overlay is already up, the hotkey toggles
