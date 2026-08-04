@@ -1,3 +1,4 @@
+using System;
 using System.Windows.Forms;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services.Macro;
@@ -7,6 +8,11 @@ namespace HuntAndPeck.Tests.Services
 {
     public class InputSynthesisTest
     {
+        // NOTE: we avoid Assert.Throws here. xUnit 2.2.0's xunit.assert.dll targets
+        // netstandard1.1, and its Throws overload surface pulls in Task from the
+        // System.Threading.Tasks facade, which the net452 test project does not
+        // reference (CS0012). A plain try/catch over an Action avoids that entirely.
+
         [Theory]
         [InlineData("Q", (int)Keys.Q)]
         [InlineData("q", (int)Keys.Q)]            // case-insensitive
@@ -24,13 +30,13 @@ namespace HuntAndPeck.Tests.Services
         [InlineData("   ")]
         public void ParseKey_ThrowsOnBlank(string key)
         {
-            Assert.Throws<System.ArgumentException>(() => InputSynthesis.ParseKey(key));
+            AssertThrowsArgument(() => InputSynthesis.ParseKey(key));
         }
 
         [Fact]
         public void ParseKey_ThrowsOnUnknown()
         {
-            Assert.Throws<System.ArgumentException>(() => InputSynthesis.ParseKey("NotAKey"));
+            AssertThrowsArgument(() => InputSynthesis.ParseKey("NotAKey"));
         }
 
         [Fact]
@@ -52,7 +58,20 @@ namespace HuntAndPeck.Tests.Services
         [Fact]
         public void ParseModifiers_ThrowsOnUnknown()
         {
-            Assert.Throws<System.ArgumentException>(() => InputSynthesis.ParseModifiers(new[] { "Foo" }));
+            AssertThrowsArgument(() => InputSynthesis.ParseModifiers(new[] { "Foo" }));
+        }
+
+        private static void AssertThrowsArgument(Action act)
+        {
+            try
+            {
+                act();
+            }
+            catch (ArgumentException)
+            {
+                return; // expected
+            }
+            Assert.True(false, "expected an ArgumentException");
         }
     }
 }
