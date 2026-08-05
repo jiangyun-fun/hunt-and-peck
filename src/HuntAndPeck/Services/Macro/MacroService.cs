@@ -73,12 +73,18 @@ namespace HuntAndPeck.Services.Macro
                     break;
                 case "focuswindow":
                     {
-                        string err = WindowFinder.FocusByTitle(s.Title, s.Match);
+                        // SetForegroundWindow needs the calling thread to own a message loop
+                        // (foreground privilege), so dispatch the focus onto the UI thread.
+                        string err = null;
+                        Application.Current.Dispatcher.Invoke(new Action(() =>
+                        {
+                            err = WindowFinder.FocusByTitle(s.Title, s.Match);
+                            _targetWindow = User32.GetForegroundWindow();
+                        }));
                         if (err != null)
                         {
                             throw new InvalidOperationException(err);
                         }
-                        _targetWindow = User32.GetForegroundWindow();
                         break;
                     }
                 case "clickabs":

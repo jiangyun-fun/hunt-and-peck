@@ -77,25 +77,31 @@ namespace HuntAndPeck.Services.Macro
             return sb.ToString();
         }
 
-        // SetForegroundWindow refuses when the caller is not already foreground;
-        // briefly attach input threads to the target to satisfy it (standard workaround).
+        // SetForegroundWindow refuses when the calling thread's process is not already
+        // foreground. The standard workaround: attach the CALLING thread to the current
+        // foreground thread (merging their input queues) so the call is permitted, then
+        // detach. Must run on a thread with a message loop (the macro runner dispatches
+        // this onto the UI thread). Also restore (un-minimize) and bring to top first.
         private static void SetForeground(IntPtr hWnd)
         {
-            uint fgThread = User32.GetWindowThreadProcessId(User32.GetForegroundWindow(), IntPtr.Zero);
-            uint appThread = User32.GetWindowThreadProcessId(hWnd, IntPtr.Zero);
-            if (fgThread != appThread)
+            uint foreThread = User32.GetWindowThreadProcessId(User32.GetForegroundWindow(), IntPtr.Zero);
+            uint curThread = Kernel32.GetCurrentThreadId();
+            bool attached = false;
+            if (curThread != foreThread)
             {
-                User32.AttachThreadInput(fgThread, appThread, true);
+                attached = User32.AttachThreadInput(curThread, foreThread, true);
             }
             try
             {
+                User32.ShowWindow(hWnd, User32.SW_RESTORE);
+                User32.BringWindowToTop(hWnd);
                 User32.SetForegroundWindow(hWnd);
             }
             finally
             {
-                if (fgThread != appThread)
+                if (attached)
                 {
-                    User32.AttachThreadInput(fgThread, appThread, false);
+                    User32.AttachThreadInput(curThread, foreThread, false);
                 }
             }
         }
