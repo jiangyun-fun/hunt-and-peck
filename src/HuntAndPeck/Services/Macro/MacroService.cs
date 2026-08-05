@@ -31,18 +31,27 @@ namespace HuntAndPeck.Services.Macro
 
         private void Run(MacroDef macro)
         {
-            _targetWindow = IntPtr.Zero;
-            foreach (var step in macro.Steps ?? new List<MacroStep>())
+            try
             {
-                try
+                _targetWindow = IntPtr.Zero;
+                foreach (var step in macro.Steps ?? new List<MacroStep>())
                 {
-                    RunStep(step);
+                    try
+                    {
+                        RunStep(step);
+                    }
+                    catch (Exception ex)
+                    {
+                        Report(macro, step, ex);
+                        return; // abort on first failure (fail loudly)
+                    }
                 }
-                catch (Exception ex)
-                {
-                    Report(macro, step, ex);
-                    return; // abort on first failure (fail loudly)
-                }
+            }
+            catch (Exception ex)
+            {
+                // Last-resort: never let the background Task fault -- an unobserved task
+                // exception could otherwise take down the process. Report and swallow.
+                Report(macro, null, ex);
             }
         }
 
@@ -107,8 +116,9 @@ namespace HuntAndPeck.Services.Macro
         // step) surfaces a MessageBox on the UI thread so the user sees why it stopped.
         private static void Report(MacroDef macro, MacroStep step, Exception ex)
         {
+            string stepName = step != null ? (step.Type ?? "?") : "?";
             string msg = "Macro '" + (macro.Name ?? macro.Hotkey) + "' aborted at step '"
-                         + (step.Type ?? "?") + "':\n" + ex.Message;
+                         + stepName + "':\n" + ex.Message;
             Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                 MessageBox.Show(msg, "hap macro", MessageBoxButton.OK, MessageBoxImage.Warning)));
         }

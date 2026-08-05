@@ -17,6 +17,11 @@ namespace HuntAndPeck.Views
     {
         private readonly MacroPickerViewModel _vm;
 
+        // Guards Close() against re-entry: selecting a macro sets this before Close(),
+        // so the Deactivated handler (which fires DURING Close) cannot wipe Result or
+        // re-enter Close -- which previously cancelled the run AND crashed on teardown.
+        private bool _closing;
+
         /// <summary>The macro the user chose, or null if cancelled. Read on Closed.</summary>
         public MacroDef Result { get; private set; }
 
@@ -33,12 +38,9 @@ namespace HuntAndPeck.Views
             DataContext = _vm;
 
             Loaded += (s, e) => Focus();
-            // Cancel if the user clicks away (loses focus).
-            Deactivated += (s, e) =>
-            {
-                Result = null;
-                Close();
-            };
+            // Cancel if the user clicks away (loses focus). Guarded by _closing so the
+            // close fired by a selection (which also deactivates) does not re-enter here.
+            Deactivated += (s, e) => CloseWithCancel();
         }
 
         private void MacroPickerView_OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -47,8 +49,7 @@ namespace HuntAndPeck.Views
 
             if (e.Key == Key.Escape)
             {
-                Result = null;
-                Close();
+                CloseWithCancel();
                 return;
             }
 
@@ -63,11 +64,21 @@ namespace HuntAndPeck.Views
                     m.Hotkey.Trim().Equals(ch, StringComparison.OrdinalIgnoreCase))
                 {
                     Result = m;
+                    _closing = true;
                     Close();
                     return;
                 }
             }
             // No match: stay up, ignore.
+        }
+
+        /// <summary>Cancels the picker (Result=null) and closes, unless it is already closing.</summary>
+        private void CloseWithCancel()
+        {
+            if (_closing) return;
+            _closing = true;
+            Result = null;
+            Close();
         }
 
         // Map a letter/digit key to its lower-case single char (macros use single-char hotkeys).
