@@ -93,7 +93,12 @@ namespace HuntAndPeck.Services.Macro
             }
             try
             {
-                User32.ShowWindow(hWnd, User32.SW_RESTORE);
+                // Restore ONLY if minimized -- SW_RESTORE would otherwise UN-maximize a
+                // maximized window (e.g. Feishu), which breaks label/click coordinates.
+                if (User32.IsIconic(hWnd))
+                {
+                    User32.ShowWindow(hWnd, User32.SW_RESTORE);
+                }
                 User32.BringWindowToTop(hWnd);
                 User32.SetForegroundWindow(hWnd);
             }
