@@ -201,3 +201,4 @@ src/Dist
 # Local environment (personal/local values - never commit)
 .env
 .env.local
+macros.local.json
