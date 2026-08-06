@@ -31,12 +31,16 @@ src/
                                          + persistent Alt/Capslock tracker (above AutoHotkey)
       ZoneService.cs                       type-to-zoom zone helpers (slice, pick session, centered lens)
       TimingLog.cs                         optional latency log (gated by TimingLogEnabled)
+      Macro/                               macro engine: MacroStep/Store/Service, InputSynthesis
+                                         (SendInput chords), WindowFinder (EnumWindows focus)
     ViewModels/
-      ShellViewModel.cs         hotkey → enumerate → merge taskbar → show overlay
+      ShellViewModel.cs         hotkey → enumerate → merge taskbar → show overlay; macro hotkey → picker
       OverlayViewModel.cs        hint state machine, pan offset, click-mode cycle
       HintViewModel.cs           per-hint label/active/font
+      MacroPickerViewModel.cs    macro palette (single-char select)
     Views/
       OverlayView.xaml(.cs)      the overlay window (click-through, non-activating)
+      MacroPickerView.xaml(.cs)  macro palette window (topmost, single-char select)
       HintCanvas.cs              single-DrawingVisual renderer for all labels
       ForegroundWindow.cs        base window: opt-out foreground + close-on-deactivate (virtuals)
     Models/                      Hint (abstract), PointHint (grid), UiAutomation*Hint, HintSession
@@ -125,7 +129,9 @@ Two kinds of settings:
   dismisses open context menus even inside a chord); and the quadrant hotkeys
   `QuadrantHotkeyKeys` (default `F1,F2,F3,F4` = TL/TR/BL/BR) +
   `QuadrantHotkeyModifier` (default `Control,Shift`), which open the overlay
-  scoped to one screen quadrant.
+  scoped to one screen quadrant. The macro-picker hotkey `MacroHotkeyKey`,
+  `MacroHotkeyModifier` (default `Ctrl+Shift+;` / `OemSemicolon`, no `Alt`)
+  opens the macro palette.
 
 `HintCharacters` defaults to `A–Z` (easy to recognize). The punctuation set
 `,./;'[]\` is also supported — add any of them here to opt in. The matching input
@@ -146,6 +152,17 @@ typed).
   single-session.)
 - **Press the hotkey again while the overlay is up** to toggle one-click ⇄ continuous
   (Grid only). `OverlayTriggerMode=OneClick` (hot-reload) makes every open one-shot.
+- **Macros** (`Ctrl+Shift;`, startup-only `MacroHotkeyKey`/`MacroHotkeyModifier`): opens a
+  small topmost palette listing each macro's hotkey + name from `%APPDATA%\hap\macros.json`
+  (personal, NOT in git; re-read each open, so edits need no restart). Type a macro's
+  single-char key to run it; `Esc`/click-away cancels. Step types: `send`
+  (`Mods`=`Ctrl,Shift` + `Key`=a `System.Windows.Forms.Keys` name), `wait` (`Ms`),
+  `focusWindow` (`Title`, `Match`=`exact`|`contains`; aborts on 0/>1 match — a stale title
+  never clicks the wrong window; preserves maximized state), `clickAbs` (`X`,`Y` physical
+  screen px, 0,0 = top-left), `clickRel` (`Dx`,`Dy` from the focused window rect). The
+  runner is on a background thread; `focusWindow` dispatches to the UI thread (foreground
+  privilege). `openOverlay`/`overlayType`/`nudge`/`rawReplay` are in the schema but
+  unimplemented (overlay targeting was descoped — `clickAbs` covers fixed-target macros).
 - **Labels are all highlighted (yellow) at start**; typing narrows the highlight to the
   matching labels; a unique match fires. (In continuous mode the highlight resets to
   all-yellow after each click.)

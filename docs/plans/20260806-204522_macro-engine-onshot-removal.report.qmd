@@ -1,0 +1,63 @@
+---
+title: "Macro engine + one-shot hotkey removal — report"
+author: "Yun Jiang"
+date: 2026-08-06
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+---
+
+# Report — macro engine + one-shot hotkey removal
+
+**Plan:** [`20260804-204216_macro-engine-onshot-removal.plan.qmd`](20260804-204216_macro-engine-onshot-removal.plan.qmd)
+· **Status:** complete · **Head:** `bc795d5`
+
+## Bottom line
+
+Two workstreams shipped and verified on Windows:
+
+1. **Removed the `Ctrl+Shift+,` one-shot hotkey** (hotkey only; `OneClick` mode + the
+   press-again toggle kept).
+2. **Macro engine in hap**: `Ctrl+Shift;` opens a topmost palette; type a macro's
+   single-char key to run its steps. Macros live in `%APPDATA%\hap\macros.json`
+   (personal, not in git; re-read each open). The user's "create lark task" macro runs
+   via `focusWindow Feishu` → `clickAbs(38,340)` → `send Ctrl+N`.
+
+**B2 (overlay-driven targeting) and B3 (recording) were descoped** — `clickAbs` covers
+fixed-target macros more robustly than labels, so they are not needed for the stated goal.
+
+## Step types shipped (B1)
+
+`send` (`Mods`+`Key`), `wait` (`Ms`), `focusWindow` (`Title`,`Match`=`exact`|`contains`,
+aborts on 0/>1 match, preserves maximized state), `clickAbs` (`X`,`Y` physical screen px),
+`clickRel` (`Dx`,`Dy` from the focused window rect), `rawReplay` (declared; recorder not
+built). `openOverlay`/`overlayType`/`nudge` are in the schema but throw NotImplemented.
+
+## Verification (Rule #0 evidence)
+
+- **CI green** at every shipped commit (`windows-latest`, MSBuild + xUnit + artifact):
+  `30912756303`, `30915356740`, `30916334730`, `30972814263`, `30975909590`, `30976606076`.
+- **New unit tests** (CI-run): `InputSynthesisTest`, `WindowFinderTest`, `MacroStoreTest`.
+- **Windows manual test (user):** picker opens; `focusWindow`+`clickAbs`+`send` macro runs
+  end-to-end with Feishu maximized; user confirmed "It works."
+
+## Commits (on `master`, fork `jiangyun-fun/hunt-and-peck`)
+
+`59dd1c4` · `88d769d` (A) · `5ed5b58` · `ab3e88f` (B1-i) · `edad5fe` (B1-ii) · `9bb0eb7` ·
+`f252652` · `bc795d5` (runtime fixes).
+
+## Notable lessons
+
+Five bugs were caught (3 by CI, 2 by the Windows test) and fixed — recorded in the plan's
+"Bugs found and fixed" table. Two general lessons: (1) on a repo with no local build, grep
+the **method name** across all call sites when removing a parameter; (2) xUnit 2.2.0's
+`xunit.assert` targets netstandard1.1, so `Assert.Throws` pulls in the `Task` facade the
+net452 test project doesn't reference — use try/catch over `Action` in this test project.
+
+## Deployed drops (Windows test box, under `HAP_WIN_TEST_DIR`)
+
+`hap-oneshot-rm` (A), `hap-macros-b1` / `hap-macros-fix1` / `hap-macros-fix2` /
+`hap-macros-fix3` (B1 + runtime fixes). Latest = `hap-macros-fix3` (`bc795d5`).
