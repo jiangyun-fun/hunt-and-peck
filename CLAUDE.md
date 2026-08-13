@@ -197,7 +197,10 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
 - **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
   current mode (left / right / double / triple click via `mouse_event`, or move-only).
   **Triple click** (`<leader>t`) = three rapid left clicks — selects a whole line in most
-  apps (a sentence in Word).
+  apps (a sentence in Word). **Selection actions (Double/Triple/`<leader>v`) always close
+  the overlay, even in Continuous mode** — keeping the overlay up clears the just-made
+  selection in the target app (observed in Notepad3/Edge), so closing is what makes it
+  persist and become copyable. Left/Right/Move stay continuous.
 - **Snapshot region (`<leader>s`)**: enters a 2-pick mode (badge `SNAP 1/2`). Type the
   label of one corner, then the opposite corner (any order) → the screen rectangle between
   them is captured to the clipboard (in-process `CopyFromScreen` + `Clipboard.SetImage`;
@@ -212,8 +215,11 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
   synthesizes the whole drag (down@anchor → move → up) in one shot. ShiftClick holds no
   button while you type the second label (safer); Drag is the fallback where an app remaps
   Shift+click (e.g. column-select). Works in Grid and Automation; coords use the label's
-  target point + pan offset. After the selection it follows trigger mode (one-shot closes;
-  continuous stays up). `Esc`/`1` cancels the pick.
+  target point + pan offset. After the selection the overlay always closes (even in
+  Continuous mode — staying up clears the selection). `Esc`/`1` cancels the pick.
+  **Caveat:** ShiftClick relies on a synthesized Shift; some Electron apps (e.g. Feishu)
+  don't honor it and the span won't select there (Edge/Notepad work) — no fix from Linux
+  yet; Drag is no better (Chromium-incompatible).
 - **Alt or Capslock held → passthrough**: while Alt or Capslock is physically held the
   overlay stops capturing keys, so `Alt+Tab` (window switcher) + arrows and Capslock-
   based AutoHotkey mappings (e.g. `Capslock+f` → `Ctrl+Shift+M`) pass through. Held-state
