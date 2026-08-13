@@ -19,10 +19,11 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Fact]
-        public void Space_MapsToCycleMode()
+        public void Space_MapsToLeader()
         {
+            // <Space> opens the leader dispatcher (no longer cycles modes).
             var act = OverlayKeyboardHook.Classify(User32.VK_SPACE, false, false);
-            Assert.Equal(OverlayKeyActionKind.CycleMode, act.Kind);
+            Assert.Equal(OverlayKeyActionKind.Leader, act.Kind);
         }
 
         [Fact]
@@ -119,24 +120,18 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Fact]
-        public void Digit2_MapsToSuspend()
+        public void Digit2_PassesThrough()
         {
-            // `2` enters suspend (was `\`).
-            var act = OverlayKeyboardHook.Classify(User32.VK_2, false, false);
-            Assert.Equal(OverlayKeyActionKind.SuspendNow, act.Kind);
+            // `2` was freed: suspend moved under the leader (<leader>z); `2` reaches the app.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_2, false, false).Kind);
         }
 
         [Fact]
-        public void Digit3_CyclesLayout_WhenEnabled()
+        public void Digit3_PassesThrough()
         {
-            var act = OverlayKeyboardHook.Classify(User32.VK_3, false, false, layoutCycle: true);
-            Assert.Equal(OverlayKeyActionKind.CycleLayout, act.Kind);
-        }
-
-        [Fact]
-        public void Digit3_PassesThrough_WhenDisabled()
-        {
-            // Without multi-layout configured, `3` reaches the app.
+            // `3` was freed: cycle-layout moved under the leader (<leader>g); `3` reaches
+            // the app regardless of multi-layout config.
             Assert.Equal(OverlayKeyActionKind.None,
                 OverlayKeyboardHook.Classify(User32.VK_3, false, false).Kind);
         }
@@ -190,10 +185,12 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Fact]
-        public void Backtick_TogglesDimmed()
+        public void Backtick_PassesThrough()
         {
-            var act = OverlayKeyboardHook.Classify(User32.VK_OEM_3, false, false);
-            Assert.Equal(OverlayKeyActionKind.ToggleDimmed, act.Kind);
+            // Backtick was freed: toggle-dim moved under the leader (<leader>i); it is not
+            // a label char by default, so it reaches the app.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_OEM_3, false, false).Kind);
         }
 
         [Fact]
@@ -362,14 +359,6 @@ namespace HuntAndPeck.Tests.Services
             var act = OverlayKeyboardHook.Classify(User32.VK_OEM_1, true, false, labelChars: ";");
             Assert.Equal(OverlayKeyActionKind.AppendChar, act.Kind);
             Assert.Equal(';', act.Char);
-        }
-
-        [Fact]
-        public void ShiftDigit3_StillCyclesLayout()
-        {
-            // Digit functions ignore Shift (matches the old `;`/`\`); Shift+3 cycles too.
-            var act = OverlayKeyboardHook.Classify(User32.VK_3, true, false, layoutCycle: true);
-            Assert.Equal(OverlayKeyActionKind.CycleLayout, act.Kind);
         }
     }
 }

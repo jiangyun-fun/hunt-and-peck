@@ -69,6 +69,7 @@
     <Compile Include="Services\OverlayActionConfigTest.cs" />
     <Compile Include="Services\GridLayoutConfigTest.cs" />
     <Compile Include="Services\OverlayKeyboardHookTest.cs" />
+    <Compile Include="Services\LeaderBindingConfigTest.cs" />
     <Compile Include="Services\ZoneServiceTest.cs" />
     <Compile Include="Services\InputSynthesisTest.cs" />
     <Compile Include="Services\WindowFinderTest.cs" />

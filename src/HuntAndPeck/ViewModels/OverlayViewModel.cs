@@ -18,7 +18,15 @@ namespace HuntAndPeck.ViewModels
         private double _offsetX;
         private double _offsetY;
         private readonly IList<ClickAction> _modeOrder;
-        private int _modeIndex;
+        private ClickAction _currentAction;
+
+        // --- Leader dispatcher (<Space>) ---
+        // <Space> opens a transient dispatcher: the next key is a leader command (set
+        // mode / close / suspend / cycle-layout / toggle-dim), not a label char. The
+        // binding map (key -> action) is read once per overlay from LeaderBindings.
+        private bool _leaderPending;
+        private Dictionary<char, LeaderBinding> _leaderBindings;
+        private string _leaderMenuText;
 
         private readonly IHintLabelService _hintLabelService;
         private readonly string _fontSizeRaw;
@@ -103,7 +111,8 @@ namespace HuntAndPeck.ViewModels
                 : GridLayoutConfig.ClampActiveLayout(activeLayout, layouts.Count);
             _rebuildSessions = rebuildSessions;
             _modeOrder = OverlayActionConfig.ReadClickActionOrder();
-            _modeIndex = 0; // start on the first mode (Left, by default)
+            _currentAction = DefaultMode(); // start on the first mode (Left, by default)
+            InitLeader();
 
             // Read the font size ONCE for the whole overlay. Re-reading the config
             // file per hint (via ReadHintFontSize) made overlay build O(N) in disk
@@ -155,7 +164,8 @@ namespace HuntAndPeck.ViewModels
             _activeLayout = 0;
             _rebuildSessions = null;
             _modeOrder = OverlayActionConfig.ReadClickActionOrder();
-            _modeIndex = 0;
+            _currentAction = DefaultMode();
+            InitLeader();
 
             _fontSizeRaw = OverlayActionConfig.ReadHintFontSize()
                 ?? HuntAndPeck.Properties.Settings.Default.FontSize;
@@ -435,7 +445,7 @@ namespace HuntAndPeck.ViewModels
 
         private ClickAction CurrentAction
         {
-            get { return _modeOrder[_modeIndex]; }
+            get { return _currentAction; }
         }
 
         /// <summary>Human-readable name of the current click mode, for the badge.</summary>
@@ -599,6 +609,13 @@ namespace HuntAndPeck.ViewModels
         /// </summary>
         public void HandleEscape()
         {
+            // While the leader dispatcher is open, Esc (and 1, its alias) cancel it
+            // instead of clearing a prefix or closing the overlay.
+            if (_leaderPending)
+            {
+                ExitLeaderPending();
+                return;
+            }
             if (!string.IsNullOrEmpty(_match))
             {
                 ClearMatch();
@@ -676,7 +693,7 @@ namespace HuntAndPeck.ViewModels
         /// </summary>
         private void ResetForNextClick()
         {
-            _modeIndex = 0;
+            _currentAction = DefaultMode(); // continuous mode: back to the default (Left)
             NotifyOfPropertyChange(nameof(CurrentModeName));
             NotifyOfPropertyChange(nameof(CurrentModeBrush));
             ClearMatch();
@@ -727,12 +744,127 @@ namespace HuntAndPeck.ViewModels
             }
         }
 
-        /// <summary>Advances to the next click mode (Space); wraps around.</summary>
-        public void CycleMode()
+        // -------- Leader dispatcher (<Space>) --------
+
+        /// <summary>True while the leader dispatcher popup is open.</summary>
+        public bool IsLeaderPending => _leaderPending;
+
+        /// <summary>Popup visibility (Collapsed unless a leader is pending).</summary>
+        public Visibility LeaderMenuVisibility => _leaderPending ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>The popup text (one "key  action" line per binding, display order).</summary>
+        public string LeaderMenuText => _leaderMenuText;
+
+        /// <summary>
+        /// Opens the leader dispatcher (<Space>). Guards: ignored while suspended (keys
+        /// pass through then anyway) or already pending -- a second <Space> cancels
+        /// (toggle), so the menu can never get stuck open. Clears any partial label
+        /// prefix so the next key is read as a command, not a label char.
+        /// </summary>
+        public void EnterLeader()
         {
-            _modeIndex = (_modeIndex + 1) % _modeOrder.Count;
+            if (_suspended)
+            {
+                return;
+            }
+            if (_leaderPending)
+            {
+                ExitLeaderPending();
+                return;
+            }
+            _leaderPending = true;
+            if (!string.IsNullOrEmpty(_match))
+            {
+                ClearMatch();
+            }
+            NotifyOfPropertyChange(nameof(LeaderMenuVisibility));
+        }
+
+        /// <summary>
+        /// Routes the key pressed while the leader is pending. A mapped key fires its
+        /// action (set mode / close / suspend / cycle-layout / toggle-dim); an unmapped
+        /// key just cancels the dispatcher and returns to label typing. Either way the
+        /// dispatcher closes after one key.
+        /// </summary>
+        public void LeaderCommand(char c)
+        {
+            if (!_leaderPending)
+            {
+                return;
+            }
+            char key = char.ToUpperInvariant(c);
+            LeaderBinding b;
+            if (_leaderBindings.TryGetValue(key, out b))
+            {
+                ExitLeaderPending();
+                switch (b.Kind)
+                {
+                    case LeaderKind.Mode: SetMode(b.Mode); break;
+                    case LeaderKind.Close: CloseOverlay?.Invoke(); break;
+                    case LeaderKind.Suspend: EnterSuspend(); break;
+                    case LeaderKind.CycleLayout: CycleLayout(); break;
+                    case LeaderKind.ToggleDim: ToggleDimmed(); break;
+                }
+            }
+            else
+            {
+                // Unmapped key: cancel the dispatcher, fire nothing.
+                ExitLeaderPending();
+            }
+        }
+
+        private void ExitLeaderPending()
+        {
+            _leaderPending = false;
+            NotifyOfPropertyChange(nameof(LeaderMenuVisibility));
+        }
+
+        /// <summary>Sets the click mode directly (replaces the removed Space cycle).</summary>
+        public void SetMode(ClickAction mode)
+        {
+            _currentAction = mode;
             NotifyOfPropertyChange(nameof(CurrentModeName));
             NotifyOfPropertyChange(nameof(CurrentModeBrush));
+        }
+
+        /// <summary>The default click mode: the first entry of ClickModeOrder (Left).</summary>
+        private ClickAction DefaultMode()
+        {
+            return _modeOrder != null && _modeOrder.Count > 0 ? _modeOrder[0] : ClickAction.Left;
+        }
+
+        /// <summary>Reads LeaderBindings once and builds the lookup map + popup text.</summary>
+        private void InitLeader()
+        {
+            var ordered = LeaderBindingConfig.ReadLeaderBindings();
+            var dict = new Dictionary<char, LeaderBinding>();
+            var unique = new List<LeaderBinding>();
+            foreach (var b in ordered)
+            {
+                dict[b.Key] = b;
+                if (!unique.Any(x => x.Key == b.Key))
+                {
+                    unique.Add(b);
+                }
+            }
+            _leaderBindings = dict;
+            _leaderMenuText = BuildLeaderMenuText(unique);
+        }
+
+        private static string BuildLeaderMenuText(IList<LeaderBinding> bindings)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var b in bindings)
+            {
+                if (sb.Length > 0)
+                {
+                    sb.AppendLine();
+                }
+                sb.Append(char.ToLowerInvariant(b.Key));
+                sb.Append("  ");
+                sb.Append(b.DisplayLabel());
+            }
+            return sb.ToString();
         }
 
         private static void DoLeftClick()

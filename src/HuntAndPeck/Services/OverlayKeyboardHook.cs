@@ -15,13 +15,10 @@ namespace HuntAndPeck.Services
         None,
         AppendChar,
         Escape,
-        CycleMode,
+        Leader,
         CycleMonitorNext,
         CycleMonitorPrev,
-        Nudge,
-        ToggleDimmed,
-        SuspendNow,
-        CycleLayout
+        Nudge
     }
 
     /// <summary>
@@ -287,10 +284,6 @@ namespace HuntAndPeck.Services
             // the app (default, ArrowKeyBehavior=Passthrough). Read per keydown so an
             // Options change hot-reloads immediately; EnsureFresh is a stat, not a parse.
             bool arrowPan = OverlayActionConfig.ReadArrowKeyBehavior() == ArrowKeyBehavior.Pan;
-            // `;` cycles grid layouts, but only when more than one layout is configured
-            // (Grid + GridLayouts). Read from the VM (set once at open) so we do not
-            // re-parse GridLayouts on every keydown. Elsewhere `;` passes through.
-            bool layoutCycle = _vm != null && _vm.LayoutCycleCapable;
 
             // Extended-key flag: set for the dedicated arrow/Nav cluster, NOT for the
             // numeric keypad (whose Nav keys, with NumLock off, reuse the same VK codes).
@@ -306,7 +299,7 @@ namespace HuntAndPeck.Services
             int[] nudgeSmall = OverlayActionConfig.ReadNudgeKeysSmall();
             int[] nudgeMedium = OverlayActionConfig.ReadNudgeKeysMedium();
             int[] nudgeLarge = OverlayActionConfig.ReadNudgeKeysLarge();
-            var act = Classify(vk, shift, ctrl, win, extended, arrowPan, layoutCycle, labelChars,
+            var act = Classify(vk, shift, ctrl, win, extended, arrowPan, labelChars,
                 nudgeSmall, nudgeMedium, nudgeLarge);
             if (act.Kind == OverlayKeyActionKind.None)
             {
@@ -335,12 +328,12 @@ namespace HuntAndPeck.Services
         /// <param name="arrowPan">If true, dedicated arrows pan the labels (legacy
         /// ArrowKeyBehavior=Pan); if false they pass through to the app beneath.</param>
         internal static OverlayKeyAction Classify(int vkCode, bool shift, bool ctrl,
-            bool win = false, bool extended = true, bool arrowPan = true, bool layoutCycle = false,
+            bool win = false, bool extended = true, bool arrowPan = true,
             string labelChars = null,
             int[] nudgeSmall = null, int[] nudgeMedium = null, int[] nudgeLarge = null)
         {
             if (vkCode == User32.VK_ESCAPE) return Action(OverlayKeyActionKind.Escape);
-            if (vkCode == User32.VK_SPACE) return Action(OverlayKeyActionKind.CycleMode);
+            if (vkCode == User32.VK_SPACE) return Action(OverlayKeyActionKind.Leader);
             if (vkCode == User32.VK_TAB)
             {
                 // Plain Tab / Shift+Tab cycle monitors. But Ctrl+Tab / Ctrl+Shift+Tab
@@ -385,16 +378,11 @@ namespace HuntAndPeck.Services
             // already handled above.
             if (!(ctrl || win))
             {
-                // Digits are RESERVED for overlay functions (no longer label chars):
-                //   1 = close (Esc alias), 2 = suspend (was `\`), 3 = cycle layout
-                //   (was `;`, Grid + GridLayouts only). Other digits pass through.
-                // Shift does not gate them (matches the old `;`/`\` behavior).
+                // 1 = close (Esc alias) -- kept direct for convenience. The other former
+                // digit/backtick functions (suspend, cycle-layout, toggle-dim) moved under
+                // the leader (<leader>z/g/i); 2/3 and backtick now pass through to the app
+                // (LabelCharForVk returns null for them, so they fall through to None).
                 if (vkCode == User32.VK_1) return Action(OverlayKeyActionKind.Escape);
-                if (vkCode == User32.VK_2) return Action(OverlayKeyActionKind.SuspendNow);
-                if (layoutCycle && vkCode == User32.VK_3) return Action(OverlayKeyActionKind.CycleLayout);
-
-                // Backtick toggles dim (NOT a label char).
-                if (vkCode == User32.VK_OEM_3) return Action(OverlayKeyActionKind.ToggleDimmed);
 
                 // Label-character input: letters are always typeable; OEM punctuation
                 // only when its (US-layout) char is in the configured HintCharacters.
@@ -450,24 +438,26 @@ namespace HuntAndPeck.Services
             {
                 case OverlayKeyActionKind.Escape:
                     return () => _vm.HandleEscape();
-                case OverlayKeyActionKind.CycleMode:
-                    return () => _vm.CycleMode();
+                case OverlayKeyActionKind.Leader:
+                    // <Space> opens the leader dispatcher. Toggle semantics: a second
+                    // <Space> while a leader is already pending cancels it.
+                    return () => _vm.EnterLeader();
                 case OverlayKeyActionKind.CycleMonitorNext:
                     return () => _vm.CycleMonitor(1);
                 case OverlayKeyActionKind.CycleMonitorPrev:
                     return () => _vm.CycleMonitor(-1);
                 case OverlayKeyActionKind.AppendChar:
                     char c = act.Char;
-                    // Zone-pick: route the char as a zone selection instead of a label
-                    // char. Branching here (not in the pure Classify) keeps Classify and
-                    // its tests unchanged; _vm.IsZonePick reflects live overlay state.
-                    return () => { if (_vm.IsZonePick) _vm.SelectZone(c); else _vm.AppendLabelChar(c); };
-                case OverlayKeyActionKind.ToggleDimmed:
-                    return () => _vm.ToggleDimmed();
-                case OverlayKeyActionKind.SuspendNow:
-                    return () => _vm.EnterSuspend();
-                case OverlayKeyActionKind.CycleLayout:
-                    return () => _vm.CycleLayout();
+                    // A printable char means different things by phase: while a leader is
+                    // pending it is a leader command key; in zone-pick it selects a zone;
+                    // otherwise it is a label char. Branching here (not in the pure
+                    // Classify) keeps Classify pure; the _vm.Is* flags reflect live state.
+                    return () =>
+                    {
+                        if (_vm.IsLeaderPending) _vm.LeaderCommand(c);
+                        else if (_vm.IsZonePick) _vm.SelectZone(c);
+                        else _vm.AppendLabelChar(c);
+                    };
                 case OverlayKeyActionKind.Nudge:
                     int dx = act.Dx;
                     int dy = act.Dy;
