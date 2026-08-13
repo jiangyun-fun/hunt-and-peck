@@ -66,5 +66,32 @@ namespace HuntAndPeck.Models
                 // Element may have gone.
             }
         }
+
+        /// <summary>
+        /// The screen point this hint targets (physical pixels): PointHint's fixed point,
+        /// or the center of a UIA element's live bounding rectangle. Unlike
+        /// <see cref="MoveMouseToCenter"/> this does NOT move the cursor -- used by the
+        /// snapshot feature to compute a capture rectangle. Returns (0,0) if the element
+        /// is gone/unavailable.
+        /// </summary>
+        public virtual Point TargetScreenPoint()
+        {
+            var element = AutomationElement;
+            if (element == null)
+            {
+                return new Point(0, 0);
+            }
+
+            try
+            {
+                var br = element.CurrentBoundingRectangle;
+                return new Point((br.left + br.right) / 2.0, (br.top + br.bottom) / 2.0);
+            }
+            catch (Exception)
+            {
+                // Element may have gone.
+                return new Point(0, 0);
+            }
+        }
     }
 }

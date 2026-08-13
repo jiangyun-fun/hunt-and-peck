@@ -20,7 +20,9 @@ namespace HuntAndPeck.Services
         /// <summary>Cycle the grid layout preset (Grid + GridLayouts).</summary>
         CycleLayout,
         /// <summary>Toggle label dim.</summary>
-        ToggleDim
+        ToggleDim,
+        /// <summary>Enter snapshot-region mode (2-pick; captures the rectangle to the clipboard).</summary>
+        Snapshot
     }
 
     /// <summary>
@@ -59,6 +61,7 @@ namespace HuntAndPeck.Services
                 case LeaderKind.Suspend: return "suspend";
                 case LeaderKind.CycleLayout: return "cycle layout";
                 case LeaderKind.ToggleDim: return "toggle dim";
+                case LeaderKind.Snapshot: return "snapshot region";
                 default: return Kind.ToString().ToLowerInvariant();
             }
         }
@@ -78,8 +81,7 @@ namespace HuntAndPeck.Services
         /// <summary>The App.config key for the leader binding list.</summary>
         public const string AppSettingKey = "LeaderBindings";
 
-        // Default leader map. `s` is intentionally absent -- reserved for the future
-        // snapshot feature, which will land as <leader>s.
+        // Default leader map. `s` = snapshot region (2-pick; captures to the clipboard).
         private static readonly LeaderBinding[] DefaultBindings =
         {
             new LeaderBinding('L', LeaderKind.Mode, ClickAction.Left),
@@ -90,6 +92,7 @@ namespace HuntAndPeck.Services
             new LeaderBinding('Z', LeaderKind.Suspend),
             new LeaderBinding('G', LeaderKind.CycleLayout),
             new LeaderBinding('I', LeaderKind.ToggleDim),
+            new LeaderBinding('S', LeaderKind.Snapshot),
         };
 
         /// <summary>
@@ -170,6 +173,7 @@ namespace HuntAndPeck.Services
                 case "LAYOUT": return new LeaderBinding(key, LeaderKind.CycleLayout);
                 case "TOGGLEDIM":
                 case "DIM": return new LeaderBinding(key, LeaderKind.ToggleDim);
+                case "SNAPSHOT": return new LeaderBinding(key, LeaderKind.Snapshot);
                 default: return null; // unknown target -> skip
             }
         }

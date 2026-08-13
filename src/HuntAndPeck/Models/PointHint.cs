@@ -30,6 +30,9 @@ namespace HuntAndPeck.Models
             MoveCursor();
         }
 
+        /// <summary>The fixed screen point this grid hint targets (physical pixels).</summary>
+        public override Point TargetScreenPoint() => _screenPoint;
+
         private void MoveCursor()
         {
             User32.SetCursorPos((int)_screenPoint.X, (int)_screenPoint.Y);

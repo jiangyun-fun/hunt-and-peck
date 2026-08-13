@@ -59,6 +59,11 @@
                        FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
                        Foreground="White" Background="SlateBlue" Padding="6,2"
                        Margin="6,0,0,0" Visibility="{Binding QuadrantBadgeVisibility}" />
+            <!-- Snapshot region (<leader>s): "SNAP 1/2" then "SNAP 2/2" while picking corners. -->
+            <TextBlock Text="{Binding SnapshotBadgeLabel}"
+                       FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
+                       Foreground="White" Background="MediumVioletRed" Padding="6,2"
+                       Margin="6,0,0,0" Visibility="{Binding SnapshotBadgeVisibility}" />
         </StackPanel>
         <!-- Leader dispatcher popup (<Space>): centered and transient. Shown only while
              a leader is pending (LeaderMenuVisibility). Lists the key -> action bindings

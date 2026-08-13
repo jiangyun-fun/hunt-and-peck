@@ -28,6 +28,14 @@ namespace HuntAndPeck.ViewModels
         private Dictionary<char, LeaderBinding> _leaderBindings;
         private string _leaderMenuText;
 
+        // --- Snapshot region (<leader>s) ---
+        // A 2-pick sub-phase: type corner-1's label, then corner-2's. The rectangle between
+        // them (offset-applied, like a click) is captured to the clipboard via CaptureRegion
+        // (wired by App, which owns the overlay window and hides it for a clean shot).
+        private enum SnapshotPhase { None, AwaitCorner1, AwaitCorner2 }
+        private SnapshotPhase _snapshotPhase = SnapshotPhase.None;
+        private Point _snapshotAnchor; // screen px, offset-applied
+
         private readonly IHintLabelService _hintLabelService;
         private readonly string _fontSizeRaw;
         private readonly double _pillOpacity;
@@ -487,6 +495,13 @@ namespace HuntAndPeck.ViewModels
         public Action CloseOverlay { get; set; }
 
         /// <summary>
+        /// Invoked with a screen-pixel rectangle to capture to the clipboard. Wired by
+        /// App.ShowOverlay, which owns the overlay window (hides it for a clean shot,
+        /// CopyFromScreen, Clipboard.SetImage, restores). Null in non-app contexts (tests).
+        /// </summary>
+        public Action<Rect> CaptureRegion { get; set; }
+
+        /// <summary>
         /// True when the hint source is Grid (continuous mode is meaningful). Automation
         /// stays one-shot because its labels go stale on navigation.
         /// </summary>
@@ -616,6 +631,12 @@ namespace HuntAndPeck.ViewModels
                 ExitLeaderPending();
                 return;
             }
+            if (_snapshotPhase != SnapshotPhase.None)
+            {
+                // Esc/1 while picking snapshot corners cancels the snapshot.
+                ExitSnapshotPhase();
+                return;
+            }
             if (!string.IsNullOrEmpty(_match))
             {
                 ClearMatch();
@@ -651,6 +672,12 @@ namespace HuntAndPeck.ViewModels
 
             if (matching.Count == 1)
             {
+                // Snapshot 2-pick: the matched label is a region corner, not a click.
+                if (_snapshotPhase != SnapshotPhase.None)
+                {
+                    HandleSnapshotCorner(matching[0].Hint);
+                    return;
+                }
                 // Move the cursor onto the matched label, then apply the grid
                 // pan offset so it lands where the label was shifted to.
                 matching[0].Hint.MoveMouseToCenter();
@@ -804,6 +831,7 @@ namespace HuntAndPeck.ViewModels
                     case LeaderKind.Suspend: EnterSuspend(); break;
                     case LeaderKind.CycleLayout: CycleLayout(); break;
                     case LeaderKind.ToggleDim: ToggleDimmed(); break;
+                    case LeaderKind.Snapshot: EnterSnapshotRegion(); break;
                 }
             }
             else
@@ -865,6 +893,97 @@ namespace HuntAndPeck.ViewModels
                 sb.Append(b.DisplayLabel());
             }
             return sb.ToString();
+        }
+
+        // -------- Snapshot region (<leader>s) --------
+
+        /// <summary>SNAP badge visibility (Collapsed unless a snapshot pick is in progress).</summary>
+        public Visibility SnapshotBadgeVisibility
+            => _snapshotPhase != SnapshotPhase.None ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>SNAP badge text: "SNAP 1/2" while awaiting the first corner, "SNAP 2/2" after.</summary>
+        public string SnapshotBadgeLabel
+            => _snapshotPhase == SnapshotPhase.AwaitCorner1 ? "SNAP 1/2"
+             : _snapshotPhase == SnapshotPhase.AwaitCorner2 ? "SNAP 2/2"
+             : "";
+
+        /// <summary>
+        /// Enters snapshot-region mode (<leader>s). Guards: ignored while suspended or if a
+        /// snapshot is already in progress. Clears any partial prefix so the next keys are
+        /// read as corner labels.
+        /// </summary>
+        public void EnterSnapshotRegion()
+        {
+            if (_suspended || _snapshotPhase != SnapshotPhase.None)
+            {
+                return;
+            }
+            _snapshotPhase = SnapshotPhase.AwaitCorner1;
+            if (!string.IsNullOrEmpty(_match))
+            {
+                ClearMatch();
+            }
+            NotifyOfPropertyChange(nameof(SnapshotBadgeVisibility));
+            NotifyOfPropertyChange(nameof(SnapshotBadgeLabel));
+        }
+
+        /// <summary>
+        /// Handles a matched label as a snapshot corner. Corner-1 is stored as the anchor
+        /// (labels re-highlight so corner-2 is pickable); corner-2 forms the rectangle,
+        /// fires CaptureRegion, then follows trigger mode (close / continuous reset).
+        /// </summary>
+        private void HandleSnapshotCorner(Hint hint)
+        {
+            Point p = hint.TargetScreenPoint();
+            p.X += _offsetX;
+            p.Y += _offsetY;
+
+            if (_snapshotPhase == SnapshotPhase.AwaitCorner1)
+            {
+                _snapshotAnchor = p;
+                _snapshotPhase = SnapshotPhase.AwaitCorner2;
+                NotifyOfPropertyChange(nameof(SnapshotBadgeLabel));
+                ClearMatch(); // re-highlight all labels so corner-2 is pickable
+                return;
+            }
+
+            // AwaitCorner2: form the rectangle and capture.
+            Rect rect = NormalizeRegion(_snapshotAnchor, p);
+            ExitSnapshotPhase();
+            if (rect.Width >= 1 && rect.Height >= 1)
+            {
+                CaptureRegion?.Invoke(rect);
+            }
+
+            // Follow trigger mode (same as a click): one-shot closes, continuous resets.
+            if (_isContinuous)
+            {
+                ResetForNextClick();
+            }
+            else
+            {
+                CloseOverlay?.Invoke();
+            }
+        }
+
+        private void ExitSnapshotPhase()
+        {
+            _snapshotPhase = SnapshotPhase.None;
+            NotifyOfPropertyChange(nameof(SnapshotBadgeVisibility));
+            NotifyOfPropertyChange(nameof(SnapshotBadgeLabel));
+        }
+
+        /// <summary>
+        /// Normalizes two screen points into a non-negative rectangle (min corner, abs size),
+        /// so corner-entry order does not matter. Internal for unit testing.
+        /// </summary>
+        internal static Rect NormalizeRegion(Point a, Point b)
+        {
+            double x = Math.Min(a.X, b.X);
+            double y = Math.Min(a.Y, b.Y);
+            double w = Math.Abs(b.X - a.X);
+            double h = Math.Abs(b.Y - a.Y);
+            return new Rect(x, y, w, h);
         }
 
         private static void DoLeftClick()

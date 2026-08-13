@@ -9,9 +9,9 @@ namespace HuntAndPeck.Tests.Services
         public void Parse_FullDefaultString_YieldsAllBindings()
         {
             var list = LeaderBindingConfig.ParseLeaderBindings(
-                "l=Left,r=Right,d=Double,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim");
+                "l=Left,r=Right,d=Double,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim,s=Snapshot");
 
-            Assert.Equal(8, list.Count);
+            Assert.Equal(9, list.Count);
             AssertBinding(list, 'L', LeaderKind.Mode, ClickAction.Left);
             AssertBinding(list, 'R', LeaderKind.Mode, ClickAction.Right);
             AssertBinding(list, 'D', LeaderKind.Mode, ClickAction.Double);
@@ -20,6 +20,15 @@ namespace HuntAndPeck.Tests.Services
             AssertBinding(list, 'Z', LeaderKind.Suspend);
             AssertBinding(list, 'G', LeaderKind.CycleLayout);
             AssertBinding(list, 'I', LeaderKind.ToggleDim);
+            AssertBinding(list, 'S', LeaderKind.Snapshot);
+        }
+
+        [Fact]
+        public void Parse_SnapshotTarget()
+        {
+            var b = Assert.Single(LeaderBindingConfig.ParseLeaderBindings("s=Snapshot"));
+            Assert.Equal('S', b.Key);
+            Assert.Equal(LeaderKind.Snapshot, b.Kind);
         }
 
         [Theory]
@@ -87,6 +96,7 @@ namespace HuntAndPeck.Tests.Services
             Assert.True(list.Count >= 8);
             Assert.Contains(list, b => b.Key == 'L' && b.Kind == LeaderKind.Mode && b.Mode == ClickAction.Left);
             Assert.Contains(list, b => b.Key == 'Q' && b.Kind == LeaderKind.Close);
+            Assert.Contains(list, b => b.Key == 'S' && b.Kind == LeaderKind.Snapshot);
         }
 
         [Fact]

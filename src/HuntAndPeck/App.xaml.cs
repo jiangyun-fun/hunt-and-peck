@@ -89,6 +89,7 @@ namespace HuntAndPeck
             };
 
             vm.CloseOverlay = close;
+            vm.CaptureRegion = rect => CaptureRegionToClipboard(view, rect);
             hook.Arm(vm, close);
 
             view.Closed += (s, e) =>
@@ -104,6 +105,70 @@ namespace HuntAndPeck
 
             view.Show();
         }
+
+        /// <summary>
+        /// Captures a screen-pixel rectangle to the clipboard: hides the overlay (so its
+        /// labels/badges do not appear in the shot), flushes the render queue + a short wait
+        /// for the compositor to drop the overlay frame, CopyFromScreen, flattens to 24bpp
+        /// (avoids the WPF Clipboard.SetImage alpha-black gotcha), places it on the
+        /// clipboard, and restores the overlay. Runs on the UI (STA) thread via the hook's
+        /// BeginInvoke. The ~40ms wait is the one piece not verifiable off-Windows -- tune
+        /// on the box if labels bleed into the shot.
+        /// </summary>
+        private static void CaptureRegionToClipboard(OverlayView view, Rect rect)
+        {
+            int x = (int)Math.Round(rect.X);
+            int y = (int)Math.Round(rect.Y);
+            int w = (int)Math.Round(rect.Width);
+            int h = (int)Math.Round(rect.Height);
+            if (w <= 0 || h <= 0)
+            {
+                return;
+            }
+
+            double prevOpacity = view.Opacity;
+            view.Opacity = 0;
+            view.UpdateLayout();
+            // Flush the render queue so the opacity change is composited before capture...
+            view.Dispatcher.Invoke(new Action(() => { }), System.Windows.Threading.DispatcherPriority.Render);
+            // ...then give the compositor a moment to actually drop the overlay frame.
+            System.Threading.Thread.Sleep(40);
+            try
+            {
+                using (var bmp = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppRgb))
+                using (var g = System.Drawing.Graphics.FromImage(bmp))
+                {
+                    g.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(w, h));
+                }
+                // Flatten to 24bpp (no alpha) to dodge the Clipboard.SetImage alpha-black gotcha.
+                using (var flat = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format24bppRgb))
+                {
+                    using (var gf = System.Drawing.Graphics.FromImage(flat))
+                    {
+                        gf.DrawImage(bmp, 0, 0, w, h);
+                    }
+                    IntPtr hb = flat.GetHbitmap();
+                    try
+                    {
+                        var src = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                            hb, IntPtr.Zero, System.Windows.Int32Rect.Empty,
+                            System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                        System.Windows.Clipboard.SetImage(src);
+                    }
+                    finally
+                    {
+                        DeleteObject(hb);
+                    }
+                }
+            }
+            finally
+            {
+                view.Opacity = prevOpacity;
+            }
+        }
+
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+        private static extern bool DeleteObject(IntPtr hObject);
 
         private void ShowDebugOverlay(DebugOverlayViewModel vm)
         {
