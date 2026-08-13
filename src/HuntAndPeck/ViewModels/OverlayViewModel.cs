@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
 using HuntAndPeck.Models;
@@ -35,6 +36,17 @@ namespace HuntAndPeck.ViewModels
         private enum SnapshotPhase { None, AwaitCorner1, AwaitCorner2 }
         private SnapshotPhase _snapshotPhase = SnapshotPhase.None;
         private Point _snapshotAnchor; // screen px, offset-applied
+
+        // --- Text-span selection (<leader>v) ---
+        // A 2-pick sub-phase mirroring snapshot: type the start label, then the end
+        // label; the text between is selected. ShiftClick (default): pick-1 plain click
+        // (anchor), pick-2 Shift+click (extend); Drag: pick-1 remembers the start, pick-2
+        // synthesizes the whole drag in one shot (down@anchor, move, up) -- no button is
+        // held while typing the second label, so a cancel never leaves it stuck.
+        private enum SelectPhase { None, AwaitStart, AwaitEnd }
+        private SelectPhase _selectPhase = SelectPhase.None;
+        private Point _selectAnchor;           // Drag method: start point (screen px, offset-applied)
+        private TextSelectMethod _selectMethod;
 
         private readonly IHintLabelService _hintLabelService;
         private readonly string _fontSizeRaw;
@@ -136,6 +148,8 @@ namespace HuntAndPeck.ViewModels
             // Dimmed-label opacity (0-1) read once per overlay; used by LabelOpacity.
             _dimOpacity = OverlayActionConfig.ReadHintDimOpacity();
             _hideInactive = OverlayActionConfig.ReadHideNonMatchingLabels();
+            // Text-span selection gesture (ShiftClick|Drag), read once per overlay.
+            _selectMethod = OverlayActionConfig.ReadTextSelectMethod();
 
             if (_sessions.Count > 0)
             {
@@ -185,6 +199,8 @@ namespace HuntAndPeck.ViewModels
             _pillOpacity = OverlayActionConfig.ReadHintPillOpacity();
             _dimOpacity = OverlayActionConfig.ReadHintDimOpacity();
             _hideInactive = OverlayActionConfig.ReadHideNonMatchingLabels();
+            // Text-span selection gesture (ShiftClick|Drag), read once per overlay.
+            _selectMethod = OverlayActionConfig.ReadTextSelectMethod();
 
             _zoneRects = ZoneService.SliceIntoZones(monitorBounds, zoneCols, zoneRows);
             _zoneCellW = _zoneRects.Length > 0 ? _zoneRects[0].Width : monitorBounds.Width;
@@ -651,6 +667,13 @@ namespace HuntAndPeck.ViewModels
                 ExitSnapshotPhase();
                 return;
             }
+            if (_selectPhase != SelectPhase.None)
+            {
+                // Esc/1 while picking selection endpoints cancels it (nothing to release:
+                // neither method holds a button between picks).
+                ExitSelectText();
+                return;
+            }
             if (!string.IsNullOrEmpty(_match))
             {
                 ClearMatch();
@@ -690,6 +713,13 @@ namespace HuntAndPeck.ViewModels
                 if (_snapshotPhase != SnapshotPhase.None)
                 {
                     HandleSnapshotCorner(matching[0].Hint);
+                    return;
+                }
+                // Text-span selection 2-pick: the matched label is a selection endpoint,
+                // not a click. HandleSelectPoint does its own cursor move + offset.
+                if (_selectPhase != SelectPhase.None)
+                {
+                    HandleSelectPoint(matching[0].Hint);
                     return;
                 }
                 // Move the cursor onto the matched label, then apply the grid
@@ -847,6 +877,7 @@ namespace HuntAndPeck.ViewModels
                     case LeaderKind.CycleLayout: CycleLayout(); break;
                     case LeaderKind.ToggleDim: ToggleDimmed(); break;
                     case LeaderKind.Snapshot: EnterSnapshotRegion(); break;
+                    case LeaderKind.SelectText: EnterSelectText(); break;
                 }
             }
             else
@@ -922,6 +953,16 @@ namespace HuntAndPeck.ViewModels
              : _snapshotPhase == SnapshotPhase.AwaitCorner2 ? "SNAP 2/2"
              : "";
 
+        /// <summary>SEL badge visibility (Collapsed unless a text-span pick is in progress).</summary>
+        public Visibility SelectBadgeVisibility
+            => _selectPhase != SelectPhase.None ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>SEL badge text: "SEL 1/2" while awaiting the start, "SEL 2/2" after.</summary>
+        public string SelectBadgeLabel
+            => _selectPhase == SelectPhase.AwaitStart ? "SEL 1/2"
+             : _selectPhase == SelectPhase.AwaitEnd ? "SEL 2/2"
+             : "";
+
         /// <summary>
         /// Enters snapshot-region mode (<leader>s). Guards: ignored while suspended or if a
         /// snapshot is already in progress. Clears any partial prefix so the next keys are
@@ -988,6 +1029,97 @@ namespace HuntAndPeck.ViewModels
             NotifyOfPropertyChange(nameof(SnapshotBadgeLabel));
         }
 
+        // -------- Text-span selection (<leader>v) --------
+
+        /// <summary>
+        /// Enters text-span selection (<leader>v): a 2-pick sub-phase mirroring snapshot.
+        /// Guards: ignored while suspended or if a pick is already in progress.
+        /// </summary>
+        public void EnterSelectText()
+        {
+            if (_suspended || _selectPhase != SelectPhase.None)
+            {
+                return;
+            }
+            _selectPhase = SelectPhase.AwaitStart;
+            if (!string.IsNullOrEmpty(_match))
+            {
+                ClearMatch();
+            }
+            NotifyOfPropertyChange(nameof(SelectBadgeVisibility));
+            NotifyOfPropertyChange(nameof(SelectBadgeLabel));
+        }
+
+        /// <summary>
+        /// Handles a matched label as a selection endpoint. Start (ShiftClick): move +
+        /// plain click (anchor); Start (Drag): just remember the point. End: ShiftClick
+        /// move + Shift+click to extend, or Drag synthesizes the whole drag (down@anchor,
+        /// move, up) in one shot. Then follows trigger mode.
+        /// </summary>
+        private void HandleSelectPoint(Hint hint)
+        {
+            // Resolve this pick's screen target: label center + pan offset (same offset a
+            // click / snapshot corner applies), so the endpoint lands where the label was.
+            hint.MoveMouseToCenter();
+            POINT p;
+            User32.GetCursorPos(out p);
+            int x = p.X + (int)_offsetX;
+            int y = p.Y + (int)_offsetY;
+
+            if (_selectPhase == SelectPhase.AwaitStart)
+            {
+                if (_selectMethod == TextSelectMethod.Drag)
+                {
+                    _selectAnchor = new Point(x, y);   // remember start; no button held yet
+                }
+                else
+                {
+                    User32.SetCursorPos(x, y);
+                    DoLeftClick();                      // plain click places the caret/anchor
+                }
+                _selectPhase = SelectPhase.AwaitEnd;
+                NotifyOfPropertyChange(nameof(SelectBadgeLabel));
+                ClearMatch();                           // re-highlight so the end label is pickable
+                return;
+            }
+
+            // AwaitEnd: finish the selection.
+            if (_selectMethod == TextSelectMethod.Drag)
+            {
+                // Whole drag in one shot (no button held during typing): down at the
+                // anchor, jump to the end (the move fires WM_MOUSEMOVE -> extends the
+                // selection), up. Nothing to release on cancel because nothing was held.
+                User32.SetCursorPos((int)_selectAnchor.X, (int)_selectAnchor.Y);
+                DoLeftDown();
+                User32.SetCursorPos(x, y);
+                DoLeftUp();
+            }
+            else
+            {
+                User32.SetCursorPos(x, y);
+                DoShiftClick();                         // extend selection from the anchor to here
+            }
+            ExitSelectText();
+            // Follow trigger mode, same as a click: one-shot closes, continuous resets.
+            if (_isContinuous)
+            {
+                ResetForNextClick();
+            }
+            else
+            {
+                CloseOverlay?.Invoke();
+            }
+        }
+
+        /// <summary>Cancels text-span selection. Nothing to release: neither method holds
+        /// a button between picks (Drag synthesizes the whole drag at pick-2).</summary>
+        private void ExitSelectText()
+        {
+            _selectPhase = SelectPhase.None;
+            NotifyOfPropertyChange(nameof(SelectBadgeVisibility));
+            NotifyOfPropertyChange(nameof(SelectBadgeLabel));
+        }
+
         /// <summary>
         /// Normalizes two screen points into a non-negative rectangle (min corner, abs size),
         /// so corner-entry order does not matter. Internal for unit testing.
@@ -1035,6 +1167,77 @@ namespace HuntAndPeck.ViewModels
             User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
             User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
             User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+        }
+
+        // -------- Text-span selection primitives --------
+        // DoLeftDown/DoLeftUp split a click so the Drag method can synthesize a drag
+        // (down@anchor, move, up) in one shot at pick-2. DoShiftClick is the ShiftClick
+        // method's pick-2: extend the selection from the anchor to the cursor.
+
+        private static void DoLeftDown()
+        {
+            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+        }
+
+        private static void DoLeftUp()
+        {
+            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+        }
+
+        private static void DoShiftClick()
+        {
+            // Shift+click extends a selection from the caret to the cursor. Sent as ONE
+            // atomic SendInput (Shift down, left down/up, Shift up) so the app sees Shift
+            // held across the click. VK_SHIFT is not a captured key in our LL keyboard
+            // hook (Classify -> None -> pass-through), so the synthesized Shift reaches
+            // the app's key state -- which is what makes the click a shift+click.
+            var inputs = new User32.INPUT[]
+            {
+                KeyInput(User32.VK_SHIFT, false),
+                MouseInput(User32.MOUSEEVENTF_LEFTDOWN),
+                MouseInput(User32.MOUSEEVENTF_LEFTUP),
+                KeyInput(User32.VK_SHIFT, true)
+            };
+            User32.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(User32.INPUT)));
+        }
+
+        private static User32.INPUT KeyInput(int vk, bool up)
+        {
+            return new User32.INPUT
+            {
+                type = User32.INPUT_KEYBOARD,
+                u = new User32.INPUTUNION
+                {
+                    ki = new User32.KEYBDINPUT
+                    {
+                        wVk = (ushort)vk,
+                        wScan = 0,
+                        dwFlags = up ? User32.KEYEVENTF_KEYUP : 0,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
+                }
+            };
+        }
+
+        private static User32.INPUT MouseInput(uint flags)
+        {
+            return new User32.INPUT
+            {
+                type = User32.INPUT_MOUSE,
+                u = new User32.INPUTUNION
+                {
+                    mi = new User32.MOUSEINPUT
+                    {
+                        dx = 0,
+                        dy = 0,
+                        mouseData = 0,
+                        dwFlags = flags,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
+                }
+            };
         }
     }
 }

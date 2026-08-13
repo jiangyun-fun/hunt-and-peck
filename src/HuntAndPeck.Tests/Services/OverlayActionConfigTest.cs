@@ -178,6 +178,26 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Theory]
+        [InlineData("ShiftClick", TextSelectMethod.ShiftClick)]
+        [InlineData("shiftclick", TextSelectMethod.ShiftClick)]
+        [InlineData("Drag", TextSelectMethod.Drag)]
+        [InlineData("DRAG", TextSelectMethod.Drag)]
+        public void ParseTextSelectMethod_ParsesKnownValues(string raw, TextSelectMethod expected)
+        {
+            Assert.Equal(expected, OverlayActionConfig.ParseTextSelectMethod(raw, TextSelectMethod.ShiftClick));
+        }
+
+        [Theory]
+        [InlineData("", TextSelectMethod.ShiftClick)]
+        [InlineData("junk", TextSelectMethod.ShiftClick)]
+        [InlineData(null, TextSelectMethod.ShiftClick)]
+        [InlineData("junk", TextSelectMethod.Drag)]
+        public void ParseTextSelectMethod_BlankOrUnknown_ReturnsFallback(string raw, TextSelectMethod fallback)
+        {
+            Assert.Equal(fallback, OverlayActionConfig.ParseTextSelectMethod(raw, fallback));
+        }
+
+        [Theory]
         [InlineData("F", Keys.F)]
         [InlineData("space", Keys.Space)] // case-insensitive
         [InlineData("OemSemicolon", Keys.OemSemicolon)]

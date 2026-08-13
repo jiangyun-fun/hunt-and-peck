@@ -22,6 +22,17 @@ namespace HuntAndPeck.Services
     }
 
     /// <summary>
+    /// How two-pick text-span selection synthesizes the selection (TextSelectMethod key).
+    /// ShiftClick: pick-1 plain click (anchor), pick-2 Shift+click (extend).
+    /// Drag: pick-1 button-down (held), pick-2 button-up.
+    /// </summary>
+    public enum TextSelectMethod
+    {
+        ShiftClick,
+        Drag
+    }
+
+    /// <summary>
     /// What rectangle the overlay and its hint grid cover.
     /// </summary>
     public enum HintBounds
@@ -371,6 +382,16 @@ namespace HuntAndPeck.Services
             return result.Count > 0 ? result : new List<ClickAction>(DefaultClickOrder);
         }
 
+        /// <summary>
+        /// Parses the TextSelectMethod key ("ShiftClick" | "Drag", case-insensitive);
+        /// returns the caller's fallback when blank or unrecognized.
+        /// </summary>
+        public static TextSelectMethod ParseTextSelectMethod(string raw, TextSelectMethod fallback)
+        {
+            TextSelectMethod m;
+            return Enum.TryParse(raw, true, out m) ? m : fallback;
+        }
+
         /// <summary>Parses a System.Windows.Forms.Keys name (case-insensitive); fallback otherwise.</summary>
         public static Keys ParseKeys(string raw, Keys fallback)
         {
@@ -713,6 +734,25 @@ namespace HuntAndPeck.Services
             {
                 // Deliberate fallback so a malformed config keeps the app usable.
                 return new List<ClickAction>(DefaultClickOrder);
+            }
+        }
+
+        /// <summary>
+        /// How two-pick text-span selection synthesizes the selection. Hot-reload;
+        /// default ShiftClick (no button held while typing the second label). Drag is
+        /// the fallback where Shift+click is remapped by the target app.
+        /// </summary>
+        public static TextSelectMethod ReadTextSelectMethod()
+        {
+            const TextSelectMethod DefaultMethod = TextSelectMethod.ShiftClick;
+            try
+            {
+                EnsureFresh();
+                return ParseTextSelectMethod(ConfigurationManager.AppSettings["TextSelectMethod"], DefaultMethod);
+            }
+            catch (Exception)
+            {
+                return DefaultMethod;
             }
         }
 

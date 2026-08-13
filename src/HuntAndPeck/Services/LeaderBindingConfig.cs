@@ -22,7 +22,9 @@ namespace HuntAndPeck.Services
         /// <summary>Toggle label dim.</summary>
         ToggleDim,
         /// <summary>Enter snapshot-region mode (2-pick; captures the rectangle to the clipboard).</summary>
-        Snapshot
+        Snapshot,
+        /// <summary>Enter text-span selection (2-pick; selects the text between two labels).</summary>
+        SelectText
     }
 
     /// <summary>
@@ -63,6 +65,7 @@ namespace HuntAndPeck.Services
                 case LeaderKind.CycleLayout: return "cycle layout";
                 case LeaderKind.ToggleDim: return "toggle dim";
                 case LeaderKind.Snapshot: return "snapshot region";
+                case LeaderKind.SelectText: return "select text";
                 default: return Kind.ToString().ToLowerInvariant();
             }
         }
@@ -95,6 +98,7 @@ namespace HuntAndPeck.Services
             new LeaderBinding('G', LeaderKind.CycleLayout),
             new LeaderBinding('I', LeaderKind.ToggleDim),
             new LeaderBinding('S', LeaderKind.Snapshot),
+            new LeaderBinding('V', LeaderKind.SelectText),
         };
 
         /// <summary>
@@ -176,6 +180,8 @@ namespace HuntAndPeck.Services
                 case "TOGGLEDIM":
                 case "DIM": return new LeaderBinding(key, LeaderKind.ToggleDim);
                 case "SNAPSHOT": return new LeaderBinding(key, LeaderKind.Snapshot);
+                case "SELECTTEXT":
+                case "SELECT": return new LeaderBinding(key, LeaderKind.SelectText);
                 default: return null; // unknown target -> skip
             }
         }

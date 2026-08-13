@@ -64,6 +64,11 @@
                        FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
                        Foreground="White" Background="MediumVioletRed" Padding="6,2"
                        Margin="6,0,0,0" Visibility="{Binding SnapshotBadgeVisibility}" />
+            <!-- Text-span selection (<leader>v): "SEL 1/2" then "SEL 2/2" while picking endpoints. -->
+            <TextBlock Text="{Binding SelectBadgeLabel}"
+                       FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
+                       Foreground="White" Background="SteelBlue" Padding="6,2"
+                       Margin="6,0,0,0" Visibility="{Binding SelectBadgeVisibility}" />
         </StackPanel>
         <!-- Leader dispatcher popup (<Space>): centered and transient. Shown only while
              a leader is pending (LeaderMenuVisibility). Lists the key -> action bindings

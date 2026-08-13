@@ -9,18 +9,20 @@ namespace HuntAndPeck.Tests.Services
         public void Parse_FullDefaultString_YieldsAllBindings()
         {
             var list = LeaderBindingConfig.ParseLeaderBindings(
-                "l=Left,r=Right,d=Double,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim,s=Snapshot");
+                "l=Left,r=Right,d=Double,t=Triple,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim,s=Snapshot,v=SelectText");
 
-            Assert.Equal(9, list.Count);
+            Assert.Equal(11, list.Count);
             AssertBinding(list, 'L', LeaderKind.Mode, ClickAction.Left);
             AssertBinding(list, 'R', LeaderKind.Mode, ClickAction.Right);
             AssertBinding(list, 'D', LeaderKind.Mode, ClickAction.Double);
+            AssertBinding(list, 'T', LeaderKind.Mode, ClickAction.Triple);
             AssertBinding(list, 'M', LeaderKind.Mode, ClickAction.Move);
             AssertBinding(list, 'Q', LeaderKind.Close);
             AssertBinding(list, 'Z', LeaderKind.Suspend);
             AssertBinding(list, 'G', LeaderKind.CycleLayout);
             AssertBinding(list, 'I', LeaderKind.ToggleDim);
             AssertBinding(list, 'S', LeaderKind.Snapshot);
+            AssertBinding(list, 'V', LeaderKind.SelectText);
         }
 
         [Fact]
@@ -39,6 +41,22 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal('T', b.Key);
             Assert.Equal(LeaderKind.Mode, b.Kind);
             Assert.Equal(ClickAction.Triple, b.Mode);
+        }
+
+        [Fact]
+        public void Parse_SelectTextTarget()
+        {
+            var b = Assert.Single(LeaderBindingConfig.ParseLeaderBindings("v=SelectText"));
+            Assert.Equal('V', b.Key);
+            Assert.Equal(LeaderKind.SelectText, b.Kind);
+        }
+
+        [Fact]
+        public void Parse_SelectTextAlias()
+        {
+            // "Select" is an alias for "SelectText".
+            var b = Assert.Single(LeaderBindingConfig.ParseLeaderBindings("v=Select"));
+            Assert.Equal(LeaderKind.SelectText, b.Kind);
         }
 
         [Theory]
@@ -108,13 +126,14 @@ namespace HuntAndPeck.Tests.Services
             Assert.Contains(list, b => b.Key == 'Q' && b.Kind == LeaderKind.Close);
             Assert.Contains(list, b => b.Key == 'S' && b.Kind == LeaderKind.Snapshot);
             Assert.Contains(list, b => b.Key == 'T' && b.Kind == LeaderKind.Mode && b.Mode == ClickAction.Triple);
+            Assert.Contains(list, b => b.Key == 'V' && b.Kind == LeaderKind.SelectText);
         }
 
         [Fact]
         public void DisplayLabel_DescribesEachBinding()
         {
             var list = LeaderBindingConfig.ParseLeaderBindings(
-                "l=Left,r=Right,d=Double,t=Triple,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim");
+                "l=Left,r=Right,d=Double,t=Triple,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim,s=Snapshot,v=SelectText");
 
             Assert.Equal("left click", Find(list, 'L').DisplayLabel());
             Assert.Equal("right click", Find(list, 'R').DisplayLabel());
@@ -125,6 +144,8 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal("suspend", Find(list, 'Z').DisplayLabel());
             Assert.Equal("cycle layout", Find(list, 'G').DisplayLabel());
             Assert.Equal("toggle dim", Find(list, 'I').DisplayLabel());
+            Assert.Equal("snapshot region", Find(list, 'S').DisplayLabel());
+            Assert.Equal("select text", Find(list, 'V').DisplayLabel());
         }
 
         private static void AssertBinding(System.Collections.Generic.IReadOnlyList<LeaderBinding> list,

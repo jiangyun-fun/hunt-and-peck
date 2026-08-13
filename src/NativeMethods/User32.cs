@@ -205,6 +205,7 @@ namespace HuntAndPeck.NativeMethods
 
         // ---- SendInput (synthesized keyboard input for macros) ----
         // Used by InputSynthesis to send keystroke chords (e.g. Ctrl+Shift+Q, Ctrl+N).
+        public const int INPUT_MOUSE = 0;
         public const int INPUT_KEYBOARD = 1;
         public const uint KEYEVENTF_KEYUP = 0x0002;
 
