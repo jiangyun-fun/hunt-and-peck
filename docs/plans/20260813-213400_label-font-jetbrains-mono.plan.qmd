@@ -19,6 +19,9 @@ make the family configurable via a new hot-reload `HintFontFamily` key (default
 `HintCanvas.cs:24`); only the size is configurable today (`HintFontSize`,
 `App.config:128`). Scope: **the labels only** (`HintCanvas`); the chrome badges
 (`OverlayView.xaml:37,41,47,53,59,64` = Helvetica; `:80` = Consolas) are out of scope.
+**Status: DONE** — merged to `master` (`be316f9`); CI green (`31706138066`); drop shipped to
+`$HAP_WIN_TEST_DIR/hap-font/hap.exe`; on-box visual check pending. Report:
+`20260813-214308_label-font-jetbrains-mono.report.qmd`.
 
 ## Why plain JetBrains Mono NL (not a Nerd Font)
 
@@ -110,13 +113,14 @@ Resolve the family from the configured name:
 
 ## Verification
 
-- **CI** (`.github/workflows/build.yml`, `windows-latest`, MSBuild + vstest) — must be
-  green. Key risk: the `<Resource>` pack URI + family name must resolve (a wrong family
-  name compiles fine but renders a fallback font at runtime — undetectable by CI).
-- **Manual (Windows box):** overlay labels render in JetBrains Mono NL (monospace,
-  vs the current proportional Helvetica); set `HintFontFamily=Consolas` and re-trigger
-  → labels switch (installed-font path); unset → bundled default. Confirm 2-char labels
-  (e.g. `af`) are monospace-spaced.
+- **CI** (`.github/workflows/build.yml`, `windows-latest`, MSBuild + vstest) — **GREEN**
+  (run `31706138066`, sha `be316f9`; Build + Test + Upload ✓ in 51s). The `<Resource>` pack
+  URI + family name compile and the font embeds (verified via `strings` on `hap.exe` — see
+  report).
+- **Manual (Windows box):** drop shipped to `$HAP_WIN_TEST_DIR/hap-font/hap.exe`; overlay
+  labels should render in JetBrains Mono NL (monospace, vs the previous proportional
+  Helvetica); set `HintFontFamily=Consolas` and re-trigger → labels switch (installed-font
+  path); unset → bundled default. Confirm 2-char labels (e.g. `af`) are monospace-spaced.
 
 ## Risks
 

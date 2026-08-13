@@ -1,0 +1,78 @@
+---
+title: "Report — label font = bundled JetBrains Mono NL"
+author: "Yun Jiang"
+date: "2026-08-13"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔤</text></svg>">
+---
+
+## BLUF
+
+Done. Hint labels now render in **JetBrains Mono NL** (the no-ligatures cut; letterforms
+identical to JetBrains Mono), bundled into the assembly via pack URI and served from the
+embedded copy, with a new hot-reload `HintFontFamily` key (default `JetBrains Mono NL`).
+Replaces a hardcoded `Helvetica, Arial`. CI green; drop shipped. Plan:
+[`20260813-213400_label-font-jetbrains-mono.plan.qmd`](20260813-213400_label-font-jetbrains-mono.plan.qmd).
+
+## Why JetBrains Mono NL (not a Nerd Font)
+
+Labels are typeable ASCII (A–Z + optional punctuation). A Nerd Font's icons live in the PUA
+and cannot be typed as labels, and the A–Z letters render identically to the base font — so a
+Nerd Font would add ~10–15 MB for zero label benefit. Plain JetBrains Mono gives the same look
+at ~420 KB. The **NL cut** additionally disables programming ligatures, so a punctuation label
+pair (e.g. `//`) renders literally rather than as a ligature. (Verified reasoning; the size
+delta is measured from the staged TTFs: ~209 KB Regular + ~211 KB Bold + ~4 KB OFL.)
+
+## What shipped (commit on `master`)
+
+1. `be316f9 feat(overlay): bundle JetBrains Mono NL as the configurable label font`
+
+**Files:** new `Fonts/JetBrainsMonoNL-Regular.ttf`, `Fonts/JetBrainsMonoNL-Bold.ttf`,
+`Fonts/OFL.txt` (SIL OFL 1.1); edited `Views/HintCanvas.cs` (static `LabelTypeface` → instance
+`_typeface` + `ResolveFontFamily`), `ViewModels/HintViewModel.cs` (`FontFamilyReadValue`),
+`ViewModels/OverlayViewModel.cs` (`_fontFamilyRaw` + `EffectiveFontFamily`, both ctors),
+`Services/OverlayActionConfig.cs` (`ReadHintFontFamily`), `App.config` (`HintFontFamily`),
+`HuntAndPeck.csproj` (`<Resource>` ×2 + `<None>` OFL), `CLAUDE.md`. No new `.cs` files
+(added methods/properties inline), so no new `<Compile>` includes needed.
+
+## Decisions (from the design conversation)
+
+- **Bundle plain JetBrains Mono** (not a Nerd Font) — chosen via the design fork: the labels
+  are letters, so Nerd Font icons add weight with no visual benefit.
+- **NL (no-ligatures) cut** — same letterforms, no punctuation-label ligature surprises.
+- **Labels only** (`HintCanvas`); the chrome badges (`OverlayView.xaml`, still `Helvetica,
+  Arial` / `Consolas`) are out of scope, deliberately.
+- **App.config-only** (not added to Options) — consistent with Nudge*/Zone*/LeaderBindings,
+  which are also hot-reload-via-config-only. Hot-reload still works (edit `hap.exe.config`,
+  re-trigger).
+- **Self-contained** — the bundled family name resolves to the embedded copy via pack URI, so
+  the font renders even when not installed on the box.
+
+## Verification
+
+- **CI** (`.github/workflows/build.yml`, `windows-latest`, MSBuild + vstest) — **GREEN**
+  (run `31706138066`, sha `be316f9`; Build + Test + Upload ✓ in 51s; only annotation is the
+  pre-existing Node.js 20 deprecation, unrelated).
+- **Font embedment** (verified, not assumed): `strings -e l` on the shipped `hap.exe` finds
+  the full TTF name tables for BOTH `JetBrainsMonoNL-Regular` and `JetBrainsMonoNL-Bold`
+  (Copyright, "JetBrains Mono NL Bold/Regular", "Version 2.304", OFL license string), plus the
+  `./#JetBrains Mono NL` pack-URI reference from the code. The family name was parsed from the
+  TTFs with `fc-query` + `fontTools` (both agree: nameID 1 = `JetBrains Mono NL`, no nameID 16)
+  BEFORE writing the pack URI — load-bearing, because WPF silently falls back on a mismatch.
+- **Manual (Windows box):** drop shipped to `$HAP_WIN_TEST_DIR/hap-font/hap.exe`; awaiting
+  on-box visual check (CI cannot confirm the font renders — a wrong pack URI compiles yet
+  falls back at runtime). To confirm: labels render monospace (vs proportional Helvetica); set
+  `HintFontFamily=Consolas` and re-trigger → labels switch (installed-font path); unset →
+  bundled default. **Quit the old `hap.exe` (tray → Exit) before launching.**
+
+## Risks / follow-ups
+
+- **Runtime pack-URI resolution** — the one untestable-on-Linux risk; every prerequisite is
+  verified (font embedded, family name exact). On-box visual check is the final gate.
+- **Chrome fonts** — badges/popup still use `Helvetica, Arial` / `Consolas`; a follow-up could
+  bind them to the same family for a unified look (not requested).
+- **Options dialog** — `HintFontFamily` is config-only (consistent with other advanced keys).
