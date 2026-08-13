@@ -185,10 +185,17 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
   (toggle). In continuous mode the mode reverts to the default (first `ClickModeOrder`
   entry, Left) after every click. Default bindings (`LeaderBindings`, hot-reload):
   `<leader>l/r/d/m` = Left/Right/Double/Move, `<leader>q` = close, `<leader>z` = suspend,
-  `<leader>g` = cycle layout, `<leader>i` = toggle dim (`<leader>s` reserved for the
-  future snapshot feature). The badge still shows the active mode.
+  `<leader>g` = cycle layout, `<leader>i` = toggle dim, `<leader>s` = snapshot region (see
+  below). The badge still shows the active mode.
 - **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
   current mode (left / right / double click via `mouse_event`, or move-only).
+- **Snapshot region (`<leader>s`)**: enters a 2-pick mode (badge `SNAP 1/2`). Type the
+  label of one corner, then the opposite corner (any order) → the screen rectangle between
+  them is captured to the clipboard (in-process `CopyFromScreen` + `Clipboard.SetImage`;
+  the overlay hides for ~40ms so its labels don't appear in the shot). Works in Grid and
+  Automation; coords use the label's target point + pan offset (what you label is what you
+  capture). After capture it follows trigger mode (one-shot closes; continuous stays up).
+  `Esc`/`1` cancels the pick; a degenerate pick (same point) is a no-op.
 - **Alt or Capslock held → passthrough**: while Alt or Capslock is physically held the
   overlay stops capturing keys, so `Alt+Tab` (window switcher) + arrows and Capslock-
   based AutoHotkey mappings (e.g. `Capslock+f` → `Ctrl+Shift+M`) pass through. Held-state

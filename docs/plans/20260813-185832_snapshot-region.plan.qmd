@@ -1,0 +1,133 @@
+---
+title: "Snapshot region — `<leader>s` captures a label-defined screen region to the clipboard"
+author: "Yun Jiang"
+date: "2026-08-13"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📸</text></svg>">
+---
+
+## BLUF
+
+`<leader>s` (the leader binding reserved for this) enters a **2-pick snapshot mode**: type
+the label of the top-left corner, then the label of the bottom-right corner → that screen
+rectangle is captured to the clipboard. Capture is **in-process** (`Graphics.CopyFromScreen`
++ `Clipboard.SetImage`); no external tool. Scope: Grid **and** Automation (the coordinate
+resolution unifies both for free). Status: **PLAN (awaiting approval)**.
+
+## Goal & locked decisions (from the design conversation)
+
+- **Output: clipboard only** (the user's explicit original request). No file save, no
+  annotation/OCR (external-tool idea refuted — `System.Drawing` does the capture in ~15
+  lines, and the overlay-hide timing must be in-process anyway).
+- **Entry: `<leader>s`** (now that the leader dispatcher exists; cleaner than the original
+  "click-mode" idea, which predated the leader refactor).
+- **WYSIWYG coordinates**: the two corners use the same target point a click would use
+  (raw screen point + pan offset), so "what you label is what you capture." In the common
+  un-panned case the offset is 0.
+- **After capture: follow trigger mode** — one-click closes the overlay; continuous stays up
+  (mode resets to Left, snapshot phase exits). *Open decision — see below.*
+
+## Why in-process capture (refuting the external-tool idea, restated)
+
+The hard part is not capturing; it is hiding the overlay at the right frame and capturing
+in the same process before restoring. An external tool cannot see hap's overlay-hide
+moment, so IPC-ing the rect out adds latency + a bundled binary for zero capability.
+`Graphics.CopyFromScreen` + `Clipboard.SetImage` (already-referenced `System.Drawing` +
+WPF `System.Windows.Clipboard`) do it with no new dependencies.
+
+## Design
+
+### Interaction
+
+1. `<Space>` (leader) → `s` → `EnterSnapshotRegion()`: snapshot phase = **AwaitCorner1**;
+   a `SNAP 1/2` badge shows; any partial prefix clears; labels stay typeable.
+2. Type corner-1's label → on unique match, store `anchor = TargetScreenPoint(hint) +
+   panOffset`; phase = **AwaitCorner2** (`SNAP 2/2` badge); `ClearMatch()` re-highlights all
+   labels so corner-2 is pickable. **No click fires.**
+3. Type corner-2's label → `corner = TargetScreenPoint(hint) + panOffset`; rect =
+   `Normalize(anchor, corner)` (min/max, so corner order is free); exit snapshot phase;
+   invoke `CaptureRegion(rect)` (App hides overlay → `CopyFromScreen` → clipboard →
+   restores). Then follow trigger mode (close / reset).
+4. **Cancel:** Esc / `1` while in snapshot phase exits snapshot phase (back to normal label
+   typing), mirroring how Esc cancels a leader/match.
+5. Guards: snapshot disabled while suspended. Degenerate rect (w≤0 or h≤0) → no-op, exit
+   phase. Multi-monitor / negative coords: fine — `CopyFromScreen` takes virtual-screen
+   physical pixels.
+
+### Where the state lives (parallels `_zonePhase` / `_leaderPending`)
+
+- VM: `SnapshotPhase { None, AwaitCorner1, AwaitCorner2 }` + `_snapshotAnchor`; intercept
+  at the top of the unique-match branch in `ApplyMatch` (`OverlayViewModel.cs:635`) — if a
+  snapshot phase is active, route to `HandleSnapshotCorner(hint)` and `return` (no click).
+- `Hint.TargetScreenPoint()` (new): `PointHint` returns `_screenPoint`; base `Hint` returns
+  the live `CurrentBoundingRectangle` center (mirrors `MoveMouseToCenter`, `Hint.cs:51-68`).
+  No cursor movement (unlike the click path) — we only need the point.
+
+### Capture (App layer — owns the window)
+
+Mirror `vm.CloseOverlay` wiring in `App.ShowOverlay` (`App.xaml.cs:91`): add
+`vm.CaptureRegion = rect => CaptureRegionToClipboard(view, rect)`. Implementation:
+
+1. `view.Opacity = 0` (hides labels + badges + popup in one knob); `view.UpdateLayout()`;
+   pump `Dispatcher` to `Render` priority; `Thread.Sleep(~30ms)` so the compositor drops the
+   overlay frame. *(This timing is the one piece that cannot be verified on Linux — on-box
+   tune the delay if labels bleed into the shot.)*
+2. `Bitmap(w,h, Format32bppRgb)`; `g.CopyFromScreen(x,y,0,0,size)`.
+3. Flatten to `Format24bppRgb` → avoids the WPF `Clipboard.SetImage` alpha-black gotcha
+   (some paste targets render α=0 as black).
+4. `Imaging.CreateBitmapSourceFromHBitmap` → `Clipboard.SetImage`; `DeleteObject` the
+   `HBITMAP` (no GDI handle leak).
+5. `finally { view.Opacity = prev; }`.
+
+`System.Windows.Clipboard` excludes the cursor by default via `CopyFromScreen` (the moved
+hap cursor is not drawn into the bitmap) — desirable.
+
+## Files to touch
+
+| File | Change |
+|---|---|
+| `Models/Hint.cs` | add `virtual Point TargetScreenPoint()` (UIA: live rect center). |
+| `Models/PointHint.cs` | `override TargetScreenPoint() => _screenPoint`. |
+| `Services/LeaderBindingConfig.cs` | add `LeaderKind.Snapshot`. |
+| `App.config` | add `s=Snapshot` to `LeaderBindings` default. |
+| `ViewModels/OverlayViewModel.cs` | `SnapshotPhase` + `_snapshotAnchor`; `EnterSnapshotRegion` / `HandleSnapshotCorner` / `ExitSnapshotRegion`; intercept in `ApplyMatch`; Esc-cancel in `HandleEscape`; `CaptureRegion` Action; `SNAP n/2` badge props. |
+| `Views/OverlayView.xaml` | a `SNAP` badge in the status strip (Visibility + Text). |
+| `App.xaml.cs` | wire `vm.CaptureRegion`; `CaptureRegionToClipboard` (hide → capture → clipboard → restore). |
+| `*.csproj` | none new (no new files) — confirm. |
+| `HuntAndPeck.csproj` | add `<Compile>` only if a new `.cs` is introduced (TargetScreenPoint is a method, not a file). |
+| `Tests` | unit-test the rect normalization + `TargetScreenPoint` (pure); capture itself stays manual (WPF/GDI). |
+| `CLAUDE.md` | document `<leader>s` snapshot, the 2-pick flow, clipboard output. |
+
+## Open decision (recommendation)
+
+**After capture, follow trigger mode** (one-click closes; continuous stays up and resets).
+Alternative: snapshot is always one-shot (always close after capture). Recommendation =
+follow trigger mode (consistent with clicks). One-line either way.
+
+## Verification
+
+- **CI** (`windows-latest`, MSBuild + vstest): must be green (compile + unit tests).
+- **Unit:** rect normalization (corner order, negative coords, degenerate guard);
+  `LeaderKind.Snapshot` parse (`s=Snapshot`).
+- **Manual (Windows box):** `<leader>s` shows `SNAP 1/2`; label-1 anchors (`SNAP 2/2`);
+  label-2 captures; paste into an app (Feishu/Outlook/Paint) → correct region, no labels in
+  shot, no black background; Esc cancels; multi-monitor rect; degenerate pick is a no-op.
+
+## Risks
+
+- **Hide-before-capture timing** (WPF async compositor) — the only real risk; mitigated by
+  Opacity-0 + render pump + short sleep; **must tune on the Windows box**. Cannot be tested
+  on Linux.
+- **Clipboard alpha-black** — mitigated by 24bpp flatten; verify by pasting into real apps.
+- **DPI**: `CopyFromScreen` and `_screenPoint` are both physical pixels → consistent; verify
+  on a per-monitor-DPI multi-monitor setup.
+- **GDI handle leak** — `DeleteObject` on the `HBITMAP`.
+
+## Sequence
+
+Plan → approve → implement → CI green → `ship-drop` → on-box test (especially the
+hide-timing delay) → tune if needed.
