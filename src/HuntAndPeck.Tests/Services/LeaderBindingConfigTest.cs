@@ -31,6 +31,16 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal(LeaderKind.Snapshot, b.Kind);
         }
 
+        [Fact]
+        public void Parse_TripleTarget()
+        {
+            // <leader>t = Triple is a ClickAction mode binding.
+            var b = Assert.Single(LeaderBindingConfig.ParseLeaderBindings("t=Triple"));
+            Assert.Equal('T', b.Key);
+            Assert.Equal(LeaderKind.Mode, b.Kind);
+            Assert.Equal(ClickAction.Triple, b.Mode);
+        }
+
         [Theory]
         [InlineData(null)]
         [InlineData("")]
@@ -97,17 +107,19 @@ namespace HuntAndPeck.Tests.Services
             Assert.Contains(list, b => b.Key == 'L' && b.Kind == LeaderKind.Mode && b.Mode == ClickAction.Left);
             Assert.Contains(list, b => b.Key == 'Q' && b.Kind == LeaderKind.Close);
             Assert.Contains(list, b => b.Key == 'S' && b.Kind == LeaderKind.Snapshot);
+            Assert.Contains(list, b => b.Key == 'T' && b.Kind == LeaderKind.Mode && b.Mode == ClickAction.Triple);
         }
 
         [Fact]
         public void DisplayLabel_DescribesEachBinding()
         {
             var list = LeaderBindingConfig.ParseLeaderBindings(
-                "l=Left,r=Right,d=Double,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim");
+                "l=Left,r=Right,d=Double,t=Triple,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim");
 
             Assert.Equal("left click", Find(list, 'L').DisplayLabel());
             Assert.Equal("right click", Find(list, 'R').DisplayLabel());
             Assert.Equal("double click", Find(list, 'D').DisplayLabel());
+            Assert.Equal("triple click", Find(list, 'T').DisplayLabel());
             Assert.Equal("move only", Find(list, 'M').DisplayLabel());
             Assert.Equal("close", Find(list, 'Q').DisplayLabel());
             Assert.Equal("suspend", Find(list, 'Z').DisplayLabel());

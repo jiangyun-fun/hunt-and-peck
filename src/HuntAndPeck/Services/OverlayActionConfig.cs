@@ -16,7 +16,9 @@ namespace HuntAndPeck.Services
         Left,
         Move,
         Right,
-        Double
+        Double,
+        /// <summary>Three rapid left clicks -- selects a whole line (a sentence in Word).</summary>
+        Triple
     }
 
     /// <summary>

@@ -478,6 +478,7 @@ namespace HuntAndPeck.ViewModels
                     case ClickAction.Left: return "LEFT CLICK";
                     case ClickAction.Right: return "RIGHT CLICK";
                     case ClickAction.Double: return "DOUBLE CLICK";
+                    case ClickAction.Triple: return "TRIPLE CLICK";
                     default: return "MOVE ONLY";
                 }
             }
@@ -493,6 +494,7 @@ namespace HuntAndPeck.ViewModels
                     case ClickAction.Left: return Brushes.Yellow;
                     case ClickAction.Right: return Brushes.LightSalmon;
                     case ClickAction.Double: return Brushes.LightGreen;
+                    case ClickAction.Triple: return Brushes.Orange;
                     default: return Brushes.LightSkyBlue;
                 }
             }
@@ -704,6 +706,7 @@ namespace HuntAndPeck.ViewModels
                     case ClickAction.Left: DoLeftClick(); break;
                     case ClickAction.Right: DoRightClick(); break;
                     case ClickAction.Double: DoDoubleClick(); break;
+                    case ClickAction.Triple: DoTripleClick(); break;
                     case ClickAction.Move: break;
                 }
 
@@ -1013,6 +1016,21 @@ namespace HuntAndPeck.ViewModels
         private static void DoDoubleClick()
         {
             // Two rapid left clicks register as a double-click.
+            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+        }
+
+        private static void DoTripleClick()
+        {
+            // Three rapid left clicks register as a triple-click (selects a whole line
+            // in most apps; a sentence in Word). No sleep between pairs: the existing
+            // double-click fires two pairs with no delay and registers reliably, and
+            // the click runs on the dispatched UI thread -- not the low-level hook
+            // thread, whose ~300ms LowLevelHooksTimeout a Thread.Sleep would eat into.
+            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
             User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
             User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
             User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);

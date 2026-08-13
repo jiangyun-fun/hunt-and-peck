@@ -54,6 +54,7 @@ namespace HuntAndPeck.Services
                         case ClickAction.Left: return "left click";
                         case ClickAction.Right: return "right click";
                         case ClickAction.Double: return "double click";
+                        case ClickAction.Triple: return "triple click";
                         case ClickAction.Move: return "move only";
                         default: return Mode.ToString().ToLowerInvariant();
                     }
@@ -87,6 +88,7 @@ namespace HuntAndPeck.Services
             new LeaderBinding('L', LeaderKind.Mode, ClickAction.Left),
             new LeaderBinding('R', LeaderKind.Mode, ClickAction.Right),
             new LeaderBinding('D', LeaderKind.Mode, ClickAction.Double),
+            new LeaderBinding('T', LeaderKind.Mode, ClickAction.Triple),
             new LeaderBinding('M', LeaderKind.Mode, ClickAction.Move),
             new LeaderBinding('Q', LeaderKind.Close),
             new LeaderBinding('Z', LeaderKind.Suspend),

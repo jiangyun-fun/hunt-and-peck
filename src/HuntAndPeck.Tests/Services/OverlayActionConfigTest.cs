@@ -168,6 +168,15 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal(2, order.Count);
         }
 
+        [Fact]
+        public void ParseClickActionOrder_ParsesTriple()
+        {
+            // Triple is a ClickAction; it must round-trip through the parser so a user
+            // can list it in ClickModeOrder (and <leader>t sets it via SetMode).
+            var order = OverlayActionConfig.ParseClickActionOrder("Triple");
+            Assert.Equal(ClickAction.Triple, Assert.Single(order));
+        }
+
         [Theory]
         [InlineData("F", Keys.F)]
         [InlineData("space", Keys.Space)] // case-insensitive
