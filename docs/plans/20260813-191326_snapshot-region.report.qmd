@@ -1,0 +1,67 @@
+---
+title: "Report — snapshot region (`<leader>s`)"
+author: "Yun Jiang"
+date: "2026-08-13"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📸</text></svg>">
+---
+
+## BLUF
+
+Done. `<leader>s` enters a 2-pick snapshot mode: type one corner's label, then the opposite
+corner's → that screen rectangle is captured to the clipboard (in-process
+`CopyFromScreen` + `Clipboard.SetImage`). Grid + Automation. CI green. Plan:
+[`20260813-185832_snapshot-region.plan.qmd`](20260813-185832_snapshot-region.plan.qmd).
+
+## What shipped (commits on `master`)
+
+1. `1b3709d feat(overlay): <leader>s captures a label-defined screen region to the clipboard`
+2. `5a0fa7e docs(overlay): document <leader>s snapshot region + plan`
+3. `473a4ae fix(overlay): nest snapshot 24bpp flatten inside the bmp scope (CS0103)`
+4. *(pending, this session)* report commit.
+
+**Files:** edited `Models/Hint.cs`, `Models/PointHint.cs`, `Services/LeaderBindingConfig.cs`,
+`App.config`, `ViewModels/OverlayViewModel.cs`, `App.xaml.cs`, `Views/OverlayView.xaml`,
+`CLAUDE.md`; new test `Tests/ViewModels/OverlayViewModelTest.cs`; updated
+`Tests/Services/LeaderBindingConfigTest.cs` + both `.csproj` Compile includes. No new
+production `.cs` files (`TargetScreenPoint`/snapshot methods are added inline).
+
+## Decisions (from the design conversation)
+
+- **Output: clipboard only** (the user's explicit request). No file save, no
+  annotation/OCR — the external-tool idea was refuted (`System.Drawing` does it in-process,
+  and the overlay-hide timing must be in-process anyway).
+- **Entry: `<leader>s`** (leader dispatcher; cleaner than the original pre-leader "click-mode" idea).
+- **WYSIWYG coords:** label target point + pan offset (matches click semantics).
+- **After capture: follow trigger mode** (one-shot closes; continuous resets) — user-confirmed.
+- **Scope: Grid + Automation** (the unified `TargetScreenPoint` makes both free).
+
+## Verification
+
+- **CI** (`.github/workflows/build.yml`, `windows-latest`, MSBuild + vstest) — **GREEN**
+  (run `31694417271`, sha `473a4ae`; Build + Test + Upload all ✓).
+  - First run (`31694242029`, sha `5a0fa7e`) **failed** at Build — `CS0103`: the 24bpp
+    flatten block referenced `bmp` after its `using` scope had closed (it would also have
+    been disposed). Fixed by nesting the flatten inside the `bmp` scope.
+  - (Pre-existing Node.js 20 deprecation annotation is unrelated.)
+- **Unit:** `OverlayViewModelTest` (NormalizeRegion: in-order, reversed, negative coords,
+  degenerate); `LeaderBindingConfigTest` gains `s=Snapshot` + the 9-binding default.
+- **Manual (Windows box):** NOT yet done — needs `ship-drop` + on-box test, **especially the
+  ~40ms hide-before-capture timing** (WPF composites async; tune the delay if labels bleed
+  into the shot) and pasting into real apps (Feishu/Outlook/Paint) to confirm no black
+  background (the 24bpp flatten addresses the alpha gotcha).
+
+## Risks / follow-ups
+
+- **Hide-before-capture timing** — the only real risk; mitigated by Opacity-0 + render pump +
+  ~40ms sleep; **must verify/tune on the Windows box**. If labels appear in the shot,
+  increase the sleep.
+- **Clipboard alpha-black** — mitigated by 24bpp flatten; verify by pasting.
+- **DPI** — `CopyFromScreen` and `_screenPoint` are both physical pixels; verify on a
+  per-monitor-DPI multi-monitor setup.
+- **GDI leak** — `DeleteObject` on the HBITMAP (handled).
+- Snapshot has no built-in annotation/save; those are explicit non-goals for v1.

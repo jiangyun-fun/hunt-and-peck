@@ -16,7 +16,9 @@ include-in-header:
 the label of the top-left corner, then the label of the bottom-right corner → that screen
 rectangle is captured to the clipboard. Capture is **in-process** (`Graphics.CopyFromScreen`
 + `Clipboard.SetImage`); no external tool. Scope: Grid **and** Automation (the coordinate
-resolution unifies both for free). Status: **PLAN (awaiting approval)**.
+resolution unifies both for free). Status: **DONE** — merged to `master` (commits
+`1b3709d`, `5a0fa7e`, `473a4ae`); CI green (`31694417271`). Manual on-box test pending.
+Report: `20260813-191326_snapshot-region.report.qmd`.
 
 ## Goal & locked decisions (from the design conversation)
 
@@ -110,22 +112,28 @@ follow trigger mode (consistent with clicks). One-line either way.
 
 ## Verification
 
-- **CI** (`windows-latest`, MSBuild + vstest): must be green (compile + unit tests).
-- **Unit:** rect normalization (corner order, negative coords, degenerate guard);
-  `LeaderKind.Snapshot` parse (`s=Snapshot`).
-- **Manual (Windows box):** `<leader>s` shows `SNAP 1/2`; label-1 anchors (`SNAP 2/2`);
-  label-2 captures; paste into an app (Feishu/Outlook/Paint) → correct region, no labels in
-  shot, no black background; Esc cancels; multi-monitor rect; degenerate pick is a no-op.
+- **CI** (`windows-latest`, MSBuild + vstest) — **GREEN** (run `31694417271`, sha `473a4ae`;
+  Build + Test + Upload all ✓). First run (`31694242029`) failed at Build with `CS0103`
+  (the 24bpp flatten referenced `bmp` after its `using` scope had closed — it would also
+  have been disposed); fixed by nesting the flatten inside the `bmp` scope, re-ran green.
+- **Unit:** `OverlayViewModelTest` (NormalizeRegion: in-order, reversed, negative coords,
+  degenerate); `LeaderBindingConfigTest` gains `s=Snapshot` + the 9-binding default.
+- **Manual (Windows box):** NOT yet run — needs `ship-drop` + on-box test: `<leader>s`
+  shows `SNAP 1/2`; label-1 anchors (`SNAP 2/2`); label-2 captures; paste into an app
+  (Feishu/Outlook/Paint) → correct region, **no labels in the shot**, no black background;
+  Esc cancels; multi-monitor rect; degenerate pick is a no-op.
 
-## Risks
+## Risks (post-mortem)
 
 - **Hide-before-capture timing** (WPF async compositor) — the only real risk; mitigated by
-  Opacity-0 + render pump + short sleep; **must tune on the Windows box**. Cannot be tested
-  on Linux.
+  Opacity-0 + render pump + ~40ms sleep; **must tune on the Windows box** (cannot be tested
+  on Linux). If labels bleed into the shot, increase the sleep.
 - **Clipboard alpha-black** — mitigated by 24bpp flatten; verify by pasting into real apps.
 - **DPI**: `CopyFromScreen` and `_screenPoint` are both physical pixels → consistent; verify
   on a per-monitor-DPI multi-monitor setup.
-- **GDI handle leak** — `DeleteObject` on the `HBITMAP`.
+- **GDI handle leak** — `DeleteObject` on the `HBITMAP` (handled).
+- **CS0103 bmp scope** — *materialized* on the first CI run (the flatten referenced a
+  disposed/out-of-scope bitmap); fixed by nesting.
 
 ## Sequence
 
