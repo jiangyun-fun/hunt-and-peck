@@ -1,0 +1,69 @@
+---
+title: "Report — leader-key refactor"
+author: "Yun Jiang"
+date: "2026-08-13"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⌨️</text></svg>">
+---
+
+## BLUF
+
+Done. `<Space>` is now a LazyVim/which-key-style **leader dispatcher**; Space-cycling of
+click modes is removed. Default bindings: `<leader>l/r/d/m` modes, `<leader>q/z/g/i` =
+close/suspend/cycle-layout/toggle-dim. Plan:
+[`20260813-114001_leader-key-refactor.plan.qmd`](20260813-114001_leader-key-refactor.plan.qmd).
+
+## What shipped (4 commits on `master`)
+
+1. `e289336 feat(overlay): add LeaderBinding config types + App.config key`
+2. `c34e918 feat(overlay): replace Space mode-cycle with a leader-key dispatcher`
+3. `7b800d5 fix(overlay): remove '--' from App.config comment (MSB3249)`
+4. *(pending, this session)* `docs(overlay): document leader-key dispatcher + report` —
+   CLAUDE.md + this plan/report pair.
+
+**Files:** new `Services/LeaderBindingConfig.cs` (+test `LeaderBindingConfigTest.cs`); edited
+`OverlayKeyboardHook.cs`, `OverlayViewModel.cs`, `OverlayView.xaml`, `App.config`, both
+`.csproj` (Compile includes), `OverlayKeyboardHookTest.cs`, `CLAUDE.md`.
+
+## Decisions locked (from the design conversation)
+
+- **Continuous mode → reset to Left** after each click (unchanged from today).
+- **`1` stays direct** as the close (Esc) alias; **only `2`/`3`/backtick are freed** to
+  pass through (suspend / cycle-layout / toggle-dim moved under the leader).
+- **No `<Space><Space>`** — pure leader; cycling removed entirely.
+- **Reset/persist leader keys deferred** (the proposed `<leader>r`/`<leader>R` was rejected:
+  `r` collides with Right, and a Shift-letter convention collides with the nudge tiers).
+
+## Deviation from the plan (intentional)
+
+The plan said "leader is Normal-phase only; zone/quadrant phases ignore `<Space>`."
+Implementation instead allows the leader in **all non-suspended phases** (the only guard is
+`_suspended`). Rationale: Space-cycling worked in every phase before; restricting it would
+have been a capability regression, and a leader popup over zone/quadrant UI is harmless.
+
+## Verification
+
+- **CI (`.github/workflows/build.yml`, `windows-latest`, MSBuild + vstest):**
+  - First run (`31690662557`, sha `c34e918`) **failed** at Build — `MSB3249`: an XML comment
+    in `App.config` contained `--` ("Space no longer cycles -- it opens the leader"). This is
+    exactly the pitfall flagged in `CLAUDE.md` ("never put `--` inside an XML comment").
+    Fixed by rewording to a semicolon; a repo-wide check confirmed no other standalone `--`
+    in comment text.
+  - Second run (`31690866064`, sha `7b800d5`) — *(result recorded below when it completes).*
+- **Unit tests:** `OverlayKeyboardHookTest` updated for the new `Classify` mapping
+  (Space→Leader; `1`→Escape kept; `2`/`3`/backtick→None; `layoutCycle` arg removed);
+  `LeaderBindingConfigTest` added (default map, malformed-skip, case-insensitivity,
+  separators, function aliases, display labels, ReadLeaderBindings default fallback).
+- **Manual (Windows box):** NOT yet done — needs a `ship-drop` + on-box test (popup
+  appears; `l/r/d/m` set mode; `q/z/g/i` fire close/suspend/layout/dim; unmapped key +
+  Esc/`1`/`<Space>`-again cancel; `2`/`3`/backtick now reach the app; zone/quadrant still
+  accept `<Space>`).
+
+## Follow-ups (out of scope here)
+
+- **Snapshot feature** → separate plan, lands as `<leader>s` (the binding is reserved).
+- Expose `LeaderBindings` in the Options dialog (currently `App.config`-only, hot-reload).

@@ -1,0 +1,152 @@
+---
+title: "Leader-key refactor — replace `<Space>` mode-cycle with a LazyVim-style leader dispatcher"
+author: "Yun Jiang"
+date: "2026-08-13"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⌨️</text></svg>">
+---
+
+## BLUF
+
+Replace `<Space>`-cycles-mode with a **leader-key dispatcher**: press `<Space>` → a
+which-key-style popup lists the bindings → press one key → action fires. All discrete
+overlay **functions** (click modes + close / suspend / cycle-layout / toggle-dim) move
+under the leader; `<Space><Space>` legacy cycling is removed entirely. Scope is the
+leader refactor only — **snapshot lands afterward as `<leader>s`** (separate plan).
+
+Status: **DONE** — merged to `master` (commits `e289336`, `c34e918`, `7b800d5`); CI green
+(run `31690866064`). Manual on-box test still pending. Report:
+`20260813-182134_leader-key-refactor.report.qmd`.
+
+## Goal & user decisions (confirmed)
+
+1. **Full unification** — every discrete function key moves under the leader, **except
+   `1`/`Esc` (close), which stay direct** (user override: `1` is too convenient to give up).
+2. **Ship the popup** (which-key style, inline in the overlay).
+3. **Leader refactor first**, snapshot after.
+4. **Remove `<Space><Space>`** — pure leader, *cycling removed entirely*.
+
+## Scoping decisions (proposed; correct at review if wrong)
+
+- **Leader bindings are config-driven** (`App.config`, hot-reload), mirroring
+  `ClickModeOrder` / `NudgeKeys*`. Exact letters are *defaults, tweakable*, not hardcoded.
+  Proposed defaults: `l/r/d/m` = Left/Right/Double/Move, `q` = close, `z` = suspend,
+  `g` = cycle-layout, `i` = toggle-dim, `s` = reserved (snapshot, future).
+- **"Full unification" = discrete function keys only.** Stays direct / unchanged:
+  `Esc` **and `1`** (close — user override: `1` is too convenient to give up), label
+  chars (A–Z + punct), `Tab` (monitor cycle, with its Ctrl/Win pass-through semantics),
+  arrows, and `Shift+`-nudge chords (spatial navigation, a different category).
+  Digits `2/3` are **freed → pass through** to the app like `4–0` already do.
+- **Continuous mode (decided): reset to Left** after each click — today's behavior,
+  unchanged. Explicit "persist mode" is **deferred** (YAGNI); see *Deferred* below.
+
+## Why this is the right shape (evidence)
+
+- **The printable keyspace is fully claimed by labels.** `LabelCharForVk` returns A–Z
+  unconditionally + configured punctuation; digits are "never returned here"
+  (`OverlayKeyboardHook.cs:416-428`, `:414`). So new single-key function bindings have
+  nowhere to live except behind a non-printable prefix — `<Space>` is the available one
+  (today `VK_SPACE → CycleMode`, `:343`). This makes the leader **structurally
+  necessary**, not just nicer.
+- **The pattern already exists.** `Dispatch` reinterprets a printable char by VM phase
+  (`if (_vm.IsZonePick) SelectZone else AppendLabelChar`, `:459-464`); the comment states
+  this keeps `Classify` pure and its tests focused (`:462-463`). A leader phase reuses
+  this verbatim — `Classify` stays a pure static function, new state lives in the VM
+  alongside the existing `_zonePhase` (`OverlayViewModel.cs:47-48`).
+- **Zero cost on the common path.** Default mode is Left (`_modeIndex = 0`,
+  `:106`; `DefaultClickOrder`, `OverlayActionConfig.cs:78-79`). The hotkey → type 2 chars
+  → left-click flow never touches the leader.
+
+## Design
+
+### Interaction
+
+1. Normal phase: `<Space>` → enter **leader-pending**; show popup; clear any partial
+   label prefix (`_match`). Label typing suspended while pending (popup is modal-ish,
+   like the macro picker).
+2. Next key while leader-pending:
+   - **Mapped** → fire the action (set mode / close / suspend / cycle-layout / dim),
+     exit leader-pending, hide popup.
+   - **Unmapped** → cancel leader-pending (return to Normal), hide popup, no action.
+   - `Esc` → cancel leader-pending (or close overlay if already not pending — unchanged).
+   - Mouse click → dismisses overlay as today (also clears leader-pending).
+3. **No `<Space><Space>`, no timeout** for v1 — leader stays open until resolved
+   (valid key / Esc / click / unmapped). The overlay is ephemeral anyway.
+4. **Phase guards (as implemented):** leader is available in **all non-suspended phases**
+   (the only guard is `_suspended`) — *not* Normal-only. Rationale: Space-cycling worked in
+   every phase before; restricting it would regress. A leader popup over zone/quadrant UI is
+   harmless. Entering suspend cancels leader-pending. Leader input **resets the auto-close
+   timer** (`OverlayAutoCloseSec`) — `ResetAutoClose()` runs on every captured key.
+5. The existing **mode badge** (`CurrentModeName`, `OverlayView.xaml:35-39`) stays so the
+   user always sees the active mode; the popup is transient.
+
+### Continuous mode (decided: reset to Left)
+
+After a click in Continuous mode the mode resets to Left — **today's behavior, no change**
+(`ResetForNextClick`, `:677-683`). The leader only changes the mode for the *current* click.
+
+### Deferred — explicit reset/persist leader keys (NOT in this refactor)
+
+If "keep my selected mode across clicks" is later wanted, make it an explicit leader
+binding, not a behavior toggle. Do **not** use the example `<leader>r` / `<leader>R`:
+
+- `r` collides with Right-click (a proposed default binding).
+- A `Shift+letter` convention is fragile here: Shift is the nudge gate
+  (`OverlayKeyboardHook.cs:361-367`), and Shift+H/J/K/L/U/I/O/P/M/`,`/`.`/`/` are already
+  nudges (`:530-534`). A "Shift = variant" rule would collide unpredictably across keys.
+  (`Shift+R` happens to escape the nudge tiers, but relying on that is a confusing
+  precedent.)
+
+Pick clean, non-nudge plain letters when the feature is actually needed.
+
+## Files to touch
+
+| File | Change |
+|---|---|
+| `Services/OverlayKeyboardHook.cs` | Add `OverlayKeyActionKind.Leader`. `Classify`: `VK_SPACE → Leader` (was `CycleMode`); **keep `VK_1 → Escape`** (`:392`, close stays direct); **remove** direct `2`/`3`/backtick bindings (`:393-397`) → they pass through; **drop `layoutCycle` param** (used only for `3`, `:394`; computed at `:293`, passed at `:309`). `Dispatch`: add `Leader → _vm.EnterLeader()`; in `AppendChar` branch prepend `if (_vm.IsLeaderPending) _vm.LeaderCommand(c)`; **remove `CycleMode` case** (`:453-454`). |
+| `ViewModels/OverlayViewModel.cs` | Add `_leaderPending` + binding map (read from config); `EnterLeader()` / `LeaderCommand(char)` / `CancelLeader()`; popup props `LeaderMenuVisibility`, `LeaderMenuItems`; `SetMode(ClickAction)` replacing `CycleMode()` (`:731-736`); flatten `_modeIndex`→ direct `_currentAction` (init `_modeOrder[0]`); continuous-persist decision (`:677-683`); phase guards (zone/quadrant/suspend). |
+| `Views/OverlayView.xaml` | New centered panel (Border + ItemsControl bound to `LeaderMenuItems`, Visibility bound to `LeaderMenuVisibility`) layered above the status strip (`:33-62`). |
+| `Services/OverlayActionConfig.cs` | Add `ReadLeaderBindings()` (EnsureFresh + parse `l=Left,r=Right,...` → `IReadOnlyDictionary<char,LeaderTarget>` + default fallback). |
+| `App.config` | Add `<add key="LeaderBindings" value="l=Left,r=Right,d=Double,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim"/>`. Document digits `1/2/3` now pass through. |
+| `HuntAndPeck.csproj` | `<Compile Include>` for any new `.cs` (e.g. a `LeaderTarget` enum / popup item model) — non-SDK csproj requires it. |
+| `Tests/Services/OverlayKeyboardHookTest.cs` | **Update** (not delete): `Space → Leader`, digits/backtick → `None` (pass-through); drop `layoutCycle` arg from all `Classify` calls. |
+| `Tests/Services/OverlayActionConfigTest.cs` | Add `LeaderBindings` parse cases (valid / malformed / missing → default). |
+| `CLAUDE.md` | Update runtime-behavior + config sections: `<Space>` = leader; digits freed; new `LeaderBindings` hot-reload key; note cycling removed. |
+
+Deliberately **deferred**: exposing `LeaderBindings` in the Options dialog (CLAUDE.md says
+Options exposes every hot-reload setting) — v1 ships `App.config` + docs; a text-field in
+Options is a small follow-up.
+
+## Verification
+
+- **CI** (`.github/workflows/build.yml`, `windows-latest`, MSBuild + vstest) — **GREEN**
+  (run `31690866064`, sha `7b800d5`). First run (`31690662557`) failed at Build with
+  `MSB3249` (an XML comment in `App.config` contained `--`); fixed, re-ran green. (The
+  pre-existing Node.js 20 deprecation annotation is unrelated to this change.)
+- **Unit:** `OverlayKeyboardHookTest` updated (Space→Leader, `1`→Escape kept, `2`/`3`/
+  backtick→None, `layoutCycle` arg removed); `LeaderBindingConfigTest` added (default map,
+  malformed-skip, case-insensitivity, separators, aliases, display labels, default fallback).
+- **Manual (Windows box):** NOT yet run — needs `ship-drop` + on-box test: `<Space>` shows
+  popup; `l/r/d/m` set mode; `q/z/g/i` fire close/suspend/layout/dim; unmapped key + Esc/
+  `1`/`<Space>`-again cancel; `2`/`3`/backtick now reach the app; zone/quadrant still accept
+  `<Space>`; continuous resets to Left after each click.
+
+## Risks (post-mortem)
+
+- **`Classify` signature change** (`layoutCycle` removed) rippled to the one call site + the
+  tests — bounded, as expected.
+- **`App.config` XML comment `--` (MSB3249)** — *materialized* on the first CI run; fixed by
+  rewording. Known pitfall, flagged in `CLAUDE.md`.
+- **Muscle-memory break** (Space=cycle is gone) — explicitly requested by the user.
+- **Phase interactions** (leader vs zone/quadrant/suspend) — resolved by allowing the leader
+  in all non-suspended phases (see deviation above); verify on Windows.
+- WPF popup is plain Visibility binding (low risk).
+
+## Sequence
+
+This plan → approve → implement → CI green → `ship-drop` to Windows box → manual test →
+**then** the snapshot feature as a separate plan (lands as `<leader>s`).

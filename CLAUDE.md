@@ -120,10 +120,11 @@ Two kinds of settings:
   `GridCenterStep`, `GridDenseRegions`, `GridInset`, `GridEdgeBandPercent`,
   `HintCharacters`, `HintFontSize`, `HintPillOpacity`, `HintDimOpacity`,
   `NudgeStepSmall`, `NudgeStepMedium`, `NudgeStepLarge`, `NudgeKeysSmall`, `NudgeKeysMedium`, `NudgeKeysLarge`,
-  `ClickModeOrder`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
+  `ClickModeOrder` (only the first entry matters now — it is the default mode; Space no longer cycles),
+  `LeaderBindings`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
   `ZoneZoomEnabled`, `ZoneCols`, `ZoneRows`, `ZoneFontSize`, `ZoneZoomReturnToPickOnFire`,
   `ZoneGridStep`, `ZoneWidth`, `ZoneHeight`, `OverlayAutoCloseSec`, `HideNonMatchingLabels`.
-  (`ActiveLayout` is also in appSettings but is rewritten by the `;` key, not hand-edited.)
+  (`ActiveLayout` is also in appSettings but is rewritten by `<leader>g`, not hand-edited.)
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
   dismisses open context menus even inside a chord); and the quadrant hotkeys
@@ -135,10 +136,9 @@ Two kinds of settings:
 
 `HintCharacters` defaults to `A–Z` (easy to recognize). The punctuation set
 `,./;'[]\` is also supported — add any of them here to opt in. The matching input
-captures `A–Z` plus any configured punctuation. **Digits are reserved for overlay
-functions** (`1`=close, `2`=suspend, `3`=cycle layout), so they are not labels —
-do not put `0–9` in `HintCharacters` (a generated digit label could never be
-typed).
+captures `A–Z` plus any configured punctuation. **`1` is reserved** (close, the Esc
+alias); digits `2`–`9` and `0` pass through to the app and are not labels — do not
+put `0–9` in `HintCharacters` (a generated digit label could never be typed).
 
 ## Runtime behavior (current)
 
@@ -178,9 +178,15 @@ typed).
   zone's cell size, so one Large nudge traverses exactly one zone). Defaults: Small 3,3 ;
   Medium 15,15 ; Large auto. Dedicated arrows (when `ArrowKeyBehavior=Pan`) use Medium (plain)
   / Large (Shift). `Ctrl+Shift+<row>` and `Win+Shift+<row>` pass through (not captured).
-- **Space** cycles the click mode (badge bottom-center): `Left → Right → Double → Move`
-  (`ClickModeOrder`, wraps). `Move` positions without clicking. In continuous mode the
-  mode reverts to the first (Left) after every click.
+- **`<Space>` is the leader key** (LazyVim/which-key style): pressing it opens a
+  transient centered popup listing the bindings; the next key fires its action and
+  closes the popup. Mode-cycling is gone — modes are reached only via leader chords.
+  `Esc`/`1` or an unmapped key cancels a pending leader; `<Space>` again also cancels
+  (toggle). In continuous mode the mode reverts to the default (first `ClickModeOrder`
+  entry, Left) after every click. Default bindings (`LeaderBindings`, hot-reload):
+  `<leader>l/r/d/m` = Left/Right/Double/Move, `<leader>q` = close, `<leader>z` = suspend,
+  `<leader>g` = cycle layout, `<leader>i` = toggle dim (`<leader>s` reserved for the
+  future snapshot feature). The badge still shows the active mode.
 - **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
   current mode (left / right / double click via `mouse_event`, or move-only).
 - **Alt or Capslock held → passthrough**: while Alt or Capslock is physically held the
@@ -196,28 +202,27 @@ typed).
   hap started *after* the last AHK reload — so **restart `hap.exe` after reloading your AHK
   script** if Capslock combos stop passing through. (Raw input does not help here: AHK's
   remap intercepts Capslock at the low-level-hook layer before raw input is generated.)
-- **Backtick dims the labels**: drops label opacity to the configured dim level
-  (default ~20%, `HintDimOpacity`) so the text passage behind is readable, then press
-  again to restore. Keys stay captured, so labels stay typeable while dim (you can still
-  type a label to fire it). Tradeoff: opacity-dim couples label contrast to the
-  background, so dimmed labels are harder to see on dark surfaces (acceptable on light
-  backgrounds; raise `HintDimOpacity` to improve). A two-tone-outline read-mode was tried and
-  rejected as ugly/hard to read.
-- **`2` suspends the overlay** (was `\`): enters persistent suspend — the overlay
-  stops capturing keys AND **hides its labels** (opacity 0), leaving only the
+- **`<leader>i` dims the labels** (was backtick): drops label opacity to the configured
+  dim level (default ~20%, `HintDimOpacity`) so the text passage behind is readable, then
+  `<leader>i` again to restore. Keys stay captured, so labels stay typeable while dim
+  (you can still type a label to fire it). Tradeoff: opacity-dim couples label contrast
+  to the background, so dimmed labels are harder to see on dark surfaces (acceptable on
+  light backgrounds; raise `HintDimOpacity` to improve). A two-tone-outline read-mode was
+  tried and rejected as ugly/hard to read. Backtick now passes through.
+- **`<leader>z` suspends the overlay** (was `2`/`\`): enters persistent suspend — the
+  overlay stops capturing keys AND **hides its labels** (opacity 0), leaving only the
   `SUSPENDED` status, so you can type into the app beneath (vimium, Excel shortcuts)
   with zero key collision. Clicks pass through (no dismiss). Resume by pressing the
   **main hotkey** (`Ctrl+Shift+M` / `Capslock+f`) again; `Esc`/`1` closes. Per-session
-  (resets each new overlay). (`\` is now a label char.)
-- **`3` cycles grid layouts** (Grid only; was `;`): `GridLayouts` lists N geometry
-  presets (layouts separated by `||`, fields
-  `edgeStep|centerStep|inset|edgeBandPercent|denseRegions`); pressing `3` while the
-  overlay is up regenerates the grid with the next preset and wraps (badge shows e.g.
-  `L2/2`). The active preset persists across Esc/reopen **and** a full restart
-  (`ActiveLayout`). Ships with 2: the dense edge grid and a uniform full-screen grid
-  (`Center` + equal steps). Omit `GridLayouts` to use the five flat knobs as before;
-  `3` then passes through. Automation ignores it (no grid concept) — `3` reaches the
-  app. (`;` is now a label char.)
+  (resets each new overlay). `2` now passes through to the app. (`\` is a label char.)
+- **`<leader>g` cycles grid layouts** (Grid only; was `3`/`;`): `GridLayouts` lists N
+  geometry presets (layouts separated by `||`, fields
+  `edgeStep|centerStep|inset|edgeBandPercent|denseRegions`); it regenerates the grid with
+  the next preset and wraps (badge shows e.g. `L2/2`). The active preset persists across
+  Esc/reopen **and** a full restart (`ActiveLayout`). Ships with 2: the dense edge grid
+  and a uniform full-screen grid (`Center` + equal steps). With no `GridLayouts`
+  configured the overlay is not cycle-capable, so `<leader>g` is a no-op; `3` always
+  passes through to the app. (`;` is a label char.)
 - **Type-to-zoom zones** (`ZoneZoomEnabled`, Grid + Screen only, hot-reload; default
   off): instead of labeling the whole monitor at once (which the `HintCharacters²` cap
   auto-coarsens into a sparse grid), the overlay opens with a `ZoneCols`×`ZoneRows`
@@ -259,11 +264,12 @@ typed).
   cycles the quarters** (badge `Q n/4`); `Ctrl+Tab`/`Ctrl+Shift+Tab`/`Win+Tab` still pass
   through. Each cycle resets the typed prefix + pan (same as monitor cycling).
   Keys/modifier configurable via `QuadrantHotkeyKeys`/`QuadrantHotkeyModifier`.
-- **Esc** (or **`1`**, an alias that's closer to type) clears the typed prefix if any
-  has been typed (cancel the selection, stay up so you can retype from scratch); if
-  nothing is typed, it closes the overlay. Pan and click-mode are kept on a clear. Any
-  **mouse click** also dismisses the overlay (and still reaches the app beneath).
-  Digits `4`–`0` (not `1`/`2`/`3`) are not labels and pass through to the app.
+- **Esc** (or **`1`**, an alias that's closer to type) first cancels a pending leader
+  if one is open; otherwise clears the typed prefix if any has been typed (cancel the
+  selection, stay up so you can retype from scratch); if nothing is typed, it closes the
+  overlay. Pan and click-mode are kept on a clear. Any **mouse click** also dismisses the
+  overlay (and still reaches the app beneath). Digits `2`–`0` (`1` stays the close alias)
+  are not labels and pass through to the app.
 - **Doesn't dismiss open menus**: the overlay shows non-activated (`ShowActivated=False`
   + `WS_EX_NOACTIVATE`), so an open context menu / popup stays open when you press the
   hotkey, and closing the overlay with `Esc`/`1`/a click no longer dismisses it either —
