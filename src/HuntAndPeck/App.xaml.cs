@@ -136,28 +136,31 @@ namespace HuntAndPeck
             try
             {
                 using (var bmp = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppRgb))
-                using (var g = System.Drawing.Graphics.FromImage(bmp))
                 {
-                    g.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(w, h));
-                }
-                // Flatten to 24bpp (no alpha) to dodge the Clipboard.SetImage alpha-black gotcha.
-                using (var flat = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format24bppRgb))
-                {
-                    using (var gf = System.Drawing.Graphics.FromImage(flat))
+                    using (var g = System.Drawing.Graphics.FromImage(bmp))
                     {
-                        gf.DrawImage(bmp, 0, 0, w, h);
+                        g.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(w, h));
                     }
-                    IntPtr hb = flat.GetHbitmap();
-                    try
+                    // Flatten to 24bpp (no alpha) to dodge the Clipboard.SetImage alpha-black
+                    // gotcha. Nested inside the bmp scope so bmp is still alive for DrawImage.
+                    using (var flat = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format24bppRgb))
                     {
-                        var src = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
-                            hb, IntPtr.Zero, System.Windows.Int32Rect.Empty,
-                            System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
-                        System.Windows.Clipboard.SetImage(src);
-                    }
-                    finally
-                    {
-                        DeleteObject(hb);
+                        using (var gf = System.Drawing.Graphics.FromImage(flat))
+                        {
+                            gf.DrawImage(bmp, 0, 0, w, h);
+                        }
+                        IntPtr hb = flat.GetHbitmap();
+                        try
+                        {
+                            var src = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                                hb, IntPtr.Zero, System.Windows.Int32Rect.Empty,
+                                System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                            System.Windows.Clipboard.SetImage(src);
+                        }
+                        finally
+                        {
+                            DeleteObject(hb);
+                        }
                     }
                 }
             }
