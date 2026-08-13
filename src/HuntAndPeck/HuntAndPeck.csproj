@@ -103,6 +103,7 @@
     <Compile Include="Services\HintLabelService.cs" />
     <Compile Include="Services\GridLayoutConfig.cs" />
     <Compile Include="Services\OverlayActionConfig.cs" />
+    <Compile Include="Services\LeaderBindingConfig.cs" />
     <Compile Include="Services\TimingLog.cs" />
     <Compile Include="Services\Interfaces\IDebugHintProviderService.cs" />
     <Compile Include="Services\Interfaces\IHintLabelService.cs" />
