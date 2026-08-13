@@ -38,6 +38,7 @@ namespace HuntAndPeck.ViewModels
 
         private readonly IHintLabelService _hintLabelService;
         private readonly string _fontSizeRaw;
+        private readonly string _fontFamilyRaw;
         private readonly double _pillOpacity;
         private readonly double _dimOpacity;
         private readonly bool _hideInactive;
@@ -127,6 +128,9 @@ namespace HuntAndPeck.ViewModels
             // reads and dominated latency at high label counts.
             _fontSizeRaw = OverlayActionConfig.ReadHintFontSize()
                 ?? HuntAndPeck.Properties.Settings.Default.FontSize;
+            // Label font family read once per overlay; passed to each HintViewModel
+            // (default bundled JetBrains Mono NL when unset).
+            _fontFamilyRaw = OverlayActionConfig.ReadHintFontFamily();
             // Pill fill opacity (0-1) read once per overlay; bound to HintCanvas.
             _pillOpacity = OverlayActionConfig.ReadHintPillOpacity();
             // Dimmed-label opacity (0-1) read once per overlay; used by LabelOpacity.
@@ -177,6 +181,7 @@ namespace HuntAndPeck.ViewModels
 
             _fontSizeRaw = OverlayActionConfig.ReadHintFontSize()
                 ?? HuntAndPeck.Properties.Settings.Default.FontSize;
+            _fontFamilyRaw = OverlayActionConfig.ReadHintFontFamily();
             _pillOpacity = OverlayActionConfig.ReadHintPillOpacity();
             _dimOpacity = OverlayActionConfig.ReadHintDimOpacity();
             _hideInactive = OverlayActionConfig.ReadHideNonMatchingLabels();
@@ -208,7 +213,7 @@ namespace HuntAndPeck.ViewModels
             for (int i = 0; i < labels.Count; ++i)
             {
                 var hint = session.Hints[i];
-                fresh.Add(new HintViewModel(hint, EffectiveFontSize)
+                fresh.Add(new HintViewModel(hint, EffectiveFontSize, EffectiveFontFamily)
                 {
                     Label = labels[i],
                     Active = true    // all highlighted (yellow) at init / on monitor switch
@@ -234,6 +239,13 @@ namespace HuntAndPeck.ViewModels
         /// </summary>
         private string EffectiveFontSize
             => _zonePhase == ZonePhase.ZonePick ? _zoneFontSizeRaw : _fontSizeRaw;
+
+        /// <summary>
+        /// Label font family for the current overlay (default bundled JetBrains Mono NL).
+        /// Zones share the family with the fine grid (only the size differs), so this is
+        /// phase-independent.
+        /// </summary>
+        private string EffectiveFontFamily => _fontFamilyRaw;
 
         /// <summary>True while the overlay shows the zone-pick labels (type a zone char to drill in).</summary>
         public bool IsZonePick => _zonePhase == ZonePhase.ZonePick;

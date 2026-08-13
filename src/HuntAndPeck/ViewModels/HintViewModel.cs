@@ -7,13 +7,15 @@ namespace HuntAndPeck.ViewModels
         private string _label;
         private bool _active;
         private string _fontSizeReadValue;
+        private string _fontFamilyReadValue;
 
-        public HintViewModel(Hint hint, string fontSize)
+        public HintViewModel(Hint hint, string fontSize, string fontFamily)
         {
             Hint = hint;
-            // Font size is read once per overlay by the OverlayViewModel and passed
-            // in, so we don't re-read the config file for every hint.
+            // Font size + family are read once per overlay by the OverlayViewModel and
+            // passed in, so we don't re-read the config file for every hint.
             FontSizeReadValue = fontSize;
+            FontFamilyReadValue = fontFamily;
         }
 
         public Hint Hint { get; set; }
@@ -34,6 +36,12 @@ namespace HuntAndPeck.ViewModels
         {
             get { return _fontSizeReadValue; }
             set { _fontSizeReadValue = value; NotifyOfPropertyChange(); }
+        }
+
+        public string FontFamilyReadValue
+        {
+            get { return _fontFamilyReadValue; }
+            set { _fontFamilyReadValue = value; NotifyOfPropertyChange(); }
         }
     }
 }

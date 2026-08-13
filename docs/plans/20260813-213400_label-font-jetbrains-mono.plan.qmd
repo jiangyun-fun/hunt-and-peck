@@ -1,0 +1,130 @@
+---
+title: "Label font = bundled JetBrains Mono NL (configurable via HintFontFamily)"
+author: "Yun Jiang"
+date: "2026-08-13"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔤</text></svg>">
+---
+
+## BLUF
+
+Render the hint labels in **JetBrains Mono NL** (the no-ligatures cut; letterforms
+identical to JetBrains Mono), bundled into the assembly so it is self-contained, and
+make the family configurable via a new hot-reload `HintFontFamily` key (default
+`JetBrains Mono NL`). The current label font is **hardcoded** (`Helvetica, Arial`,
+`HintCanvas.cs:24`); only the size is configurable today (`HintFontSize`,
+`App.config:128`). Scope: **the labels only** (`HintCanvas`); the chrome badges
+(`OverlayView.xaml:37,41,47,53,59,64` = Helvetica; `:80` = Consolas) are out of scope.
+
+## Why plain JetBrains Mono NL (not a Nerd Font)
+
+- The labels are typeable ASCII — `HintCharacters` = A–Z plus an optional punctuation
+  set (CLAUDE.md); matched by the keyboard hook, which only captures A–Z + configured
+  punctuation. A **Nerd Font** = base font + icon glyphs in the PUA; the icon glyphs
+  cannot be typed or used as labels, and the A–Z letters render **identically** to the
+  base font. So for the labels, a Nerd Font adds ~10–15 MB of binary weight with zero
+  visual benefit. Plain JetBrains Mono (or its NL cut) gives the same look at ~420 KB.
+- **NL (no-ligatures) cut:** JetBrains Mono has programming ligatures (`//`, `->`, `!=`…).
+  With the default A–Z `HintCharacters` no ligature can fire, but if a user opts into the
+  punctuation set, a label like `//` would render as a ligature. The NL cut (same
+  letterforms, ligatures disabled) removes that risk entirely at the same size. **Chosen.**
+
+## Font identity (verified, not from memory)
+
+Parsed the TTF name tables with `fc-query` **and** `fontTools.ttLib` (both agree):
+
+- `JetBrainsMonoNL-Regular.ttf`, `JetBrainsMonoNL-Bold.ttf` → family name
+  **`JetBrains Mono NL`** (nameID 1; no nameID 16 → WPF keys off exactly this string).
+- Both cuts share the family name with Regular/Bold styles → WPF resolves the Bold
+  label weight (`HintCanvas` uses `FontWeights.Bold`) from the folder.
+
+WPF silently falls back to a default font if the pack-URI family name is off by one
+character — and this cannot be tested on the dev box (Linux) — so the verified family
+name is load-bearing. Version bundled: **v2.304**.
+
+## Design
+
+### Packaging (non-SDK .NET 4.5.1 csproj)
+
+- Add `src/HuntAndPeck/Fonts/JetBrainsMonoNL-Regular.ttf` + `JetBrainsMonoNL-Bold.ttf`
+  as `<Resource Include="Fonts\…" />` (embedded in the assembly, resolved via pack URI).
+  `<Resource>` (not `<Content>`/`<None>`) so it ships inside `hap.exe`.
+- Add `Fonts\OFL.txt` as `<None Include>` — the SIL OFL 1.1 license accompanying the
+  font (OFL permits redistribution). Source-of-truth in-repo; no runtime use.
+
+### WPF font reference
+
+Resolve the family from the configured name:
+
+- If the name equals the bundled family (`JetBrains Mono NL`, case-insensitive) → use
+  the bundled copy via pack URI so the app is self-contained even if the font is not
+  installed: `new FontFamily(new Uri("pack://application:,,,/Fonts/"), "./#JetBrains Mono NL")`.
+- Otherwise → `new FontFamily(name)` (any installed font, with comma fallbacks allowed).
+
+### HintCanvas — static Typeface → instance
+
+- `HintCanvas.cs:23-24`: the `static readonly Typeface LabelTypeface` (hardcoded
+  `Helvetica, Arial`) becomes an **instance** `Typeface _typeface`, rebuilt in
+  `BuildFormatted()` (called on session change and DPI change) from
+  `_hints[0].FontFamilyReadValue`. The label weight stays **Bold**.
+
+### Plumbing (mirrors the existing font-size path)
+
+- `OverlayActionConfig.ReadHintFontFamily()` — hot-reload reader (via `EnsureFresh`),
+  returns `ConfigurationManager.AppSettings["HintFontFamily"]`, default
+  `JetBrains Mono NL`. Mirrors `ReadHintFontSize` (`OverlayActionConfig.cs:526`).
+- `OverlayViewModel`: `_fontFamilyRaw` field, read in **both** ctors (mirror
+  `_fontSizeRaw` at `:128` and `:178`); `EffectiveFontFamily` property (no zone
+  variant — zones share the family, only the size differs). Passed at the single
+  `HintViewModel` call site (`OverlayViewModel.cs:211`).
+- `HintViewModel`: add `FontFamilyReadValue` string property + ctor param (mirror
+  `FontSizeReadValue`). `HintCanvas.BuildFormatted` reads `_hints[0].FontFamilyReadValue`.
+
+### Config
+
+- `App.config`: `<add key="HintFontFamily" value="JetBrains Mono NL" />` next to
+  `HintFontSize` (`:128`). No `--` inside the XML comment (MSB3249).
+- Not added to the Options dialog: many hot-reload settings are already App.config-only
+  (Nudge*, Zone*, LeaderBindings, GridLayouts), so this is consistent. Hot-reload via
+  `hap.exe.config` edit + re-trigger still works.
+
+## Files to touch
+
+| File | Change |
+|---|---|
+| `Fonts/JetBrainsMonoNL-Regular.ttf` (new) | bundled font (Resource). |
+| `Fonts/JetBrainsMonoNL-Bold.ttf` (new) | bundled font (Resource). |
+| `Fonts/OFL.txt` (new) | SIL OFL 1.1 license (None). |
+| `HuntAndPeck.csproj` | `<Resource>` ×2 + `<None>` ×1. |
+| `Services/OverlayActionConfig.cs` | `ReadHintFontFamily()`. |
+| `ViewModels/OverlayViewModel.cs` | `_fontFamilyRaw` + `EffectiveFontFamily` + pass at `:211`. |
+| `ViewModels/HintViewModel.cs` | `FontFamilyReadValue` + ctor param. |
+| `Views/HintCanvas.cs` | static `LabelTypeface` → instance `_typeface` + `ResolveFontFamily`. |
+| `App.config` | `HintFontFamily` key. |
+| `CLAUDE.md` | document `HintFontFamily` (hot-reload), bundled NL cut, default, fallback. |
+| Tests | none (mirrors `ReadHintFontSize`, which is not unit-tested — needs a live config). |
+
+## Verification
+
+- **CI** (`.github/workflows/build.yml`, `windows-latest`, MSBuild + vstest) — must be
+  green. Key risk: the `<Resource>` pack URI + family name must resolve (a wrong family
+  name compiles fine but renders a fallback font at runtime — undetectable by CI).
+- **Manual (Windows box):** overlay labels render in JetBrains Mono NL (monospace,
+  vs the current proportional Helvetica); set `HintFontFamily=Consolas` and re-trigger
+  → labels switch (installed-font path); unset → bundled default. Confirm 2-char labels
+  (e.g. `af`) are monospace-spaced.
+
+## Risks
+
+- **Pack-URI family-name mismatch** (silent fallback) — mitigated by verifying the
+  family name from the TTF name tables (above); must confirm visually on-box.
+- **`<Resource>` build item** — must be `<Resource>` (embedded), not `<Content>`, or the
+  pack URI cannot resolve the font.
+- **NL vs ligature** — chose NL to avoid punctuation-label ligatures; no downside vs
+  the base font for A–Z.
+- **License** — JetBrains Mono is SIL OFL 1.1 (redistribution permitted); `OFL.txt`
+  included in-repo.

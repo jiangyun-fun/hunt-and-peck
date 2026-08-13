@@ -118,7 +118,7 @@ Two kinds of settings:
 - **Hot-reload** (read each trigger; edit `hap.exe.config`, save, re-trigger):
   `HintSource`, `HintBoundsSource`, `OverlayTriggerMode`, `GridEdgeStep`,
   `GridCenterStep`, `GridDenseRegions`, `GridInset`, `GridEdgeBandPercent`,
-  `HintCharacters`, `HintFontSize`, `HintPillOpacity`, `HintDimOpacity`,
+  `HintCharacters`, `HintFontSize`, `HintFontFamily`, `HintPillOpacity`, `HintDimOpacity`,
   `NudgeStepSmall`, `NudgeStepMedium`, `NudgeStepLarge`, `NudgeKeysSmall`, `NudgeKeysMedium`, `NudgeKeysLarge`,
   `ClickModeOrder` (only the first entry matters now — it is the default mode; Space no longer cycles),
   `LeaderBindings`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
@@ -163,6 +163,13 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
   runner is on a background thread; `focusWindow` dispatches to the UI thread (foreground
   privilege). `openOverlay`/`overlayType`/`nudge`/`rawReplay` are in the schema but
   unimplemented (overlay targeting was descoped — `clickAbs` covers fixed-target macros).
+- **Label font is JetBrains Mono NL**, bundled in the assembly (`Fonts/JetBrainsMonoNL-*.ttf`,
+  SIL OFL) and resolved via pack URI, so it renders even if the font is not installed on the
+  box. `HintFontFamily` (hot-reload, default `JetBrains Mono NL`) selects the family: the
+  bundled name serves the embedded copy (NL cut = no ligatures, so punctuation label pairs
+  render literally); any other name uses an installed family (e.g. `Consolas`). Was a hardcoded
+  `Helvetica, Arial`; the chrome badges still use that. The family is read once per overlay and
+  threaded to `HintCanvas` via `HintViewModel.FontFamilyReadValue`.
 - **Labels are all highlighted (yellow) at start**; typing narrows the highlight to the
   matching labels; a unique match fires. (In continuous mode the highlight resets to
   all-yellow after each click.)

@@ -540,6 +540,28 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Reads the hint label font family (hot-reload). Returns the bundled default
+        /// ("JetBrains Mono NL") when unset/blank, so HintCanvas always gets a value to
+        /// resolve. Unlike ReadHintFontSize there is no Options-dialog fallback: the
+        /// family is App.config-only.
+        /// </summary>
+        public static string ReadHintFontFamily()
+        {
+            const string DefaultFontFamily = "JetBrains Mono NL";
+            try
+            {
+                EnsureFresh();
+                var raw = ConfigurationManager.AppSettings["HintFontFamily"];
+                return string.IsNullOrWhiteSpace(raw) ? DefaultFontFamily : raw.Trim();
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return DefaultFontFamily;
+            }
+        }
+
+        /// <summary>
         /// Hint pill fill opacity as 0.0-1.0 (hot-reload). Configured as a percent
         /// (0-100, default 80): softens the vivid yellow so background peeks through,
         /// while the label text stays fully opaque. Bad/missing values fall back to 0.8.

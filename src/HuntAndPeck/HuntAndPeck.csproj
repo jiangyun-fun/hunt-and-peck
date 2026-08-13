@@ -179,6 +179,9 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Resources\originalbird.ico" />
+    <Resource Include="Fonts\JetBrainsMonoNL-Regular.ttf" />
+    <Resource Include="Fonts\JetBrainsMonoNL-Bold.ttf" />
+    <None Include="Fonts\OFL.txt" />
   </ItemGroup>
   <ItemGroup>
     <Page Include="Views\DebugOverlayView.xaml">

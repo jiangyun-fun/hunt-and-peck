@@ -20,8 +20,17 @@ namespace HuntAndPeck.Views
     public class HintCanvas : FrameworkElement
     {
         private static readonly Brush TextBrush = Brushes.Black;
-        private static readonly Typeface LabelTypeface =
-            new Typeface(new FontFamily("Helvetica, Arial"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+
+        // Bundled font family. JetBrains Mono NL = JetBrains Mono with ligatures disabled,
+        // so punctuation label pairs (e.g. "//") never render as programming ligatures. The
+        // TTFs are embedded as Resources (Fonts/*.ttf) and resolved via pack URI, so the app
+        // renders them even when the font is not installed on the box.
+        private const string BundledFontFamily = "JetBrains Mono NL";
+
+        // Label typeface, rebuilt in BuildFormatted from the per-overlay
+        // FontFamilyReadValue. Was a static hardcoded "Helvetica, Arial"; now configurable
+        // (default bundled JetBrains Mono NL) while the Bold weight is preserved.
+        private Typeface _typeface;
 
         private readonly VisualCollection _visuals;
 
@@ -254,13 +263,35 @@ namespace HuntAndPeck.Views
                 fs = 14;
             }
             _fontSize = fs;
+            // Build the typeface from the per-overlay family (default bundled JetBrains
+            // Mono NL when unset). Bold weight is preserved.
+            string family = string.IsNullOrWhiteSpace(_hints[0].FontFamilyReadValue)
+                ? BundledFontFamily : _hints[0].FontFamilyReadValue;
+            _typeface = new Typeface(ResolveFontFamily(family), FontStyles.Normal,
+                FontWeights.Bold, FontStretches.Normal);
             double emSize = _fontSize * _dpi;
             _formatted = new FormattedText[_hints.Count];
             for (int i = 0; i < _hints.Count; i++)
             {
                 _formatted[i] = new FormattedText(_hints[i].Label ?? "", CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight, LabelTypeface, emSize, TextBrush);
+                    FlowDirection.LeftToRight, _typeface, emSize, TextBrush);
             }
+        }
+
+        /// <summary>
+        /// Resolves the configured label font family to a WPF <see cref="FontFamily"/>.
+        /// The bundled family (<see cref="BundledFontFamily"/>) is served from the
+        /// embedded Fonts/ resources via pack URI (self-contained; renders even when the
+        /// font is not installed). Any other name is treated as an installed/system
+        /// family, with comma fallbacks allowed (e.g. "Consolas, Courier New").
+        /// </summary>
+        private static FontFamily ResolveFontFamily(string name)
+        {
+            if (string.Equals(name, BundledFontFamily, StringComparison.OrdinalIgnoreCase))
+            {
+                return new FontFamily(new Uri("pack://application:,,,/Fonts/"), "./#" + BundledFontFamily);
+            }
+            return new FontFamily(name);
         }
 
         /// <summary>
