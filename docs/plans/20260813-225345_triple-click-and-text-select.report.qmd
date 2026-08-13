@@ -1,0 +1,81 @@
+---
+title: "Report — triple-click mode + two-pick text-span selection"
+author: "Yun Jiang"
+date: "2026-08-13"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖱️</text></svg>">
+---
+
+## BLUF
+
+Both features shipped to `master`, CI green for each, drop ready for the Windows box.
+
+1. **Triple-click** (`<leader>t`): `ClickAction.Triple` + `DoTripleClick` (three bare
+   `mouse_event` pairs, no sleep). Commit `3fa79c9`; CI `31711412235` (52s).
+2. **Text-span selection** (`<leader>v`): a 2-pick sub-phase mirroring `<leader>s` snapshot;
+   type the start label, then the end label → the text between is selected. Gesture is the
+   new hot-reload `TextSelectMethod` key (`ShiftClick` default | `Drag`). Commit `9f750df`;
+   CI `31712258308` (1m4s).
+
+Plan: [`20260813-223634_triple-click-and-text-select.plan.qmd`](20260813-223634_triple-click-and-text-select.plan.qmd).
+
+## Key design decision (resolved mid-impl)
+
+The gesture fork (Shift-click vs Drag) was left open by the user, so **both ship behind one
+hot-reload key** and the Windows box picks the winner — input synthesis cannot be tested on
+Linux. Default `ShiftClick`.
+
+**Refinement over the plan:** the original Drag design held the mouse button across the
+second-pick typing, which could leave the button stuck on a non-Esc close (auto-close / a
+dismiss path that bypasses `HandleEscape`) — a silent-failure the project rules forbid.
+Replaced with an **atomic one-shot drag at pick-2**: pick-1 only remembers the start point; pick-2
+does `SetCursorPos(anchor); LEFTDOWN; SetCursorPos(end); LEFTUP`. No button is ever held between
+picks, so no cancel/close path can leave it stuck. ShiftClick was always clean (plain click +
+Shift+click, two complete click cycles).
+
+## What shipped
+
+- `feat(overlay): add triple-click mode` (`3fa79c9`) — `ClickAction.Triple`;
+  `DoTripleClick`; badge name/brush (TRIPLE CLICK / Orange); `<leader>t`;
+  `ParseClickActionOrder_ParsesTriple` + leader tests.
+- `feat(overlay): add two-pick text-span selection (<leader>v)` (`9f750df`) —
+  `LeaderKind.SelectText` + `Select`/`SelectText` tokens + default `V`; `TextSelectMethod`
+  enum + `Parse`/`Read` + `App.config` key; `SelectPhase` sub-phase + `SEL 1/2→2/2` badge;
+  `EnterSelectText`/`HandleSelectPoint`/`ExitSelectText`; Esc cancels; synthesis
+  (`DoShiftClick` via one atomic `SendInput`; `DoLeftDown`/`DoLeftUp` for the atomic drag);
+  `User32.INPUT_MOUSE`; XAML badge; unit tests (parser + leader defaults bumped to 11).
+- (docs commit to follow: CLAUDE.md + this report/plan.)
+
+## Verification
+
+- **CI** (`.github/workflows/build.yml`, windows-latest, MSBuild + vstest) — **GREEN** for
+  both: `31711412235` (triple, 52s) and `31712258308` (select, 1m4s); Build + Test + Upload ✓.
+  Only annotation is the pre-existing Node.js 20 deprecation (unrelated).
+- **Prereq (Shift synthesis vs. our own hook):** verified by reading
+  `OverlayKeyboardHook.cs:240-274` — the LL keyboard hook has no injected-swallow and only
+  gates on Alt/Capslock-held/suspended; `VK_SHIFT` is not a captured key (`Classify`→`None`→
+  pass-through), and the action runs on the UI thread via `_dispatcher.BeginInvoke` (`:311`),
+  not inside the hook callback. So the synthesized Shift reaches the app's key state. **No
+  hook change was needed.**
+- **Unit tests:** new — `ParseTextSelectMethod` (known values + fallback), `t=Triple`,
+  `v=SelectText` (+ `Select` alias); existing leader-default/display-label tests updated to
+  the 11-binding default. The select phase machine and click synthesis are NOT unit-tested
+  (need a live cursor/input system — same bar as `Double` and snapshot's `HandleSnapshotCorner`).
+- **Manual (Windows box):** the only gate CI cannot cover. Triple-click selects a line;
+  `<leader>v` + two labels selects the span (ShiftClick); flip `TextSelectMethod=Drag`
+  (hot-reload) → drag selects. **Quit the old `hap.exe` (tray → Exit) before launching.**
+
+## Risks / follow-ups
+
+- **Triple-click timing** — no-sleep should register (double-click does, and the click is off
+  the LL-hook thread); on-box verify. If an app misses the middle click, a tiny inter-click
+  delay is the fix (eats the 300ms LL-hook budget, so no-sleep is preferred).
+- **Shift+click remapped by some apps** (column-select) — the reason `Drag` ships as the
+  fallback; flip via `TextSelectMethod`.
+- **Synthesized drag as a click** — if start/end are within the drag threshold (~4px) the OS
+  may see a click, not a drag. Acceptable (two distinct labels are usually far apart).
+- On-box visual/behavioral check is the final gate for both features.

@@ -1,0 +1,113 @@
+---
+title: "Triple-click mode + two-pick text-span selection"
+author: "Yun Jiang"
+date: "2026-08-13"
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖱️</text></svg>">
+---
+
+## BLUF
+
+Add two selection-oriented features, mirroring existing patterns:
+
+1. **Triple-click mode** — a new `ClickAction.Triple` (three rapid left clicks), reached via
+   `<leader>t`. Selects a whole line in most apps (a *sentence* in Word). Fills the gap
+   between double-click (word) and a span.
+2. **Two-pick text-span selection** — like `<leader>s` snapshot: `<leader>v` enters a 2-pick
+   sub-phase; type the start label, then the end label, and the text between is selected. The
+   gesture is **hot-reload-configurable** (`TextSelectMethod` = `ShiftClick` default | `Drag`)
+   so the Windows box picks the winner (input synthesis cannot be tested on Linux).
+
+**Status: DONE** — `3fa79c9` (triple, CI `31711412235`) + `9f750df` (select, CI `31712258308`),
+both green; drop ready for the Windows box. Report:
+`20260813-225345_triple-click-and-text-select.report.qmd`.
+
+## Design fork (resolved)
+
+The user confirmed the `<leader>s` two-label model; the Shift-click-vs-drag gesture was left
+open, so **both ship behind one config key** and the box decides.
+
+## Why these, and the gesture tradeoff
+
+- **Triple-click** is a trivial, safe enum extension. The existing `DoDoubleClick`
+  (`OverlayViewModel.cs`) fires two bare `mouse_event` pairs with no sleep and works; triple
+  adds one more pair. No-sleep is also preferred because the click runs off the LL-hook
+  thread (dispatched to the UI thread), whose ~300ms `LowLevelHooksTimeout` a `Thread.Sleep`
+  would eat into. Triple-click timing is the only risk; gated by on-box verification.
+- **Text-span selection** must be a **2-pick sub-phase**, not a `ClickAction`, because pick-1
+  and pick-2 fire *different* click types. It mirrors snapshot, intercepting a matched label
+  before the click switch.
+- **Gesture:**
+  - `ShiftClick` (default) — pick-1 = plain click (places caret/anchor); pick-2 = Shift+click
+    (extends). No button held between picks. Synthesized via one atomic `SendInput` =
+    `[ShiftDown, LeftDown, LeftUp, ShiftUp]`, reusing `User32` INPUT structs (added
+    `INPUT_MOUSE`). `VK_SHIFT` is not a captured key in our LL hook (`Classify`→`None`→
+    pass-through), so the synthesized Shift reaches the app's key state.
+  - `Drag` — **pick-1 only remembers the start point; pick-2 synthesizes the whole drag
+    (`SetCursorPos(anchor); LEFTDOWN; SetCursorPos(end); LEFTUP`) in one shot.** No button is
+    ever held between picks, so no cancel/close path can leave it stuck. (Original design held
+    the button across pick-2 typing — rejected: a non-Esc close could leave it stuck.)
+- **Prereq (no hook change needed):** the LL keyboard hook has no injected-swallow
+  (`OverlayKeyboardHook.cs:240-274`); it gates only on Alt/Capslock-held/suspended. A
+  synthesized `VK_SHIFT` keydown flows through `Classify`→`None`→pass-through, and the action
+  runs on the UI thread via `_dispatcher.BeginInvoke`, not inside the hook callback.
+
+## What shipped
+
+### Feature 1 — Triple-click
+
+| Surface | Change |
+|---|---|
+| `OverlayActionConfig.cs` | add `Triple` to `ClickAction` (parses via `Enum.TryParse`). |
+| `OverlayViewModel.cs` | `case ClickAction.Triple: DoTripleClick();`; badge "TRIPLE CLICK" + `Brushes.Orange`; `DoTripleClick()` = 3 left pairs (no sleep). |
+| `LeaderBindingConfig.cs` | DisplayLabel "triple click"; default `<leader>t` (`Mode, Triple`). |
+| Tests | `ParseClickActionOrder_ParsesTriple`; `t=Triple` binding + label; default map has T. |
+
+### Feature 2 — Two-pick text-span selection
+
+| Surface | Change |
+|---|---|
+| `LeaderBindingConfig.cs` | `LeaderKind.SelectText`; "select text" label; tokens `SELECTTEXT`/`SELECT`; default `<leader>v`. |
+| `OverlayActionConfig.cs` | `enum TextSelectMethod { ShiftClick, Drag }`; `ParseTextSelectMethod`; `ReadTextSelectMethod` (default ShiftClick). |
+| `OverlayViewModel.cs` | `SelectPhase { None, AwaitStart, AwaitEnd }` + `_selectAnchor`/`_selectMethod`; `EnterSelectText`/`HandleSelectPoint`/`ExitSelectText`; intercept before the click switch; `Esc` cancels; `LeaderCommand` dispatch; `SEL 1/2→2/2` badge. Synthesis: `DoShiftClick` (atomic `SendInput`); `DoLeftDown`/`DoLeftUp` (atomic drag) + `KeyInput`/`MouseInput`. |
+| `User32.cs` | `INPUT_MOUSE = 0`. |
+| `OverlayView.xaml` | `SEL` badge (SteelBlue). |
+| `App.config` | `TextSelectMethod=ShiftClick` (hot-reload) + doc. |
+| Tests | `ParseTextSelectMethod` (known + fallback); `v=SelectText` + `Select` alias; default map + display labels → 11 bindings. |
+
+`HandleSelectPoint` resolves each pick's screen target (label center + pan offset). AwaitStart:
+ShiftClick → move + plain click (anchor); Drag → store the point. AwaitEnd: ShiftClick → move +
+`DoShiftClick`; Drag → `SetCursorPos(anchor); DoLeftDown(); SetCursorPos(end); DoLeftUp()`. Then
+exit + follow trigger mode (one-shot closes / continuous resets). `Esc` cancels (nothing to
+release). Read once per overlay in both ctors (hot-reload applies on next open).
+
+## Verification
+
+- **CI** (`.github/workflows/build.yml`, windows-latest) — **GREEN** for both: `31711412235`
+  (triple, 52s), `31712258308` (select, 1m4s); Build + Test + Upload ✓. Only annotation is the
+  pre-existing Node.js 20 deprecation.
+- **Unit tests:** config + leader parsing covered. The select phase machine and click
+  synthesis are NOT unit-tested (need a live cursor/input — same bar as `Double` and snapshot's
+  `HandleSnapshotCorner`).
+- **Manual (Windows box):** triple-click selects a line; `<leader>v` + two labels selects the
+  span; `TextSelectMethod=Drag` (hot-reload) → drag selects. Cannot be verified on Linux —
+  on-box is the final gate.
+
+## Risks
+
+- **Triple-click timing** — no-sleep should register (double-click does); on-box verify.
+- **Shift+click remapped by some apps** — `Drag` is the fallback (flip `TextSelectMethod`).
+- **Synthesized drag ≈ click** — if start/end are within the ~4px drag threshold the OS may see
+  a click. Acceptable (two distinct labels are usually far apart).
+- **LL-hook thread budget** — synthesis is allocation-light, no `Thread.Sleep`.
+- **Stuck button (eliminated)** — the atomic-drag design holds no button between picks.
+
+## Commits
+
+1. `feat(overlay): add triple-click mode` — `3fa79c9` (CI `31711412235`).
+2. `feat(overlay): add two-pick text-span selection (<leader>v)` — `9f750df` (CI `31712258308`).
+3. `docs(overlay): document triple-click, text-select, TextSelectMethod` — CLAUDE.md + plan/report.

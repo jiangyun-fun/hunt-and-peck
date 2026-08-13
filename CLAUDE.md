@@ -121,7 +121,7 @@ Two kinds of settings:
   `HintCharacters`, `HintFontSize`, `HintFontFamily`, `HintPillOpacity`, `HintDimOpacity`,
   `NudgeStepSmall`, `NudgeStepMedium`, `NudgeStepLarge`, `NudgeKeysSmall`, `NudgeKeysMedium`, `NudgeKeysLarge`,
   `ClickModeOrder` (only the first entry matters now — it is the default mode; Space no longer cycles),
-  `LeaderBindings`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
+  `TextSelectMethod`, `LeaderBindings`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
   `ZoneZoomEnabled`, `ZoneCols`, `ZoneRows`, `ZoneFontSize`, `ZoneZoomReturnToPickOnFire`,
   `ZoneGridStep`, `ZoneWidth`, `ZoneHeight`, `OverlayAutoCloseSec`, `HideNonMatchingLabels`.
   (`ActiveLayout` is also in appSettings but is rewritten by `<leader>g`, not hand-edited.)
@@ -191,11 +191,13 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
   `Esc`/`1` or an unmapped key cancels a pending leader; `<Space>` again also cancels
   (toggle). In continuous mode the mode reverts to the default (first `ClickModeOrder`
   entry, Left) after every click. Default bindings (`LeaderBindings`, hot-reload):
-  `<leader>l/r/d/m` = Left/Right/Double/Move, `<leader>q` = close, `<leader>z` = suspend,
+  `<leader>l/r/d/m/t` = Left/Right/Double/Move/Triple, `<leader>q` = close, `<leader>z` = suspend,
   `<leader>g` = cycle layout, `<leader>i` = toggle dim, `<leader>s` = snapshot region (see
-  below). The badge still shows the active mode.
+  below), `<leader>v` = select text span (see below). The badge still shows the active mode.
 - **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
-  current mode (left / right / double click via `mouse_event`, or move-only).
+  current mode (left / right / double / triple click via `mouse_event`, or move-only).
+  **Triple click** (`<leader>t`) = three rapid left clicks — selects a whole line in most
+  apps (a sentence in Word).
 - **Snapshot region (`<leader>s`)**: enters a 2-pick mode (badge `SNAP 1/2`). Type the
   label of one corner, then the opposite corner (any order) → the screen rectangle between
   them is captured to the clipboard (in-process `CopyFromScreen` + `Clipboard.SetImage`;
@@ -203,6 +205,15 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
   Automation; coords use the label's target point + pan offset (what you label is what you
   capture). After capture it follows trigger mode (one-shot closes; continuous stays up).
   `Esc`/`1` cancels the pick; a degenerate pick (same point) is a no-op.
+- **Select text span (`<leader>v`)**: a 2-pick mode like snapshot (badge `SEL 1/2`). Type
+  the label of one end of the span, then the other → the text between them is selected. The
+  gesture is `TextSelectMethod` (hot-reload): `ShiftClick` (default) = pick-1 plain click
+  (anchor) + pick-2 Shift+click (extend, one atomic `SendInput`); `Drag` = pick-2
+  synthesizes the whole drag (down@anchor → move → up) in one shot. ShiftClick holds no
+  button while you type the second label (safer); Drag is the fallback where an app remaps
+  Shift+click (e.g. column-select). Works in Grid and Automation; coords use the label's
+  target point + pan offset. After the selection it follows trigger mode (one-shot closes;
+  continuous stays up). `Esc`/`1` cancels the pick.
 - **Alt or Capslock held → passthrough**: while Alt or Capslock is physically held the
   overlay stops capturing keys, so `Alt+Tab` (window switcher) + arrows and Capslock-
   based AutoHotkey mappings (e.g. `Capslock+f` → `Ctrl+Shift+M`) pass through. Held-state
