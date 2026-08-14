@@ -1,7 +1,7 @@
 ---
-title: "Report — triple-click mode + two-pick text-span selection"
+title: "Report — triple-click + text-span selection (closed)"
 author: "Yun Jiang"
-date: "2026-08-13"
+date: "2026-08-14"
 format:
   html:
     html-math-method: mathjax
@@ -12,70 +12,35 @@ include-in-header:
 
 ## BLUF
 
-Both features shipped to `master`, CI green for each, drop ready for the Windows box.
+Shipped and closed. `<leader>t` (triple-click) and `<leader>v` (two-pick span select,
+`TextSelectMethod` = ShiftClick | Drag) work fully in Edge and Notepad3. Feishu rejects both
+synthesized selection gestures for `v` and alternates on d/t; accepted as an app-specific
+limitation with documented workarounds. Full record (5 fix rounds, established facts,
+inference hedges): [`20260813-223634_triple-click-and-text-select.plan.qmd`](20260813-223634_triple-click-and-text-select.plan.qmd).
 
-1. **Triple-click** (`<leader>t`): `ClickAction.Triple` + `DoTripleClick` (three bare
-   `mouse_event` pairs, no sleep). Commit `3fa79c9`; CI `31711412235` (52s).
-2. **Text-span selection** (`<leader>v`): a 2-pick sub-phase mirroring `<leader>s` snapshot;
-   type the start label, then the end label → the text between is selected. Gesture is the
-   new hot-reload `TextSelectMethod` key (`ShiftClick` default | `Drag`). Commit `9f750df`;
-   CI `31712258308` (1m4s).
+## Commits (all on `master`, CI green at each push)
 
-Plan: [`20260813-223634_triple-click-and-text-select.plan.qmd`](20260813-223634_triple-click-and-text-select.plan.qmd).
+`3fa79c9` feat: triple-click mode · `9f750df` feat: two-pick text-span selection ·
+`b5eab8e` fix: ship t/v in the default LeaderBindings · `6a36a0d` fix: selection actions
+close even in Continuous · `24854bf` feat: diagnostic toggles · `137069c` fix: off-thread
+input bursts with real gaps (the root-cause fix for flaky d/t) · `c2c7490` fix: XML-comment
+MSB3249 · `8f47655` fix: pick-1 always clicks (clears prior selection) · `7bcb37e` docs:
+Feishu findings.
 
-## Key design decision (resolved mid-impl)
+## Final verification (build `8f47655`, user-tested on-box 2026-08-14)
 
-The gesture fork (Shift-click vs Drag) was left open by the user, so **both ship behind one
-hot-reload key** and the Windows box picks the winner — input synthesis cannot be tested on
-Linux. Default `ShiftClick`.
+| App | d/t | v ShiftClick | v Drag |
+|---|---|---|---|
+| Edge | works | works | works |
+| Notepad3 | works | works | works |
+| Feishu | alternates | no selection | selection canceled |
 
-**Refinement over the plan:** the original Drag design held the mouse button across the
-second-pick typing, which could leave the button stuck on a non-Esc close (auto-close / a
-dismiss path that bypasses `HandleEscape`) — a silent-failure the project rules forbid.
-Replaced with an **atomic one-shot drag at pick-2**: pick-1 only remembers the start point; pick-2
-does `SetCursorPos(anchor); LEFTDOWN; SetCursorPos(end); LEFTUP`. No button is ever held between
-picks, so no cancel/close path can leave it stuck. ShiftClick was always clean (plain click +
-Shift+click, two complete click cycles).
+Physical click+Shift+click works in Feishu (user-verified earlier); the gap is specific to
+synthesized input there. Mechanism unverified from Linux — hypotheses and how to probe them
+are in the plan's `## Inference` section.
 
-## What shipped
+## Outcome
 
-- `feat(overlay): add triple-click mode` (`3fa79c9`) — `ClickAction.Triple`;
-  `DoTripleClick`; badge name/brush (TRIPLE CLICK / Orange); `<leader>t`;
-  `ParseClickActionOrder_ParsesTriple` + leader tests.
-- `feat(overlay): add two-pick text-span selection (<leader>v)` (`9f750df`) —
-  `LeaderKind.SelectText` + `Select`/`SelectText` tokens + default `V`; `TextSelectMethod`
-  enum + `Parse`/`Read` + `App.config` key; `SelectPhase` sub-phase + `SEL 1/2→2/2` badge;
-  `EnterSelectText`/`HandleSelectPoint`/`ExitSelectText`; Esc cancels; synthesis
-  (`DoShiftClick` via one atomic `SendInput`; `DoLeftDown`/`DoLeftUp` for the atomic drag);
-  `User32.INPUT_MOUSE`; XAML badge; unit tests (parser + leader defaults bumped to 11).
-- (docs commit to follow: CLAUDE.md + this report/plan.)
-
-## Verification
-
-- **CI** (`.github/workflows/build.yml`, windows-latest, MSBuild + vstest) — **GREEN** for
-  both: `31711412235` (triple, 52s) and `31712258308` (select, 1m4s); Build + Test + Upload ✓.
-  Only annotation is the pre-existing Node.js 20 deprecation (unrelated).
-- **Prereq (Shift synthesis vs. our own hook):** verified by reading
-  `OverlayKeyboardHook.cs:240-274` — the LL keyboard hook has no injected-swallow and only
-  gates on Alt/Capslock-held/suspended; `VK_SHIFT` is not a captured key (`Classify`→`None`→
-  pass-through), and the action runs on the UI thread via `_dispatcher.BeginInvoke` (`:311`),
-  not inside the hook callback. So the synthesized Shift reaches the app's key state. **No
-  hook change was needed.**
-- **Unit tests:** new — `ParseTextSelectMethod` (known values + fallback), `t=Triple`,
-  `v=SelectText` (+ `Select` alias); existing leader-default/display-label tests updated to
-  the 11-binding default. The select phase machine and click synthesis are NOT unit-tested
-  (need a live cursor/input system — same bar as `Double` and snapshot's `HandleSnapshotCorner`).
-- **Manual (Windows box):** the only gate CI cannot cover. Triple-click selects a line;
-  `<leader>v` + two labels selects the span (ShiftClick); flip `TextSelectMethod=Drag`
-  (hot-reload) → drag selects. **Quit the old `hap.exe` (tray → Exit) before launching.**
-
-## Risks / follow-ups
-
-- **Triple-click timing** — no-sleep should register (double-click does, and the click is off
-  the LL-hook thread); on-box verify. If an app misses the middle click, a tiny inter-click
-  delay is the fix (eats the 300ms LL-hook budget, so no-sleep is preferred).
-- **Shift+click remapped by some apps** (column-select) — the reason `Drag` ships as the
-  fallback; flip via `TextSelectMethod`.
-- **Synthesized drag as a click** — if start/end are within the drag threshold (~4px) the OS
-  may see a click, not a drag. Acceptable (two distinct labels are usually far apart).
-- On-box visual/behavioral check is the final gate for both features.
+Accepted as-is per user decision (2026-08-14). Feishu workarounds recorded in CLAUDE.md:
+`<leader>t` every other attempt or after a background click; physical mouse for arbitrary
+spans. Current drop: `$HAP_WIN_TEST_DIR/hap-dragfix/hap.exe`.

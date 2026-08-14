@@ -1,7 +1,7 @@
 ---
-title: "Triple-click mode + two-pick text-span selection"
+title: "Triple-click mode + two-pick text-span selection (final record)"
 author: "Yun Jiang"
-date: "2026-08-13"
+date: "2026-08-14"
 format:
   html:
     html-math-method: mathjax
@@ -10,104 +10,82 @@ include-in-header:
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖱️</text></svg>">
 ---
 
-## BLUF
+## BLUF — final state
 
-Add two selection-oriented features, mirroring existing patterns:
+Both features shipped, then hardened through five on-box test rounds. Final verified matrix
+(build `8f47655`, user-tested 2026-08-14):
 
-1. **Triple-click mode** — a new `ClickAction.Triple` (three rapid left clicks), reached via
-   `<leader>t`. Selects a whole line in most apps (a *sentence* in Word). Fills the gap
-   between double-click (word) and a span.
-2. **Two-pick text-span selection** — like `<leader>s` snapshot: `<leader>v` enters a 2-pick
-   sub-phase; type the start label, then the end label, and the text between is selected. The
-   gesture is **hot-reload-configurable** (`TextSelectMethod` = `ShiftClick` default | `Drag`)
-   so the Windows box picks the winner (input synthesis cannot be tested on Linux).
+| App | `<leader>d` / `<leader>t` | `<leader>v` ShiftClick | `<leader>v` Drag |
+|---|---|---|---|
+| Edge | works | works | works |
+| Notepad3 | works | works | works |
+| Feishu | alternates work/fail | no selection | selection made, then canceled |
 
-**Status: DONE** — `3fa79c9` (triple, CI `31711412235`) + `9f750df` (select, CI `31712258308`),
-both green; drop ready for the Windows box. Report:
-`20260813-225345_triple-click-and-text-select.report.qmd`.
+**Decision (accepted by the user):** Edge/Notepad3 behavior is the deliverable and is done;
+the Feishu behavior is an app-specific limitation of synthesized input — recorded in
+CLAUDE.md with workarounds, no further fix attempts. Physical click+Shift+click works in
+Feishu (user-verified), so the gap is specific to synthesized input there.
 
-## Design fork (resolved)
+**Status: DONE and CLOSED 2026-08-14.** Report:
+[`20260813-225345_triple-click-and-text-select.report.qmd`](20260813-225345_triple-click-and-text-select.report.qmd).
 
-The user confirmed the `<leader>s` two-label model; the Shift-click-vs-drag gesture was left
-open, so **both ship behind one config key** and the box decides.
+## What was actually built
 
-## Why these, and the gesture tradeoff
+The original plan (below in this file's history) covered the two features only. The shipped
+work additionally includes four fix rounds, each driven by an on-box observation → drop →
+user test cycle:
 
-- **Triple-click** is a trivial, safe enum extension. The existing `DoDoubleClick`
-  (`OverlayViewModel.cs`) fires two bare `mouse_event` pairs with no sleep and works; triple
-  adds one more pair. No-sleep is also preferred because the click runs off the LL-hook
-  thread (dispatched to the UI thread), whose ~300ms `LowLevelHooksTimeout` a `Thread.Sleep`
-  would eat into. Triple-click timing is the only risk; gated by on-box verification.
-- **Text-span selection** must be a **2-pick sub-phase**, not a `ClickAction`, because pick-1
-  and pick-2 fire *different* click types. It mirrors snapshot, intercepting a matched label
-  before the click switch.
-- **Gesture:**
-  - `ShiftClick` (default) — pick-1 = plain click (places caret/anchor); pick-2 = Shift+click
-    (extends). No button held between picks. Synthesized via one atomic `SendInput` =
-    `[ShiftDown, LeftDown, LeftUp, ShiftUp]`, reusing `User32` INPUT structs (added
-    `INPUT_MOUSE`). `VK_SHIFT` is not a captured key in our LL hook (`Classify`→`None`→
-    pass-through), so the synthesized Shift reaches the app's key state.
-  - `Drag` — **pick-1 only remembers the start point; pick-2 synthesizes the whole drag
-    (`SetCursorPos(anchor); LEFTDOWN; SetCursorPos(end); LEFTUP`) in one shot.** No button is
-    ever held between picks, so no cancel/close path can leave it stuck. (Original design held
-    the button across pick-2 typing — rejected: a non-Esc close could leave it stuck.)
-- **Prereq (no hook change needed):** the LL keyboard hook has no injected-swallow
-  (`OverlayKeyboardHook.cs:240-274`); it gates only on Alt/Capslock-held/suspended. A
-  synthesized `VK_SHIFT` keydown flows through `Classify`→`None`→pass-through, and the action
-  runs on the UI thread via `_dispatcher.BeginInvoke`, not inside the hook callback.
+| Round | Change | Commit | Trigger (user observation) | Result |
+|---|---|---|---|---|
+| 1 | Features: `ClickAction.Triple` + `<leader>t`; `SelectText` 2-pick + `<leader>v`; `TextSelectMethod` (ShiftClick/Drag) | `3fa79c9`, `9f750df` (+`b5eab8e` shipped-defaults fix) | feature request | Edge/Notepad OK; Feishu `v` failed; later flakiness found |
+| 2 | Selection actions close the overlay even in Continuous mode | `6a36a0d` | selection vanished immediately in Continuous | fixed that symptom (one-shot/continuous then differed only by close timing) |
+| 3 | Diagnostic toggles `SelectionActionsClose`, `TopmostReassertEnabled` | `24854bf` | test the 100ms topmost re-assert timer hypothesis | hypothesis **disproven** (disabling the timer changed nothing) |
+| 4 | Multi-event bursts off-thread with ~20ms real gaps (`FireInputAsync`) | `137069c` (+`c2c7490` XML-comment fix) | "d/v/t succeed randomly at low frequency" (all versions) | **confirmed**: d/t became reliable in Edge/Notepad3 |
+| 5 | Pick-1 of `v` always plain-clicks (clear prior selection) for both methods | `8f47655` | Drag-mode `v` alternated work/fail | fixed Drag `v` in Edge; Feishu unchanged |
+| 6 | Findings recorded in CLAUDE.md; wrong "use Drag in Feishu" advice removed | `7bcb37e` | final matrix | docs |
 
-## What shipped
+## Engineering facts established (by intervention, on-box)
 
-### Feature 1 — Triple-click
+1. **UI-thread input batching**: multi-event bursts (double/triple click, Shift+click, drag)
+   run synchronously on the UI thread — the thread that owns the LL hooks — get held by the
+   OS and flushed as one 0ms batch; apps mishandle that (observed as random low-frequency
+   success). Running the burst on a background thread with real ~20ms gaps fixed d/t
+   reliability in Edge/Notepad3. (Single clicks were never affected.) Also documented in
+   CLAUDE.md "Performance".
+2. **`TextSelectMethod` gates only `v`**: d/t never consult it, so d/t results are identical
+   across both modes by construction.
+3. **Topmost re-assert timer**: not the cause of the Continuous-mode deselect (disabling it
+   on-box changed nothing).
 
-| Surface | Change |
-|---|---|
-| `OverlayActionConfig.cs` | add `Triple` to `ClickAction` (parses via `Enum.TryParse`). |
-| `OverlayViewModel.cs` | `case ClickAction.Triple: DoTripleClick();`; badge "TRIPLE CLICK" + `Brushes.Orange`; `DoTripleClick()` = 3 left pairs (no sleep). |
-| `LeaderBindingConfig.cs` | DisplayLabel "triple click"; default `<leader>t` (`Mode, Triple`). |
-| Tests | `ParseClickActionOrder_ParsesTriple`; `t=Triple` binding + label; default map has T. |
+## Verification trail
 
-### Feature 2 — Two-pick text-span selection
+- CI green at every push (runs incl. `31711412235`, `31712258308`, `31712657242`,
+  `31716642864`, `31761557395`, `31775342087`, `31776690526`).
+- Drops shipped to `$HAP_WIN_TEST_DIR`: `hap-select`, `hap-select2`, `hap-notimer`,
+  `hap-offthread`, `hap-dragfix` (final).
+- Final on-box matrix above (build `8f47655` = current `hap-dragfix`).
 
-| Surface | Change |
-|---|---|
-| `LeaderBindingConfig.cs` | `LeaderKind.SelectText`; "select text" label; tokens `SELECTTEXT`/`SELECT`; default `<leader>v`. |
-| `OverlayActionConfig.cs` | `enum TextSelectMethod { ShiftClick, Drag }`; `ParseTextSelectMethod`; `ReadTextSelectMethod` (default ShiftClick). |
-| `OverlayViewModel.cs` | `SelectPhase { None, AwaitStart, AwaitEnd }` + `_selectAnchor`/`_selectMethod`; `EnterSelectText`/`HandleSelectPoint`/`ExitSelectText`; intercept before the click switch; `Esc` cancels; `LeaderCommand` dispatch; `SEL 1/2→2/2` badge. Synthesis: `DoShiftClick` (atomic `SendInput`); `DoLeftDown`/`DoLeftUp` (atomic drag) + `KeyInput`/`MouseInput`. |
-| `User32.cs` | `INPUT_MOUSE = 0`. |
-| `OverlayView.xaml` | `SEL` badge (SteelBlue). |
-| `App.config` | `TextSelectMethod=ShiftClick` (hot-reload) + doc. |
-| Tests | `ParseTextSelectMethod` (known + fallback); `v=SelectText` + `Select` alias; default map + display labels → 11 bindings. |
+## Outcome / reopen triggers
 
-`HandleSelectPoint` resolves each pick's screen target (label center + pan offset). AwaitStart:
-ShiftClick → move + plain click (anchor); Drag → store the point. AwaitEnd: ShiftClick → move +
-`DoShiftClick`; Drag → `SetCursorPos(anchor); DoLeftDown(); SetCursorPos(end); DoLeftUp()`. Then
-exit + follow trigger mode (one-shot closes / continuous resets). `Esc` cancels (nothing to
-release). Read once per overlay in both ctors (hot-reload applies on next open).
+Accepted limitation for Feishu. Workaround recorded in CLAUDE.md: `<leader>t` every other
+attempt (or plain-click empty background first to clear the selection), physical mouse for
+arbitrary spans. Reopen if an on-box probe (e.g. an AutoHotkey `Send {Shift down}` +
+`Click` + `Send {Shift up}` hotkey) ever shows Feishu accepts some other synthesized form.
 
-## Verification
+---
 
-- **CI** (`.github/workflows/build.yml`, windows-latest) — **GREEN** for both: `31711412235`
-  (triple, 52s), `31712258308` (select, 1m4s); Build + Test + Upload ✓. Only annotation is the
-  pre-existing Node.js 20 deprecation.
-- **Unit tests:** config + leader parsing covered. The select phase machine and click
-  synthesis are NOT unit-tested (need a live cursor/input — same bar as `Double` and snapshot's
-  `HandleSnapshotCorner`).
-- **Manual (Windows box):** triple-click selects a line; `<leader>v` + two labels selects the
-  span; `TextSelectMethod=Drag` (hot-reload) → drag selects. Cannot be verified on Linux —
-  on-box is the final gate.
+## Inference
 
-## Risks
+Items below are interpretation, kept distinct from the verified facts above.
 
-- **Triple-click timing** — no-sleep should register (double-click does); on-box verify.
-- **Shift+click remapped by some apps** — `Drag` is the fallback (flip `TextSelectMethod`).
-- **Synthesized drag ≈ click** — if start/end are within the ~4px drag threshold the OS may see
-  a click. Acceptable (two distinct labels are usually far apart).
-- **LL-hook thread budget** — synthesis is allocation-light, no `Thread.Sleep`.
-- **Stuck button (eliminated)** — the atomic-drag design holds no button between picks.
-
-## Commits
-
-1. `feat(overlay): add triple-click mode` — `3fa79c9` (CI `31711412235`).
-2. `feat(overlay): add two-pick text-span selection (<leader>v)` — `9f750df` (CI `31712258308`).
-3. `docs(overlay): document triple-click, text-select, TextSelectMethod` — CLAUDE.md + plan/report.
+- **"Feishu d/t alternates because the next mousedown lands on the previous selection,
+  starting a text drag-drop instead of a click."**
+  Reasoning: the alternation is state-dependent (work → fail → work), the same signature
+  that pick-1-always-clicks fixed for Drag-`v` in Edge; not directly observed in Feishu.
+  To establish this, check: in Feishu, plain-click empty background between attempts —
+  if `t` then succeeds every time, the hypothesis holds.
+- **"Feishu's chat pane handles text selection differently from Edge's Chromium default."**
+  Reasoning: both are Chromium-lineage yet accept/reject the same synthesized input
+  differently; no Feishu internals were inspected.
+  To establish this, check: Feishu desktop client selection implementation (not available
+  off-box).
