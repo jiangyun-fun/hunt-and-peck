@@ -330,6 +330,14 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
   `GridEdgeStep`/`GridCenterStep` density or `HintCharacters` count to go faster.
 - **Overlay timing**: set `TimingLogEnabled=true` to log `enum+merge` and `render`
   phases to `%TEMP%\hap-timing.log` (see `measure-latency` skill).
+- **Multi-event input bursts run on a background thread** (`FireInputAsync`, ~20 ms gaps
+  between events): double/triple click, Shift+click, and the select-drag. Load-bearing:
+  the UI thread owns the LL hooks, so a burst run on it is HELD by the OS and flushed as
+  one 0 ms batch when the thread pumps — apps randomly mishandled that (d/v/t succeeded
+  only at low frequency). Off-thread, each event delivers promptly and the gaps are real.
+  Single Left/Right clicks stay on-thread (always reliable). Mirrors the macro engine's
+  off-thread SendInput. The 100ms topmost re-assert timer was tested as the deselect
+  cause and disproven on-box.
 
 ## Environment variables (local; values live in `.env`, gitignored)
 

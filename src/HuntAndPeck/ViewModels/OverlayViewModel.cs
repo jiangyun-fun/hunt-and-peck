@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Collections.ObjectModel;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using HuntAndPeck.Models;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services;
@@ -48,6 +50,17 @@ namespace HuntAndPeck.ViewModels
         private Point _selectAnchor;           // Drag method: start point (screen px, offset-applied)
         private TextSelectMethod _selectMethod;
         private bool _selectionActionsClose;   // selection actions close even in Continuous (default)
+
+        // Multi-event input bursts (double/triple click, span-select) run on a background
+        // thread with small gaps between events. Load-bearing: the UI thread owns the LL
+        // hooks, so a burst run ON it is held by the OS until the thread pumps and then
+        // flushed as ONE 0ms batch -- the target app randomly mishandles that (click-count
+        // / shift-latch / drag races; observed as d/v/t succeeding at low frequency).
+        // Off-thread, each event delivers promptly and the Thread.Sleep gaps become real
+        // time between events. Mirrors the macro engine (also off-UI-thread).
+        private readonly Dispatcher _uiDispatcher = Dispatcher.CurrentDispatcher;
+        private static readonly object SynthGate = new object();
+        private const int ClickGapMs = 20;
 
         private readonly IHintLabelService _hintLabelService;
         private readonly string _fontSizeRaw;
@@ -732,42 +745,44 @@ namespace HuntAndPeck.ViewModels
                 User32.GetCursorPos(out p);
                 User32.SetCursorPos(p.X + (int)_offsetX, p.Y + (int)_offsetY);
 
+                // Post-fire: stay up (continuous) or close. Selection actions (Double/
+                // Triple) close EVEN in Continuous mode by default (SelectionActionsClose):
+                // staying up cleared the just-made selection in the target app (observed
+                // Notepad3/Edge). Left/Right/Move stay continuous (repeated clicking/nav).
+                Action postFire = () =>
+                {
+                    bool selAction = CurrentAction == ClickAction.Double
+                                  || CurrentAction == ClickAction.Triple;
+                    if (_isContinuous && !(selAction && _selectionActionsClose))
+                    {
+                        // Stay up: reset for the next label (mode back to the first / Left
+                        // by default, and every label re-highlighted).
+                        ResetForNextClick();
+                        // Optional (ZoneZoomReturnToPickOnFire): re-zoom to the 9-label pick
+                        // view after each fire. Default stays in the zone for nearby repeats.
+                        if (_zonePhase == ZonePhase.ZoneFilled && _zoneReturnToPickOnFire)
+                        {
+                            EnterZonePick();
+                        }
+                    }
+                    else
+                    {
+                        CloseOverlay?.Invoke();
+                    }
+                };
+
                 // The overlay is click-through, so these real clicks reach the
                 // app beneath; Move performs no click (the user clicks manually).
+                // Single clicks are reliable on-thread; multi-event bursts (Double/
+                // Triple) go off-thread so their events deliver as properly separated
+                // clicks rather than one batched 0ms burst (see FireInputAsync).
                 switch (CurrentAction)
                 {
-                    case ClickAction.Left: DoLeftClick(); break;
-                    case ClickAction.Right: DoRightClick(); break;
-                    case ClickAction.Double: DoDoubleClick(); break;
-                    case ClickAction.Triple: DoTripleClick(); break;
-                    case ClickAction.Move: break;
-                }
-
-                // Selection actions (Double/Triple) close the overlay EVEN in continuous
-                // mode: keeping the overlay up clears the just-made selection in the target
-                // app (observed in Notepad3/Edge; the selection vanishes within ~the 100ms
-                // topmost re-assert cadence). Closing makes the selection persist so it can
-                // be seen/copied. Left/Right/Move stay continuous (repeated clicking/nav).
-                // SelectionActionsClose=false (diagnostic) keeps the overlay up to test the
-                // topmost-re-assert hypothesis.
-                bool selectionAction = CurrentAction == ClickAction.Double
-                                     || CurrentAction == ClickAction.Triple;
-                bool closeAfterSelection = selectionAction && _selectionActionsClose;
-                if (_isContinuous && !closeAfterSelection)
-                {
-                    // Stay up: reset for the next label (mode back to the first / Left
-                    // by default, and every label re-highlighted).
-                    ResetForNextClick();
-                    // Optional (ZoneZoomReturnToPickOnFire): re-zoom to the 9-label pick
-                    // view after each fire. Default stays in the zone for nearby repeats.
-                    if (_zonePhase == ZonePhase.ZoneFilled && _zoneReturnToPickOnFire)
-                    {
-                        EnterZonePick();
-                    }
-                }
-                else
-                {
-                    CloseOverlay?.Invoke();
+                    case ClickAction.Left: DoLeftClick(); postFire(); break;
+                    case ClickAction.Right: DoRightClick(); postFire(); break;
+                    case ClickAction.Double: FireInputAsync(DoDoubleClick, postFire); break;
+                    case ClickAction.Triple: FireInputAsync(DoTripleClick, postFire); break;
+                    case ClickAction.Move: postFire(); break;
                 }
             }
         }
@@ -782,6 +797,27 @@ namespace HuntAndPeck.ViewModels
             NotifyOfPropertyChange(nameof(CurrentModeName));
             NotifyOfPropertyChange(nameof(CurrentModeBrush));
             ClearMatch();
+        }
+
+        /// <summary>
+        /// Runs an input burst on a background thread, then continues on the UI thread.
+        /// Off-thread is load-bearing: the UI thread owns the LL hooks, so a burst run on
+        /// it is HELD by the OS until the thread pumps and then flushed as one 0ms batch --
+        /// the app sees identical-timestamp events and randomly mishandles them (observed
+        /// as d/v/t succeeding only at low frequency). Off-thread each event delivers
+        /// promptly and the Thread.Sleep gaps inside the burst become real time between
+        /// events. The gate serializes bursts. Mirrors the macro engine (also off-thread).
+        /// </summary>
+        private void FireInputAsync(Action synth, Action after)
+        {
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                lock (SynthGate)
+                {
+                    synth();
+                }
+                _uiDispatcher.BeginInvoke(after);
+            });
         }
 
         /// <summary>
@@ -1096,32 +1132,47 @@ namespace HuntAndPeck.ViewModels
                 return;
             }
 
-            // AwaitEnd: finish the selection.
+            // AwaitEnd: finish the selection off-thread (real gaps between down/move/up
+            // are what make the app register the gesture; a 0ms batch was flaky).
+            Point anchor = _selectAnchor;
+            Action afterSelect = () =>
+            {
+                ExitSelectText();
+                // Span-select closes unless the user opted to keep the overlay up in
+                // Continuous mode (SelectionActionsClose=false).
+                if (_isContinuous && !_selectionActionsClose)
+                {
+                    ResetForNextClick();
+                }
+                else
+                {
+                    CloseOverlay?.Invoke();
+                }
+            };
             if (_selectMethod == TextSelectMethod.Drag)
             {
                 // Whole drag in one shot (no button held during typing): down at the
-                // anchor, jump to the end (the move fires WM_MOUSEMOVE -> extends the
-                // selection), up. Nothing to release on cancel because nothing was held.
-                User32.SetCursorPos((int)_selectAnchor.X, (int)_selectAnchor.Y);
-                DoLeftDown();
-                User32.SetCursorPos(x, y);
-                DoLeftUp();
+                // anchor, gap, jump to the end (the move fires WM_MOUSEMOVE -> extends
+                // the selection), gap, up. Nothing to release on cancel; nothing is held.
+                FireInputAsync(() =>
+                {
+                    User32.SetCursorPos((int)anchor.X, (int)anchor.Y);
+                    Thread.Sleep(ClickGapMs);
+                    DoLeftDown();
+                    Thread.Sleep(ClickGapMs);
+                    User32.SetCursorPos(x, y);
+                    Thread.Sleep(ClickGapMs);
+                    DoLeftUp();
+                }, afterSelect);
             }
             else
             {
-                User32.SetCursorPos(x, y);
-                DoShiftClick();                         // extend selection from the anchor to here
-            }
-            ExitSelectText();
-            // Span-select closes unless the user opted to keep the overlay up in Continuous
-            // mode (SelectionActionsClose=false) to test the topmost-re-assert hypothesis.
-            if (_isContinuous && !_selectionActionsClose)
-            {
-                ResetForNextClick();
-            }
-            else
-            {
-                CloseOverlay?.Invoke();
+                FireInputAsync(() =>
+                {
+                    User32.SetCursorPos(x, y);
+                    Thread.Sleep(ClickGapMs);
+                    DoShiftClick();                     // extend selection from the anchor to here
+                }, afterSelect);
             }
         }
 
@@ -1161,26 +1212,24 @@ namespace HuntAndPeck.ViewModels
 
         private static void DoDoubleClick()
         {
-            // Two rapid left clicks register as a double-click.
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+            // Two left clicks with a REAL gap between them (runs off-thread via
+            // FireInputAsync). The zero-gap form was randomly coalesced/mishandled by the
+            // target app (the burst flushed as one 0ms batch); the gap is what makes the
+            // double-click register reliably.
+            DoLeftClick();
+            Thread.Sleep(ClickGapMs);
+            DoLeftClick();
         }
 
         private static void DoTripleClick()
         {
-            // Three rapid left clicks register as a triple-click (selects a whole line
-            // in most apps; a sentence in Word). No sleep between pairs: the existing
-            // double-click fires two pairs with no delay and registers reliably, and
-            // the click runs on the dispatched UI thread -- not the low-level hook
-            // thread, whose ~300ms LowLevelHooksTimeout a Thread.Sleep would eat into.
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+            // Three left clicks with real gaps (selects a whole line in most apps; a
+            // sentence in Word). Runs off-thread; see DoDoubleClick for why the gaps.
+            DoLeftClick();
+            Thread.Sleep(ClickGapMs);
+            DoLeftClick();
+            Thread.Sleep(ClickGapMs);
+            DoLeftClick();
         }
 
         // -------- Text-span selection primitives --------
@@ -1200,19 +1249,25 @@ namespace HuntAndPeck.ViewModels
 
         private static void DoShiftClick()
         {
-            // Shift+click extends a selection from the caret to the cursor. Sent as ONE
-            // atomic SendInput (Shift down, left down/up, Shift up) so the app sees Shift
-            // held across the click. VK_SHIFT is not a captured key in our LL keyboard
-            // hook (Classify -> None -> pass-through), so the synthesized Shift reaches
-            // the app's key state -- which is what makes the click a shift+click.
-            var inputs = new User32.INPUT[]
+            // Shift+click extends a selection from the caret to the cursor. ShiftDown,
+            // settle, click, settle, ShiftUp -- sent as separate SendInputs with gaps
+            // (runs off-thread) so the app has time to latch the synthetic Shift before
+            // and across the click; the atomic one-SendInput form randomly registered as
+            // an unshifted click. VK_SHIFT is not a captured key in our LL keyboard hook
+            // (Classify -> None -> pass-through), so the Shift reaches the app's key state.
+            var shiftDown = new[] { KeyInput(User32.VK_SHIFT, false) };
+            var click = new[]
             {
-                KeyInput(User32.VK_SHIFT, false),
                 MouseInput(User32.MOUSEEVENTF_LEFTDOWN),
-                MouseInput(User32.MOUSEEVENTF_LEFTUP),
-                KeyInput(User32.VK_SHIFT, true)
+                MouseInput(User32.MOUSEEVENTF_LEFTUP)
             };
-            User32.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(User32.INPUT)));
+            var shiftUp = new[] { KeyInput(User32.VK_SHIFT, true) };
+            int cb = Marshal.SizeOf(typeof(User32.INPUT));
+            User32.SendInput((uint)shiftDown.Length, shiftDown, cb);
+            Thread.Sleep(ClickGapMs);
+            User32.SendInput((uint)click.Length, click, cb);
+            Thread.Sleep(ClickGapMs);
+            User32.SendInput((uint)shiftUp.Length, shiftUp, cb);
         }
 
         private static User32.INPUT KeyInput(int vk, bool up)
