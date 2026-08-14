@@ -216,13 +216,17 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
   prior selection (a mousedown *on* a selection starts a text drag-drop instead of a new
   selection drag, which made Drag alternate work/fail between attempts). ShiftClick holds no
   button while you type the second label; Drag is the fallback where an app remaps
-  Shift+click (e.g. Feishu/Electron ignores the synthesized Shift — use Drag there).
+  Shift+click (e.g. column-select in some editors).
   Works in Grid and Automation; coords use the label's
   target point + pan offset. After the selection the overlay always closes (even in
   Continuous mode — staying up clears the selection). `Esc`/`1` cancels the pick.
-  **Caveat:** ShiftClick relies on a synthesized Shift; some Electron apps (e.g. Feishu)
-  don't honor it and the span won't select there (Edge/Notepad work) — no fix from Linux
-  yet; Drag is no better (Chromium-incompatible).
+  **Caveat (observed on-box 2026-08-14, build 8f47655):** Edge and Notepad3 work for
+  d/t/v in BOTH modes. Feishu does not: `v` fails with BOTH methods (ShiftClick: no
+  selection results; Drag: the selection is made then canceled), and d/t alternate
+  work/fail when a selection already exists from the previous attempt. Physical
+  click+Shift+click works in Feishu, so the gap is specific to synthesized input there;
+  mechanism unverified from Linux. Workaround in Feishu: `<leader>t` (every other attempt,
+  or plain-click empty background first to clear), physical mouse for arbitrary spans.
 - **Alt or Capslock held → passthrough**: while Alt or Capslock is physically held the
   overlay stops capturing keys, so `Alt+Tab` (window switcher) + arrows and Capslock-
   based AutoHotkey mappings (e.g. `Capslock+f` → `Ctrl+Shift+M`) pass through. Held-state
