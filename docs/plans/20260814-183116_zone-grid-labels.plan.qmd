@@ -115,6 +115,31 @@ right; the assertion was fixed. Run `31794575390` green.
 Zone tests rewritten for extent semantics (2×1 zones over hand-computable
 extents; the quadrant shape is covered by a cluster-away-from-origin test).
 
+# Fix round 3 (2026-08-14, user requests + agreement check)
+
+1. **Uniform 6×4 per zone (zone-aligned generation).** The user observed mixed
+   6×3 / 6×4 in-zone layouts — arithmetic confirms: the global 29×16 lattice
+   doesn't split evenly into 5×5 zones (29/5 and 16/5 leave uneven chunks).
+   Agreed with the goal; implemented as zone-ALIGNED generation rather than
+   patching the split: while a zone spec is active, the grid is
+   zoneCols×inCols by zoneRows×inRows spanEdges over the bounds, so every zone
+   holds exactly inCols×inRows points and overflow is impossible by
+   construction. inCols/inRows derived from the bounds aspect (near-square
+   cells, ≤ the second-char budget) with the layout's centerStep as a density
+   floor (small windows stay sparse but uniform). 16:9 + 25 letters → 6×4=24
+   per zone, 30×20=600 total (~66×57 px on 1080p; verified by simulation:
+   per-zone counts = {24} uniformly). Superseded machinery removed
+   (`MaxZoneCount`, `EffectiveGridCap`). Documented side effects: GridLayouts
+   presets / dense regions don't apply while zoned; zone-zoom's lens fill is
+   zone-aligned too.
+2. **`<Space>` no longer clears the typed prefix.** The old clear's stated
+   reason ("so the next key is read as a command") is void — dispatch branches
+   on `_leaderPending` (`OverlayKeyboardHook.Dispatch` checks it before label
+   chars), so the prefix never intercepts leader keys. Preserving it keeps the
+   drilled zone's level-2 labels after a mid-drill mode switch
+   (`<Space>r` → still inside K). Snapshot/select 2-picks already cleared on
+   entry (verified in their bodies), giving the safe composition.
+
 # Verification
 
 1. Unit tests: spec parse (12 cases), cap math (valid/invalid/oversized),

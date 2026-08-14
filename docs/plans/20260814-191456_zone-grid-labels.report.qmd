@@ -78,6 +78,17 @@ cluster in one quarter, so bounds-based zone slicing overflowed. Fix
 `TryAssignZoneLabels` and the provider cap loop's `MaxZoneCount`; key-char
 pill centered. CI `31796151578` green; drop `hap-zonectr`.
 
+# Fix round 3 (2026-08-14)
+
+User asks: uniform 6×4 second-level layout; leader should not reset the typed
+prefix. Both agreed with evidence: the 6×3/6×4 mix is the uneven 29×16-into-
+25 split; the leader clear's rationale is void (dispatch branches on the
+pending flag). Fix (`88dfa69`): zone-ALIGNED generation (every zone exactly
+6×4=24 on 16:9, 30×20=600 total, per-zone uniformity verified by simulation
+{24}); `<Space>` preserves the prefix (snapshot/select still clear on entry).
+`MaxZoneCount`/`EffectiveGridCap` removed as superseded. CI `31799957316`
+green; drop `hap-zone64`.
+
 # Commits
 
 - `4588d07` feat(overlay): zone-grid group view (default 5x5) + all-letter labels
