@@ -47,6 +47,7 @@ namespace HuntAndPeck.ViewModels
         private SelectPhase _selectPhase = SelectPhase.None;
         private Point _selectAnchor;           // Drag method: start point (screen px, offset-applied)
         private TextSelectMethod _selectMethod;
+        private bool _selectionActionsClose;   // selection actions close even in Continuous (default)
 
         private readonly IHintLabelService _hintLabelService;
         private readonly string _fontSizeRaw;
@@ -150,6 +151,7 @@ namespace HuntAndPeck.ViewModels
             _hideInactive = OverlayActionConfig.ReadHideNonMatchingLabels();
             // Text-span selection gesture (ShiftClick|Drag), read once per overlay.
             _selectMethod = OverlayActionConfig.ReadTextSelectMethod();
+            _selectionActionsClose = OverlayActionConfig.ReadSelectionActionsClose();
 
             if (_sessions.Count > 0)
             {
@@ -201,6 +203,7 @@ namespace HuntAndPeck.ViewModels
             _hideInactive = OverlayActionConfig.ReadHideNonMatchingLabels();
             // Text-span selection gesture (ShiftClick|Drag), read once per overlay.
             _selectMethod = OverlayActionConfig.ReadTextSelectMethod();
+            _selectionActionsClose = OverlayActionConfig.ReadSelectionActionsClose();
 
             _zoneRects = ZoneService.SliceIntoZones(monitorBounds, zoneCols, zoneRows);
             _zoneCellW = _zoneRects.Length > 0 ? _zoneRects[0].Width : monitorBounds.Width;
@@ -745,9 +748,12 @@ namespace HuntAndPeck.ViewModels
                 // app (observed in Notepad3/Edge; the selection vanishes within ~the 100ms
                 // topmost re-assert cadence). Closing makes the selection persist so it can
                 // be seen/copied. Left/Right/Move stay continuous (repeated clicking/nav).
+                // SelectionActionsClose=false (diagnostic) keeps the overlay up to test the
+                // topmost-re-assert hypothesis.
                 bool selectionAction = CurrentAction == ClickAction.Double
                                      || CurrentAction == ClickAction.Triple;
-                if (_isContinuous && !selectionAction)
+                bool closeAfterSelection = selectionAction && _selectionActionsClose;
+                if (_isContinuous && !closeAfterSelection)
                 {
                     // Stay up: reset for the next label (mode back to the first / Left
                     // by default, and every label re-highlighted).
@@ -1107,10 +1113,16 @@ namespace HuntAndPeck.ViewModels
                 DoShiftClick();                         // extend selection from the anchor to here
             }
             ExitSelectText();
-            // A text selection must persist to be usable. Continuous mode's staying-up
-            // overlay clears it (same root cause as Double/Triple above), so always close
-            // after a span-select regardless of trigger mode.
-            CloseOverlay?.Invoke();
+            // Span-select closes unless the user opted to keep the overlay up in Continuous
+            // mode (SelectionActionsClose=false) to test the topmost-re-assert hypothesis.
+            if (_isContinuous && !_selectionActionsClose)
+            {
+                ResetForNextClick();
+            }
+            else
+            {
+                CloseOverlay?.Invoke();
+            }
         }
 
         /// <summary>Cancels text-span selection. Nothing to release: neither method holds

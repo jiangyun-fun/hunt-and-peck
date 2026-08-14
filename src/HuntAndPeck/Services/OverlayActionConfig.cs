@@ -757,6 +757,46 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Whether selection actions (Double/Triple/span-select) close the overlay even in
+        /// Continuous mode (default true -- the working fix: staying up clears the
+        /// selection). Set false with TopmostReassertEnabled=false to test whether the
+        /// re-assert timer is what clears a staying-up selection. Hot-reload.
+        /// </summary>
+        public static bool ReadSelectionActionsClose()
+        {
+            const bool Default = true;
+            try
+            {
+                EnsureFresh();
+                return ParseBool(ConfigurationManager.AppSettings["SelectionActionsClose"], Default);
+            }
+            catch (Exception)
+            {
+                return Default;
+            }
+        }
+
+        /// <summary>
+        /// Whether the overlay re-asserts HWND_TOPMOST on a 100ms timer (default true) so
+        /// labels stay above a mid-session popup (context menu/dropdown). Set false to test
+        /// whether that periodic SetWindowPos is what clears a Continuous-mode selection.
+        /// Hot-reload.
+        /// </summary>
+        public static bool ReadTopmostReassertEnabled()
+        {
+            const bool Default = true;
+            try
+            {
+                EnsureFresh();
+                return ParseBool(ConfigurationManager.AppSettings["TopmostReassertEnabled"], Default);
+            }
+            catch (Exception)
+            {
+                return Default;
+            }
+        }
+
+        /// <summary>
         /// What the overlay covers (hot-reload): Screen = full monitor the foreground
         /// window is on (labels fill the screen); Window = the foreground window rect.
         /// Default Screen.

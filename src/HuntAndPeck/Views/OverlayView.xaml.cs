@@ -98,12 +98,19 @@ namespace HuntAndPeck.Views
             // SWP_NOACTIVATE means we never steal activation, so the menu beneath
             // stays open. (Cannot reach toast notifications -- those live in
             // ZBID_IMMERSIVE_NOTIFICATION, above all ZBID_DESKTOP windows.)
-            _topmostReassertTimer = new DispatcherTimer
+            // Skippable (TopmostReassertEnabled, hot-reload): the periodic re-assert is the
+            // leading suspect for clearing a Continuous-mode selection in the target app, so
+            // it can be disabled to test that hypothesis. The one-shot ReassertTopmost()
+            // above (initial z-order) still runs; only the periodic timer is gated.
+            if (OverlayActionConfig.ReadTopmostReassertEnabled())
             {
-                Interval = TimeSpan.FromMilliseconds(TopmostReassertIntervalMs)
-            };
-            _topmostReassertTimer.Tick += (s, ev) => ReassertTopmost();
-            _topmostReassertTimer.Start();
+                _topmostReassertTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(TopmostReassertIntervalMs)
+                };
+                _topmostReassertTimer.Tick += (s, ev) => ReassertTopmost();
+                _topmostReassertTimer.Start();
+            }
 
             // Measure window-load to content-rendered (the label layout/render cost).
             _renderSw = Stopwatch.StartNew();

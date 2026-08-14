@@ -121,7 +121,7 @@ Two kinds of settings:
   `HintCharacters`, `HintFontSize`, `HintFontFamily`, `HintPillOpacity`, `HintDimOpacity`,
   `NudgeStepSmall`, `NudgeStepMedium`, `NudgeStepLarge`, `NudgeKeysSmall`, `NudgeKeysMedium`, `NudgeKeysLarge`,
   `ClickModeOrder` (only the first entry matters now — it is the default mode; Space no longer cycles),
-  `TextSelectMethod`, `LeaderBindings`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
+  `TextSelectMethod`, `SelectionActionsClose`, `TopmostReassertEnabled`, `LeaderBindings`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
   `ZoneZoomEnabled`, `ZoneCols`, `ZoneRows`, `ZoneFontSize`, `ZoneZoomReturnToPickOnFire`,
   `ZoneGridStep`, `ZoneWidth`, `ZoneHeight`, `OverlayAutoCloseSec`, `HideNonMatchingLabels`.
   (`ActiveLayout` is also in appSettings but is rewritten by `<leader>g`, not hand-edited.)
