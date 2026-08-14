@@ -62,9 +62,11 @@ namespace HuntAndPeck.Services
         /// <summary>
         /// Reads the hint character set from hap.exe.config (hot-reload). More characters
         /// means more short labels: 14 chars gives ~196 two-char labels, 26 (A-Z) gives
-        /// ~676. Defaults to the Vimium-style home-row set.
+        /// ~676. Defaults to the Vimium-style home-row set. Internal so
+        /// <see cref="OverlayViewModel"/> can read the set once per overlay for
+        /// zone-grid label assignment (GroupViewService).
         /// </summary>
-        private static char[] ReadHintCharacters()
+        internal static char[] ReadHintCharacters()
         {
             try
             {

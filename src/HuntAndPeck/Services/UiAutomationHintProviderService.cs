@@ -434,11 +434,16 @@ namespace HuntAndPeck.Services
                 (layout.DenseRegions ?? "Left,Top,TR,BR,Center").Split(',').Select(s => s.Trim()),
                 StringComparer.OrdinalIgnoreCase);
 
-            // Cap the total at the two-character label capacity (HintCharacters^2) so every
-            // hint stays two chars. If the window is large and the steps would produce too
-            // many points, scale the steps up and regenerate.
-            int maxHints = ReadHintCharacterCount();
-            maxHints *= maxHints;
+            // Cap the total at the two-character label capacity so every hint stays two
+            // chars. With a valid GroupZones spec the cap is zones x chars instead
+            // (each zone can hold at most chars.Length points for its second chars) --
+            // 25x25 = 625 vs 25x29 = 725 vs the legacy chars^2, so the grid coarsens
+            // slightly but zones fit the second-char budget by construction on even
+            // layouts. If the window is large and the steps would produce too many
+            // points, scale the steps up and regenerate.
+            int chars = ReadHintCharacterCount();
+            int maxHints = GroupViewService.EffectiveGridCap(
+                chars, OverlayActionConfig.ReadGroupZones(), out _);
 
             List<Hint> hints;
             var guard = 0;

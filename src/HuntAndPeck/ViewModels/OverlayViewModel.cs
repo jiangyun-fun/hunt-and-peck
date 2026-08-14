@@ -117,11 +117,21 @@ namespace HuntAndPeck.ViewModels
         // points, labeled by their second char alone (HintCanvas strips the typed
         // prefix). Same points/labels/coverage as the full view -- pure presentation.
         // Grid-like sessions only (all-PointHint); zone mode and Automation opt out.
+        // With a valid GroupZones spec (default 5x5) the boxes are a REGULAR cols x
+        // rows grid and the labels themselves are zone-based: first char = the zone's
+        // key (first cols*rows HintCharacters in scan order), second char cycles the
+        // char set within the zone (a 1-point zone is labeled by its key alone and
+        // fires instantly). Zone assignment overflow falls back to scan-order labels
+        // + derived boxes.
         private readonly bool _groupViewConfigured;
         private bool _groupViewOn;
         private bool _groupable;
         private IList<GroupHintBox> _groupBoxes;
         private readonly string _groupFontSizeRaw;
+        private readonly char[] _hintChars;          // HintCharacters, read once per overlay
+        private readonly int _groupZoneCols;         // 0 = no valid GroupZones spec
+        private readonly int _groupZoneRows;
+        private List<GroupHintBox> _zoneBoxes;       // last session's zone boxes (toggle rebuild)
 
         /// <summary>
         /// Single-session ctor: Automation, Grid+Window, and the headless /hint and
@@ -181,6 +191,16 @@ namespace HuntAndPeck.ViewModels
             _groupViewConfigured = OverlayActionConfig.ReadGroupViewEnabled();
             _groupViewOn = _groupViewConfigured;
             _groupFontSizeRaw = OverlayActionConfig.ReadGroupFontSize();
+            // Zone-grid labeling: parse the GroupZones spec once; 0x0 when invalid or
+            // too big for the char set (every zone needs its own key char).
+            _hintChars = HintLabelService.ReadHintCharacters();
+            int zc, zr;
+            if (GroupViewService.TryParseZoneSpec(OverlayActionConfig.ReadGroupZones(), out zc, out zr)
+                && zc * zr <= _hintChars.Length)
+            {
+                _groupZoneCols = zc;
+                _groupZoneRows = zr;
+            }
             // Text-span selection gesture (ShiftClick|Drag), read once per overlay.
             _selectMethod = OverlayActionConfig.ReadTextSelectMethod();
             _selectionActionsClose = OverlayActionConfig.ReadSelectionActionsClose();
@@ -259,7 +279,19 @@ namespace HuntAndPeck.ViewModels
         private void LoadSession(HintSession session)
         {
             _bounds = session.OwningWindowBounds;
-            var labels = _hintLabelService.GetHintStrings(session.Hints.Count);
+            // Zone-grid labeling (grid sessions with a valid GroupZones spec): first
+            // char = the zone's key, second char cycles the char set within the zone.
+            // On overflow (a zone denser than the char set) this returns false and the
+            // session keeps the scan-order labels below.
+            List<string> zoneLabels = null;
+            List<GroupHintBox> zoneBoxes = null;
+            if (_groupZoneCols > 0)
+            {
+                GroupViewService.TryAssignZoneLabels(session.Hints, session.OwningWindowBounds,
+                    _groupZoneCols, _groupZoneRows, _hintChars, out zoneLabels, out zoneBoxes);
+            }
+            _zoneBoxes = zoneBoxes;
+            IList<string> labels = zoneLabels ?? _hintLabelService.GetHintStrings(session.Hints.Count);
             var fresh = new ObservableCollection<HintViewModel>();
             for (int i = 0; i < labels.Count; ++i)
             {
@@ -284,7 +316,7 @@ namespace HuntAndPeck.ViewModels
             // _groupViewOn false).
             _groupable = GroupViewService.IsGroupable(session.Hints, labels);
             _groupBoxes = _groupViewOn && _groupable
-                ? GroupViewService.BuildGroupBoxes(fresh)
+                ? (_zoneBoxes ?? GroupViewService.BuildGroupBoxes(fresh))
                 : null;
             NotifyOfPropertyChange(nameof(MatchString));
             NotifyOfPropertyChange(nameof(MatchLength));
@@ -714,7 +746,9 @@ namespace HuntAndPeck.ViewModels
             }
             _groupViewOn = !_groupViewOn;
             ClearMatch();
-            _groupBoxes = _groupViewOn ? GroupViewService.BuildGroupBoxes(Hints) : null;
+            // Restore the session's zone boxes when zone labeling is active; the
+            // derived boxes are only the fallback shape.
+            _groupBoxes = _groupViewOn ? (_zoneBoxes ?? GroupViewService.BuildGroupBoxes(Hints)) : null;
             NotifyOfPropertyChange(nameof(GroupView));
             NotifyOfPropertyChange(nameof(GroupBoxes));
         }

@@ -577,6 +577,30 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// The group-view zone-grid spec, "cols x rows" e.g. "5x5" (hot-reload). The
+        /// level-1 boxes become a regular cols x rows grid over the session bounds,
+        /// keyed by the first cols*rows HintCharacters in scan order, and grid-session
+        /// labels are reassigned zone-based (first char = zone key). Blank/invalid (or
+        /// cols*rows above the char count) falls back to the derived label-group boxes
+        /// and scan-order labels. Default "5x5".
+        /// </summary>
+        public static string ReadGroupZones()
+        {
+            const string DefaultZones = "5x5";
+            try
+            {
+                EnsureFresh();
+                var raw = ConfigurationManager.AppSettings["GroupZones"];
+                return string.IsNullOrWhiteSpace(raw) ? DefaultZones : raw.Trim();
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return DefaultZones;
+            }
+        }
+
+        /// <summary>
         /// Reads the hint label font size (hot-reload). Returns null when unset or
         /// invalid so the caller can fall back to the Options-dialog default.
         /// </summary>

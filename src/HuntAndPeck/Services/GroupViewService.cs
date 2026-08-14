@@ -60,7 +60,9 @@ namespace HuntAndPeck.Services
         /// <summary>
         /// Builds one <see cref="GroupHintBox"/> per first-char label group: the union of
         /// the member hints' bounding rectangles, ordered by key char (ordinal). Hints
-        /// with a null/empty label are skipped. Pure.
+        /// with a null/empty label are skipped. Pure. This is the v1/fallback shape
+        /// (irregular boxes around label groups); the zone-grid shape is
+        /// <see cref="TryAssignZoneLabels"/>.
         /// </summary>
         public static List<GroupHintBox> BuildGroupBoxes(IList<HintViewModel> hints)
         {
@@ -102,6 +104,145 @@ namespace HuntAndPeck.Services
             }
             boxes.Sort((a, b) => a.Key.CompareTo(b.Key));
             return boxes;
+        }
+
+        // -------- Zone-grid labeling (v2: fixed cols x rows grid, all-letter labels) --------
+
+        /// <summary>
+        /// Parses a <c>GroupZones</c> spec: "<c>cols x rows</c>" (separator <c>x</c>/
+        /// <c>X</c>/<c>*</c>, e.g. "5x5"). Both dims must be &gt;= 1 and their product
+        /// &gt;= 2 (a 1x1 spec is meaningless). Pure.
+        /// </summary>
+        public static bool TryParseZoneSpec(string raw, out int cols, out int rows)
+        {
+            cols = 0;
+            rows = 0;
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return false;
+            }
+            var parts = raw.Trim().Split(new[] { 'x', 'X', '*' });
+            if (parts.Length != 2)
+            {
+                return false;
+            }
+            int c, r;
+            if (!int.TryParse(parts[0].Trim(), out c) || !int.TryParse(parts[1].Trim(), out r))
+            {
+                return false;
+            }
+            if (c < 1 || r < 1 || c * r < 2)
+            {
+                return false;
+            }
+            cols = c;
+            rows = r;
+            return true;
+        }
+
+        /// <summary>
+        /// The grid-generation cap for zone labeling: zones x chars when a valid spec
+        /// fits the char set (every point needs a second char from it, so a zone can
+        /// hold at most chars.Length points); chars x chars otherwise (the legacy cap).
+        /// <paramref name="zoneCount"/> is the parsed zone count (0 when invalid/does
+        /// not fit). Pure.
+        /// </summary>
+        public static int EffectiveGridCap(int charCount, string zoneSpecRaw, out int zoneCount)
+        {
+            int cols, rows;
+            if (charCount > 1 && TryParseZoneSpec(zoneSpecRaw, out cols, out rows)
+                && cols * rows <= charCount)
+            {
+                zoneCount = cols * rows;
+                return zoneCount * charCount;
+            }
+            zoneCount = 0;
+            return charCount * charCount;
+        }
+
+        /// <summary>
+        /// Zone-grid label assignment: slices <paramref name="bounds"/> into
+        /// cols x rows cells (scan order), keys zone i with <paramref name="chars"/>[i],
+        /// and labels each point <c>zoneChar + chars[j]</c> where j cycles through the
+        /// char set in emission order within the zone. A zone holding exactly ONE point
+        /// gets a 1-char label (typing the zone char fires it immediately). Labels are
+        /// unique and prefix-free.
+        /// <para>Returns false (null outputs) when any zone would need more second
+        /// chars than the set provides (overflow; dense layouts concentrate points) --
+        /// the caller falls back to scan-order labels. Point-to-zone lookup uses cell
+        /// INDEX math with clamping, not Rect.Contains, so a point exactly on a zone
+        /// boundary lands in one determinate zone.</para>
+        /// Pure. <paramref name="boxes"/> receives one regular box per NON-EMPTY zone
+        /// (the fixed grid look).
+        /// </summary>
+        public static bool TryAssignZoneLabels(
+            IList<Hint> hints, Rect bounds, int cols, int rows, char[] chars,
+            out List<string> labels, out List<GroupHintBox> boxes)
+        {
+            labels = null;
+            boxes = null;
+            if (hints == null || hints.Count == 0 || chars == null || chars.Length < 2
+                || cols < 1 || rows < 1 || bounds.Width <= 0 || bounds.Height <= 0)
+            {
+                return false;
+            }
+
+            double cellW = bounds.Width / cols;
+            double cellH = bounds.Height / rows;
+            int zoneCount = cols * rows;
+
+            // Pass 1: zone index per hint + per-zone occupancy.
+            var zoneOf = new int[hints.Count];
+            var counts = new int[zoneCount];
+            for (int i = 0; i < hints.Count; i++)
+            {
+                var br = hints[i].BoundingRectangle;
+                int c = (int)((br.Left - bounds.Left) / cellW);
+                int r = (int)((br.Top - bounds.Top) / cellH);
+                if (c < 0) c = 0; else if (c > cols - 1) c = cols - 1;
+                if (r < 0) r = 0; else if (r > rows - 1) r = rows - 1;
+                int z = r * cols + c;
+                zoneOf[i] = z;
+                counts[z]++;
+            }
+            for (int z = 0; z < zoneCount; z++)
+            {
+                if (counts[z] > chars.Length)
+                {
+                    return false;   // overflow: not enough second chars for this zone
+                }
+            }
+
+            // Pass 2: assign labels (emission order within each zone).
+            var next = new int[zoneCount];
+            labels = new List<string>(new string[hints.Count]);
+            for (int i = 0; i < hints.Count; i++)
+            {
+                int z = zoneOf[i];
+                if (counts[z] == 1)
+                {
+                    labels[i] = chars[z].ToString();                    // instant fire
+                }
+                else
+                {
+                    labels[i] = string.Concat(chars[z].ToString(), chars[next[z]].ToString());
+                    next[z]++;
+                }
+            }
+
+            // Boxes: one regular cell per non-empty zone (scan order).
+            boxes = new List<GroupHintBox>();
+            for (int z = 0; z < zoneCount; z++)
+            {
+                if (counts[z] > 0)
+                {
+                    int c = z % cols;
+                    int r = z / cols;
+                    boxes.Add(new GroupHintBox(chars[z], new Rect(
+                        bounds.Left + c * cellW, bounds.Top + r * cellH, cellW, cellH)));
+                }
+            }
+            return true;
         }
     }
 }

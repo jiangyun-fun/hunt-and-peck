@@ -123,6 +123,158 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal('A', b.Key);
         }
 
+        // ---- Zone-grid labeling (TryParseZoneSpec / EffectiveGridCap / TryAssignZoneLabels) ----
+
+        [Theory]
+        [InlineData("5x5", 5, 5, true)]
+        [InlineData("4X6", 4, 6, true)]
+        [InlineData("6*4", 6, 4, true)]
+        [InlineData(" 3x2 ", 3, 2, true)]
+        [InlineData("", 0, 0, false)]
+        [InlineData(null, 0, 0, false)]
+        [InlineData("abc", 0, 0, false)]
+        [InlineData("5", 0, 0, false)]
+        [InlineData("5x", 0, 0, false)]
+        [InlineData("1x1", 0, 0, false)]     // a 1x1 spec is meaningless
+        [InlineData("0x5", 0, 0, false)]
+        [InlineData("-2x5", 0, 0, false)]
+        public void TryParseZoneSpec_Theory(string raw, int cols, int rows, bool ok)
+        {
+            int c, r;
+            Assert.Equal(ok, GroupViewService.TryParseZoneSpec(raw, out c, out r));
+            if (ok)
+            {
+                Assert.Equal(cols, c);
+                Assert.Equal(rows, r);
+            }
+        }
+
+        [Fact]
+        public void EffectiveGridCap_ValidSpec_ZonesTimesChars()
+        {
+            int zoneCount;
+            // 25 chars x 5x5 zones = 625 (fits: 25 zones <= 25 chars).
+            Assert.Equal(625, GroupViewService.EffectiveGridCap(25, "5x5", out zoneCount));
+            Assert.Equal(25, zoneCount);
+
+            // 29 chars (punctuation still configured) x 5x5 = 725 < the legacy 841.
+            Assert.Equal(725, GroupViewService.EffectiveGridCap(29, "5x5", out zoneCount));
+            Assert.Equal(25, zoneCount);
+        }
+
+        [Fact]
+        public void EffectiveGridCap_InvalidOrOversizedSpec_LegacyCharsSquared()
+        {
+            int zoneCount;
+            Assert.Equal(625, GroupViewService.EffectiveGridCap(25, "", out zoneCount));
+            Assert.Equal(0, zoneCount);
+            Assert.Equal(841, GroupViewService.EffectiveGridCap(29, "", out zoneCount));
+            // 26 zones do not fit a 10-char set (every zone needs its own key char).
+            Assert.Equal(100, GroupViewService.EffectiveGridCap(10, "2x13", out zoneCount));
+            Assert.Equal(0, zoneCount);
+        }
+
+        [Fact]
+        public void TryAssignZoneLabels_ZoneKeyFirstChar_SecondCharCyclesInEmissionOrder()
+        {
+            // 5x5 over a 500x100 bounds: cells 100x20. Zone A (x<100, y<20) gets two
+            // points -> AA, AB; zone B -> BA, BB; zone index 5 ('F', row 1 col 0) one
+            // point -> "F" alone.
+            string chars = "ABCDEFGHIJKLMNOPRSTUVWXYZ";
+            var hints = new List<Hint>
+            {
+                P(10, 5), P(50, 5),      // zone A
+                P(110, 5), P(150, 5),    // zone B
+                P(10, 25),               // y=25 -> row 1 -> zone index 5 = 'F'
+            };
+
+            List<string> labels;
+            List<GroupHintBox> boxes;
+            bool ok = GroupViewService.TryAssignZoneLabels(hints, new Rect(0, 0, 500, 100),
+                5, 5, chars.ToCharArray(), out labels, out boxes);
+
+            Assert.True(ok);
+            Assert.Equal(new[] { "AA", "AB", "BA", "BB", "F" }, labels);
+            // Boxes: only the occupied zones, in scan order, regular cell rects.
+            Assert.Equal(3, boxes.Count);
+            Assert.Equal('A', boxes[0].Key);
+            Assert.Equal(new Rect(0, 0, 100, 20), boxes[0].Bounds);
+            Assert.Equal('B', boxes[1].Key);
+            Assert.Equal(new Rect(100, 0, 100, 20), boxes[1].Bounds);
+            Assert.Equal('F', boxes[2].Key);
+            Assert.Equal(new Rect(0, 20, 100, 20), boxes[2].Bounds);
+        }
+
+        [Fact]
+        public void TryAssignZoneLabels_BoundaryPoint_LandsInOneDeterminateZone()
+        {
+            // A point exactly on the A|B boundary (x=100) goes to zone B (index math,
+            // clamped -- not Rect.Contains, which would match both cells).
+            string chars = "ABCDEFGHIJKLMNOPRSTUVWXYZ";
+            var hints = new List<Hint> { P(100, 5) };
+
+            List<string> labels;
+            List<GroupHintBox> boxes;
+            bool ok = GroupViewService.TryAssignZoneLabels(hints, new Rect(0, 0, 500, 100),
+                5, 5, chars.ToCharArray(), out labels, out boxes);
+
+            Assert.True(ok);
+            Assert.Equal(new[] { "B" }, labels);    // single point in zone B -> 1-char
+            Assert.Single(boxes);
+            Assert.Equal('B', boxes[0].Key);
+        }
+
+        [Fact]
+        public void TryAssignZoneLabels_PointBeyondEdge_ClampsToLastZone()
+        {
+            string chars = "ABCDEFGHIJKLMNOPRSTUVWXYZ";
+            var hints = new List<Hint> { P(490, 95) };
+
+            List<string> labels;
+            List<GroupHintBox> boxes;
+            bool ok = GroupViewService.TryAssignZoneLabels(hints, new Rect(0, 0, 500, 100),
+                5, 5, chars.ToCharArray(), out labels, out boxes);
+
+            Assert.True(ok);
+            Assert.Equal(new[] { "Z" }, labels);    // last zone (row 4, col 4) = index 24 = 'Z'
+            Assert.Equal(new Rect(400, 80, 100, 20), boxes[0].Bounds);
+        }
+
+        [Fact]
+        public void TryAssignZoneLabels_ZoneOverflow_ReturnsFalse()
+        {
+            // 25 chars means a zone can hold at most 25 points; 26 in one zone overflows.
+            string chars = "ABCDEFGHIJKLMNOPRSTUVWXYZ";
+            var hints = new List<Hint>();
+            for (int i = 0; i < 26; i++)
+            {
+                hints.Add(P(10 + (i % 5) * 10, 2 + (i / 5) * 3));   // all inside zone A
+            }
+
+            List<string> labels;
+            List<GroupHintBox> boxes;
+            bool ok = GroupViewService.TryAssignZoneLabels(hints, new Rect(0, 0, 500, 100),
+                5, 5, chars.ToCharArray(), out labels, out boxes);
+
+            Assert.False(ok);
+            Assert.Null(labels);
+            Assert.Null(boxes);
+        }
+
+        [Fact]
+        public void TryAssignZoneLabels_DegenerateInputs_ReturnFalse()
+        {
+            List<string> labels;
+            List<GroupHintBox> boxes;
+            var bounds = new Rect(0, 0, 500, 100);
+            var chars = "ABCDEF".ToCharArray();
+
+            Assert.False(GroupViewService.TryAssignZoneLabels(null, bounds, 5, 5, chars, out labels, out boxes));
+            Assert.False(GroupViewService.TryAssignZoneLabels(new List<Hint>(), bounds, 5, 5, chars, out labels, out boxes));
+            Assert.False(GroupViewService.TryAssignZoneLabels(
+                new List<Hint> { P(10, 10) }, new Rect(0, 0, 0, 0), 5, 5, chars, out labels, out boxes));
+        }
+
         // ---- helpers ----
 
         private static PointHint P(double x, double y)

@@ -124,7 +124,7 @@ Two kinds of settings:
   `TextSelectMethod`, `SelectionActionsClose`, `TopmostReassertEnabled`, `LeaderBindings`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
   `ZoneZoomEnabled`, `ZoneCols`, `ZoneRows`, `ZoneFontSize`, `ZoneZoomReturnToPickOnFire`,
   `ZoneGridStep`, `ZoneWidth`, `ZoneHeight`, `OverlayAutoCloseSec`, `HideNonMatchingLabels`,
-  `GroupViewEnabled`, `GroupFontSize`.
+  `GroupViewEnabled`, `GroupZones`, `GroupFontSize`.
   (`ActiveLayout` is also in appSettings but is rewritten by `<leader>g`, not hand-edited.)
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
@@ -135,13 +135,13 @@ Two kinds of settings:
   `MacroHotkeyModifier` (default `Ctrl+Shift+;` / `OemSemicolon`, no `Alt`)
   opens the macro palette.
 
-`HintCharacters` defaults to `A–Z` **minus `Q`** plus `;'`,/` (25 letters + 4 punctuation
-= 29 chars, 841 two-char labels). The wider punctuation set `,./;'[]\` is also supported —
-add any of them here to opt in. The matching input captures `A–Z` plus any configured
-punctuation. **`Q` is reserved** (the direct close/Esc alias — a label containing `Q` could
-never be typed; `<leader>q` is therefore not a binding); digits are not labels either
-(`LabelCharForVk` never returns them) and, since the `1` alias was retired, they all pass
-through to the app — do not put `Q` or `0–9` in `HintCharacters`.
+`HintCharacters` defaults to `A–Z` **minus `Q`** (25 letters, 625 two-char labels). The
+punctuation set `,./;'[]\` is also supported — add any of them here to opt in (they then
+also become typeable while the overlay is up). The first 25 entries double as the
+`GroupZones` box keys. **`Q` is reserved** (the direct close/Esc alias — a label containing
+`Q` could never be typed; `<leader>q` is therefore not a binding); digits are not labels
+either (`LabelCharForVk` never returns them) and, since the `1` alias was retired, they all
+pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
 
 ## Runtime behavior (current)
 
@@ -177,22 +177,24 @@ through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   matching labels; a unique match fires. (In continuous mode the highlight resets to
   all-yellow after each click.)
 - **Group view (progressive 1-char labels; `GroupViewEnabled`, default on; `<leader>p`
-  toggles per-session)**: the overlay opens with ONE dotted box per first-char label
-  group (≤29 boxes, the group's key char in a small pill at each box's top-left corner)
-  instead of every pill. Type a group char → only that group's points show, labeled by
-  their SECOND char alone; the second char fires the click (still 2 keystrokes). Same
-  points, labels and coverage as the full view (29×29 = 841) — pure presentation over
-  the existing prefix-match machinery: far fewer labels on screen at once (the text
-  behind stays readable, less overlap) and the next char is only revealed after the
-  first is pressed (sequential, so no mis-typed second char from memory). Labels are
-  ordinal-sorted and assigned in grid emission order, so each first char names a
-  spatially coherent chunk (≈ one grid column on the default uniform layout). `Esc`
-  backs out to the boxes (clears the prefix; `Esc` again closes); continuous mode
-  returns to the boxes after each click; `<leader>s`/`v` 2-picks work through it.
-  Non-matching labels are hidden at level 2 regardless of `HideNonMatchingLabels`.
-  Applies wherever the session is grid-like (all-`PointHint`: Grid+Screen, Grid+Window
-  **without** a taskbar merge, quadrants); Automation, taskbar-merged and zone sessions
-  keep full labels (their assignment order is not spatially coherent). `GroupFontSize`
+  toggles per-session)**: the overlay opens with a **`GroupZones` grid (default 5×5) of
+  dotted boxes** over the session instead of every pill — zone i keyed by
+  `HintCharacters[i]` in scan order (default = A–Z minus Q). Type a zone char → only
+  that zone's points show, labeled by their SECOND char alone; the second char fires
+  the click (2 keystrokes; a zone holding exactly one point is labeled by its key alone
+  and fires on that single keystroke). **Grid-session labels are zone-based** (first
+  char = the zone's key, second char cycles `HintCharacters` within the zone), in BOTH
+  the group and full views — so `<leader>p` never relabels mid-session — and the grid
+  cap becomes zones×chars (25×25 = 625 vs the old 841; the grid is ~16% coarser) so
+  zones fit the second-char budget. A zone denser than the char set (edge-dense
+  layouts) makes the session fall back to scan-order labels + derived first-char-group
+  boxes (the original v1 shape). Blank/invalid `GroupZones` (or cols×rows above the
+  char count) also falls back to v1. `Esc` backs out to the boxes (clears the prefix;
+  `Esc` again closes); continuous mode returns to the boxes after each click;
+  `<leader>s`/`v` 2-picks work through it. Non-matching labels are hidden at level 2
+  regardless of `HideNonMatchingLabels`. Applies wherever the session is grid-like
+  (all-`PointHint`: Grid+Screen, Grid+Window **without** a taskbar merge, quadrants);
+  Automation, taskbar-merged and zone sessions keep full scan-order labels. `GroupFontSize`
   (default 14, `0` = follow `HintFontSize`) sizes the box-corner key chars.
 - **Arrows move focus in the app beneath** by default (`ArrowKeyBehavior=Passthrough`) — e.g.
   Excel cell nav, list selection — so the dedicated arrow cluster is no longer eaten by the
