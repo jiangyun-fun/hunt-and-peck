@@ -291,7 +291,9 @@ namespace HuntAndPeck.Tests.Services
                 5, 5, chars.ToCharArray(), out labels, out boxes);
 
             Assert.True(ok);
-            Assert.Equal(new[] { "AA", "AB" }, labels);   // zones A and B, relative x
+            // Relative x=10 -> zone A, x=110 -> zone B; each is a single-point zone,
+            // so each is labeled by its key alone (1-char, instant fire).
+            Assert.Equal(new[] { "A", "B" }, labels);
             Assert.Equal(2, boxes.Count);
             Assert.Equal(new Rect(0, 0, 100, 20), boxes[0].Bounds);    // relative!
             Assert.Equal(new Rect(100, 0, 100, 20), boxes[1].Bounds);
