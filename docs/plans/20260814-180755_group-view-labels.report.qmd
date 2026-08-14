@@ -1,0 +1,66 @@
+---
+title: "Group view (progressive 1-char labels) — completion report"
+author: "Yun Jiang"
+date: 2026-08-14
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+---
+
+# What was done
+
+Implemented the **group view** requested 2026-08-14 and shipped it to the
+Windows test box. The overlay now opens (by default) with one dotted box per
+first-char label group instead of every pill; typing a group char reveals only
+that group's points labeled by their second char; the second char fires the
+click — 2 keystrokes, same coverage as the previous full-label view
+(29×29 = 841), far less on screen at once.
+
+Design was confirmed with the user before implementation: fire at the 2nd
+label (no recursive drilling for now); boxes derive from the existing label
+groups (no new point geometry); drill view is the default with `<leader>p`
+toggling to the full-label view per-session.
+
+# Key results
+
+- `GroupViewService` (pure, tested): `IsGroupable` (all-`PointHint` + a 2-char
+  label present) and `BuildGroupBoxes` (per-first-char union of member rects).
+- `HintCanvas`: 4 new DPs; a dedicated dotted-box visual; level 2 renders
+  prefix-stripped labels and hides non-matching hints regardless of
+  `HideNonMatchingLabels`.
+- `OverlayViewModel`: per-session groupability + boxes; `ToggleGroupView`
+  (no-op in zone phases); `MatchLength` binding; leader case.
+- Config: `GroupViewEnabled` (default true) + `GroupFontSize` (default 14,
+  0 = follow `HintFontSize`), both hot-reload and in the Options dialog.
+  `LeaderBindings` gained `p=GroupView` (code default AND shipped value).
+- Defects caught during implementation (both fixed before commit): seeding the
+  group-rect union with `default(Rect)` would stretch every box to the origin
+  (`default(Rect)` is a valid degenerate rect at 0,0, not `Rect.Empty`);
+  computing `_groupable` as `_groupViewOn && …` would have made the toggle
+  one-way.
+
+# Verification status (evidence)
+
+| Item | Evidence |
+|------|----------|
+| Unit tests pass | CI run `31790714375` step `Test` ✓ (`gh run watch --exit-status`) |
+| Build passes | same run, step `Build (Release, Any CPU)` ✓ |
+| Shipped defaults correct | grep of the downloaded artifact config: `GroupViewEnabled=true`, `GroupFontSize=14`, `LeaderBindings` value ends `…,v=SelectText,p=GroupView` |
+| Drop on the box | `ls` via ssh: `$HAP_WIN_TEST_DIR/hap-groupview/hap.exe` (568,320 bytes) |
+
+**Not yet verified (needs the Windows box, manual):** the on-box matrix —
+boxes render; group char narrows to second-char labels; 2nd char fires; Esc
+back-out; `<leader>p` round-trip; continuous-mode return to boxes; Tab monitor
+cycle; suspend/dim interplay; snapshot/select through the drill. Design-level
+expectations, not observations — see the plan's verification section.
+
+# Commits
+
+- `be19570` feat(overlay): pure group-view service (first-char label group boxes)
+- `3d41f67` feat(overlay): group view rendering, `<leader>p` toggle, GroupViewEnabled config
+
+Plan: `20260814-174633_group-view-labels.plan.qmd` (rewritten in place to
+match what was built).

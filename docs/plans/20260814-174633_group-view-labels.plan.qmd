@@ -1,0 +1,145 @@
+---
+title: "Group view — progressive 1-char labels (dotted group boxes)"
+author: "Yun Jiang"
+date: 2026-08-14
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+---
+
+# Objective
+
+Add a **group view** to the overlay: instead of showing all (up to 841) 2-char
+pills at once, the overlay opens with **≤29 dotted-line boxes**, one per
+first-char label group, each with a single-char label. Typing a group char
+reveals **only that group's points, labeled by their second char alone**; the
+second keystroke fires the click.
+
+Goals (user's words): more opportunity to view the text, less overlapping, and
+fewer mis-types — "user must press the 1st label to know what's the next label"
+(sequential disclosure instead of parallel 2-char typing from memory).
+
+# Design decisions (confirmed with user, 2026-08-14)
+
+1. **Fire at the 2nd label** — 2 keystrokes total, same as today. No recursive
+   drilling (door left open if 2 levels prove too coarse on the box).
+2. **Regions derive from the existing label groups** — boxes = bounding boxes of
+   the current first-char label groups. Zero new point geometry: same points,
+   same labels, same coverage (29×29 = 841) as today. NOT a zone-grid sibling.
+3. **Drill view is the default** — `GroupViewEnabled=true`; `<leader>p` toggles
+   to today's full-label view per-session.
+
+# Why this was cheap (grounding)
+
+- Labels are ordinal-sorted so consecutive labels share their first char
+  (`src/HuntAndPeck/Services/HintLabelService.cs:52-58`) and assigned to hints
+  in emission order (`OverlayViewModel.cs` LoadSession); grid points are
+  emitted region-by-region, column-major within a region
+  (`GenerateGridPoints` / `FillRegion` in `UiAutomationHintProviderService.cs`).
+  So each first char is a spatially coherent cluster — its bounding box is a
+  meaningful region.
+- Prefix matching already does the drill: `ApplyMatch` narrows `Active` by
+  `Label.StartsWith(_match)` and fires on a unique match, so a 1-char group
+  member (sparse sessions) fires on its single char for free.
+- Esc already backs out: Esc clears the prefix (`HandleEscape` → `ClearMatch`),
+  which returns to the group-boxes level; Esc again closes. Continuous mode
+  resets the prefix after a fire → boxes return. Zero new state machine.
+
+# What was done (as built)
+
+## New files
+
+- `Services/GroupViewService.cs` (pure, unit-tested):
+  - `IsGroupable(IList<Hint>, IList<string>)`: every hint is a `PointHint` AND
+    at least one label is 2 chars. Automation and taskbar-merged sessions mix
+    in UIA hints (tree-order labels → spatially scattered groups); an
+    all-1-char session would box every point (noise).
+  - `BuildGroupBoxes(IList<HintViewModel>)`: per first char, union of member
+    `BoundingRectangle`s, ordered by key char. The FIRST member initializes the
+    union — never `default(Rect)`, which is a degenerate rect at the ORIGIN,
+    not `Rect.Empty` (a trap caught during implementation and regression-tested).
+- `Models/GroupHintBox.cs` — `readonly struct { char Key; Rect Bounds; }`.
+
+## HintCanvas
+
+- DPs: `GroupView` (bool), `GroupBoxesSource` (IList), `GroupMatchLength`
+  (int), `GroupFontSizeText` (string).
+- A dedicated `DrawingVisual` (`_visuals[0]`) draws the boxes at level 1
+  (`GroupView && MatchLength == 0`): one dotted rounded rect per box (round
+  dash cap + `{0, 3}` dash = dots) + the key char in a small yellow pill just
+  inside the top-left corner. Every hint pill renders nothing at level 1.
+- Level 2 (`GroupView && MatchLength > 0`): matching hints render at their
+  usual positions with `Label.Substring(MatchLength)` as the text (cached per
+  index; cache cleared on length/session/DPI change); non-matching hints are
+  hidden unconditionally (regardless of `HideInactive`).
+- Guards added during implementation: `ParseGroupBoxes` skips text building
+  until the label typeface exists (the boxes binding can pull before the hints
+  binding on initial attach — `BuildFormatted` re-parses once the typeface is
+  set); DPI change rebuilds group texts and clears the suffix cache.
+
+## OverlayViewModel
+
+- `_groupViewConfigured` (from `GroupViewEnabled`, read once per overlay, full
+  ctor only) initializes `_groupViewOn`; `_groupable` (session capability,
+  independent of the toggle) and `_groupBoxes` recompute per `LoadSession`
+  (monitor / layout / quadrant switches each load a session).
+- Bindables: `GroupView`, `GroupBoxes`, `MatchLength` (notified alongside
+  `MatchString` in `AppendLabelChar` / `ClearMatch` / `LoadSession`),
+  `GroupFontSize` (`GroupFontSize` config, falls back to the label size).
+- `ToggleGroupView()` — `<leader>p`; no-op in zone phases (zones have their own
+  drill UX — group view must not nest inside a zone lens) and for
+  non-groupable sessions; flips the flag, `ClearMatch()`, rebuilds boxes.
+- `LeaderCommand` case for the new `LeaderKind.ToggleGroupView`.
+
+## Config / leader
+
+- `GroupViewEnabled` (bool, hot-reload, default **true**) and `GroupFontSize`
+  (px, hot-reload, default 14; `0` = follow `HintFontSize`) — `App.config`,
+  `OverlayActionConfig.ReadGroupViewEnabled` / `ReadGroupFontSize`, the Options
+  dialog (checkbox + textbox).
+- `LeaderKind.ToggleGroupView`, tokens `GroupView`/`Groups`, default key `'P'`,
+  display "toggle group view". The shipped `LeaderBindings` value gained
+  `p=GroupView` (explicit value shadows code defaults — both updated, the
+  b5eab8e lesson).
+- Zone ctor untouched (zones ignore group view).
+
+## Tests
+
+- `GroupViewServiceTest` (9 tests): groupability (PointHint-only, non-PointHint
+  excluded, all-1-char excluded, null/mismatch), box building (grouping, union,
+  ordering, single-member-not-stretched-to-origin, empty-label skip).
+- `LeaderBindingConfigTest`: shipped value parses to 11 bindings including
+  `P = ToggleGroupView`; `Groups` alias; default fallback contains P; display
+  label.
+- `OverlayViewModelTest.GroupView_GridSession_DefaultsOn_AndToggles`: constructs
+  a 40-PointHint session, asserts on-by-default, box count == distinct label
+  first chars, toggle off (boxes null) → on (boxes back). Safe: `ClearMatch`
+  path never reaches a unique match.
+
+# Deviations from the original plan
+
+- Zone-phase guard on `ToggleGroupView` (planned implicitly; made explicit).
+- Typeface-null guard + `BuildFormatted` re-parse (not in the plan; found while
+  reasoning about WPF initial binding order).
+- `_groupFontSize` cache invalidation on session/font-size change (not in the
+  plan).
+
+# Verification
+
+1. CI green: run `31790714375` (build + xUnit + artifact) on commits `be19570`
+   + `3d41f67`.
+2. Shipped config verified by grep of the downloaded artifact:
+   `GroupViewEnabled=true`, `GroupFontSize=14`, `LeaderBindings` includes
+   `p=GroupView`.
+3. Drop rsynced to the Windows box: `$HAP_WIN_TEST_DIR/hap-groupview/hap.exe`.
+4. On-box manual matrix (user): open → boxes only; type group char → only that
+   group's 1-char labels; 2nd char fires; Esc backs out to boxes, Esc closes;
+   `<leader>p` toggles to full labels and back; continuous mode returns to
+   boxes after a click; Tab monitor cycle re-boxes per monitor; suspend hides
+   boxes; snapshot/select 2-picks still work through the drill.
+
+See the companion report `20260814-*.group-view-labels.report.qmd` for the
+completion record.
