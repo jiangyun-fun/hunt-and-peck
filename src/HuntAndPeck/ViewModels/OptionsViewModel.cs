@@ -92,6 +92,16 @@ namespace HuntAndPeck.ViewModels
         public string OverlayAutoCloseSec { get { return Get("OverlayAutoCloseSec", "0"); } set { Set("OverlayAutoCloseSec", value); OnPropertyChanged("OverlayAutoCloseSec"); } }
         public string HideNonMatchingLabels { get { return Get("HideNonMatchingLabels", "true"); } set { Set("HideNonMatchingLabels", value); OnPropertyChanged("HideNonMatchingLabels"); } }
 
+        // Group view (progressive 1-char labels): opens with dotted first-char group
+        // boxes; <leader>p toggles it per-session. GroupFontSize is the box-corner key
+        // char size (0 = follow HintFontSize).
+        public bool GroupViewEnabled
+        {
+            get { return GetBoolDefault("GroupViewEnabled", true); }
+            set { Set("GroupViewEnabled", value ? "true" : "false"); OnPropertyChanged("GroupViewEnabled"); }
+        }
+        public string GroupFontSize { get { return Get("GroupFontSize", "14"); } set { Set("GroupFontSize", value); OnPropertyChanged("GroupFontSize"); } }
+
         public bool TimingLogEnabled
         {
             get { return GetBool("TimingLogEnabled"); }
@@ -111,6 +121,13 @@ namespace HuntAndPeck.ViewModels
         {
             bool b;
             return bool.TryParse(OverlayActionConfig.ReadRawString(key), out b) && b;
+        }
+
+        private static bool GetBoolDefault(string key, bool fallback)
+        {
+            bool b;
+            var raw = OverlayActionConfig.ReadRawString(key);
+            return bool.TryParse(raw, out b) ? b : fallback;
         }
 
         private static void Set(string key, string value)

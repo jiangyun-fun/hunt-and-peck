@@ -16,7 +16,9 @@
     <Grid x:Name="layoutGrid">
         <local:HintCanvas x:Name="hintCanvas" Width="{Binding Bounds.Width}" Height="{Binding Bounds.Height}"
                           HintsSource="{Binding Hints}" Opacity="{Binding LabelOpacity}"
-                          PillOpacity="{Binding PillOpacity}" HideInactive="{Binding HideInactive}">
+                          PillOpacity="{Binding PillOpacity}" HideInactive="{Binding HideInactive}"
+                          GroupView="{Binding GroupView}" GroupBoxesSource="{Binding GroupBoxes}"
+                          GroupMatchLength="{Binding MatchLength}" GroupFontSizeText="{Binding GroupFontSize}">
             <local:HintCanvas.RenderTransform>
                 <TranslateTransform X="{Binding OffsetX}" Y="{Binding OffsetY}" />
             </local:HintCanvas.RenderTransform>

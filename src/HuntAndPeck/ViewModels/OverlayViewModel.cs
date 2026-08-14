@@ -111,6 +111,18 @@ namespace HuntAndPeck.ViewModels
         // after construction.
         private bool _isQuadrantMode;
 
+        // --- Group view (progressive 1-char labels; GroupViewEnabled, <leader>p) ---
+        // The overlay opens showing ONE dotted box per first-char label group (<=29
+        // boxes) instead of every pill; typing a group char reveals only that group's
+        // points, labeled by their second char alone (HintCanvas strips the typed
+        // prefix). Same points/labels/coverage as the full view -- pure presentation.
+        // Grid-like sessions only (all-PointHint); zone mode and Automation opt out.
+        private readonly bool _groupViewConfigured;
+        private bool _groupViewOn;
+        private bool _groupable;
+        private IList<GroupHintBox> _groupBoxes;
+        private readonly string _groupFontSizeRaw;
+
         /// <summary>
         /// Single-session ctor: Automation, Grid+Window, and the headless /hint and
         /// /tray entry points. Wraps the session as a one-element list (Tab is a no-op).
@@ -164,6 +176,11 @@ namespace HuntAndPeck.ViewModels
             // Dimmed-label opacity (0-1) read once per overlay; used by LabelOpacity.
             _dimOpacity = OverlayActionConfig.ReadHintDimOpacity();
             _hideInactive = OverlayActionConfig.ReadHideNonMatchingLabels();
+            // Group view (progressive labels), read once per overlay; the effective
+            // state is per-session (_groupable) and toggleable via <leader>p.
+            _groupViewConfigured = OverlayActionConfig.ReadGroupViewEnabled();
+            _groupViewOn = _groupViewConfigured;
+            _groupFontSizeRaw = OverlayActionConfig.ReadGroupFontSize();
             // Text-span selection gesture (ShiftClick|Drag), read once per overlay.
             _selectMethod = OverlayActionConfig.ReadTextSelectMethod();
             _selectionActionsClose = OverlayActionConfig.ReadSelectionActionsClose();
@@ -260,7 +277,19 @@ namespace HuntAndPeck.ViewModels
             _zoneLabelToIndex = _zonePhase == ZonePhase.ZonePick
                 ? ZoneService.LabelToIndexMap(labels)
                 : null;
+            // Group view: each session (monitor / layout / quadrant) has its own labels,
+            // so groupability and boxes are recomputed per load. _groupable is the
+            // session's CAPABILITY (independent of _groupViewOn, so <leader>p can turn
+            // the view back on). Zone sessions never enable it (the zone ctor leaves
+            // _groupViewOn false).
+            _groupable = GroupViewService.IsGroupable(session.Hints, labels);
+            _groupBoxes = _groupViewOn && _groupable
+                ? GroupViewService.BuildGroupBoxes(fresh)
+                : null;
             NotifyOfPropertyChange(nameof(MatchString));
+            NotifyOfPropertyChange(nameof(MatchLength));
+            NotifyOfPropertyChange(nameof(GroupView));
+            NotifyOfPropertyChange(nameof(GroupBoxes));
             NotifyOfPropertyChange(nameof(Bounds));
         }
 
@@ -642,11 +671,60 @@ namespace HuntAndPeck.ViewModels
         /// </summary>
         public string MatchString => _match;
 
+        /// <summary>
+        /// Length of the typed label prefix. In group view, 0 = level 1 (group boxes
+        /// only) and greater = level 2 (only the matching group's pills, drawn with the
+        /// prefix stripped). Bound to HintCanvas.GroupMatchLength.
+        /// </summary>
+        public int MatchLength => _match.Length;
+
+        /// <summary>
+        /// Group view active for the current session: one dotted box per first-char
+        /// label group at level 1, prefix-stripped labels at level 2. False for zone
+        /// sessions, Automation / taskbar-merged sessions, and after <leader>p toggles
+        /// it off. Bound to HintCanvas.GroupView.
+        /// </summary>
+        public bool GroupView => _groupViewOn && _groupable;
+
+        /// <summary>
+        /// The current session's group boxes (null/empty when the group view is off).
+        /// Bound to HintCanvas.GroupBoxesSource.
+        /// </summary>
+        public IList<GroupHintBox> GroupBoxes => _groupBoxes;
+
+        /// <summary>
+        /// Group key-char font size as a raw string (GroupFontSize config; default 14,
+        /// 0 = follow HintFontSize). Bound to HintCanvas.GroupFontSizeText.
+        /// </summary>
+        public string GroupFontSize => _groupFontSizeRaw ?? _fontSizeRaw;
+
+        /// <summary>
+        /// &lt;leader&gt;p: toggle the group view (dotted first-char group boxes vs. the
+        /// full-label view) for this overlay session. No-op when the session is not
+        /// group-capable (zone mode, Automation / taskbar-merged). Clears any typed
+        /// prefix so the switch starts from a clean slate (level 1 boxes, or all labels).
+        /// </summary>
+        public void ToggleGroupView()
+        {
+            // Zone sessions have their own drill UX (zone pick -> filled); do not nest
+            // group view inside it.
+            if (_zonePhase != ZonePhase.Normal || !_groupable)
+            {
+                return;
+            }
+            _groupViewOn = !_groupViewOn;
+            ClearMatch();
+            _groupBoxes = _groupViewOn ? GroupViewService.BuildGroupBoxes(Hints) : null;
+            NotifyOfPropertyChange(nameof(GroupView));
+            NotifyOfPropertyChange(nameof(GroupBoxes));
+        }
+
         /// <summary>Appends one typed label character and runs the prefix match.</summary>
         public void AppendLabelChar(char c)
         {
             _match += char.ToUpperInvariant(c);
             NotifyOfPropertyChange(nameof(MatchString));
+            NotifyOfPropertyChange(nameof(MatchLength));
             ApplyMatch(_match);
         }
 
@@ -659,6 +737,7 @@ namespace HuntAndPeck.ViewModels
         {
             _match = "";
             NotifyOfPropertyChange(nameof(MatchString));
+            NotifyOfPropertyChange(nameof(MatchLength));
             // Re-highlight every label (yellow) so the next label is typeable. This is
             // the reset after each continuous-mode click (LoadSession also starts here).
             ApplyMatch(_match);
@@ -929,6 +1008,7 @@ namespace HuntAndPeck.ViewModels
                     case LeaderKind.ToggleDim: ToggleDimmed(); break;
                     case LeaderKind.Snapshot: EnterSnapshotRegion(); break;
                     case LeaderKind.SelectText: EnterSelectText(); break;
+                    case LeaderKind.ToggleGroupView: ToggleGroupView(); break;
                 }
             }
             else

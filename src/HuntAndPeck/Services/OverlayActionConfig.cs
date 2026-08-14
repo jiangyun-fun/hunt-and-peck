@@ -543,6 +543,40 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Whether the overlay opens in group view (hot-reload): one dotted box per
+        /// first-char label group instead of every pill; typing the group char reveals
+        /// only that group's points, labeled by their second char alone. Grid-like
+        /// sessions only (all-PointHint); &lt;leader&gt;p toggles it per-session.
+        /// Default true.
+        /// </summary>
+        public static bool ReadGroupViewEnabled()
+        {
+            try { EnsureFresh(); return ParseBool(ConfigurationManager.AppSettings["GroupViewEnabled"], true); }
+            catch (Exception) { return true; }
+        }
+
+        /// <summary>
+        /// Group key-char font size in px (hot-reload). Returns null when unset or not a
+        /// non-negative number so the caller can fall back to "14". "0" means follow the
+        /// label font size (HintCanvas treats non-positive as the label size).
+        /// </summary>
+        public static string ReadGroupFontSize()
+        {
+            try
+            {
+                EnsureFresh();
+                var raw = ConfigurationManager.AppSettings["GroupFontSize"];
+                int v;
+                return int.TryParse(raw, out v) && v >= 0 ? raw.Trim() : null;
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Reads the hint label font size (hot-reload). Returns null when unset or
         /// invalid so the caller can fall back to the Options-dialog default.
         /// </summary>

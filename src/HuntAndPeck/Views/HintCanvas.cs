@@ -34,11 +34,24 @@ namespace HuntAndPeck.Views
 
         private readonly VisualCollection _visuals;
 
+        // Group view: the dedicated visual that draws the first-char group boxes
+        // (dotted rects + key-char pills). Always _visuals[0], BELOW the hint pills
+        // (they never intentionally coexist; this just keeps transient re-renders sane).
+        private readonly DrawingVisual _groupVisual;
+
         // Parallel by index: the view-model, its cached text, and the visual that draws it.
         private List<HintViewModel> _hints;
         private FormattedText[] _formatted;
         private List<DrawingVisual> _visualByHint;
         private double _fontSize = 14;
+
+        // Group view state: the parsed boxes, their cached char texts, the suffix
+        // texts for level 2 (label minus the typed prefix), and the parsed group
+        // char font size (0 = follow the label size).
+        private List<GroupHintBox> _groupBoxes = new List<GroupHintBox>();
+        private List<FormattedText> _groupTexts = new List<FormattedText>();
+        private Dictionary<int, FormattedText> _suffixFormatted;
+        private double _groupFontSize;
 
         // Device scale (TransformToDevice) of the overlay's monitor; set by
         // OverlayView. Label SIZE constants are multiplied by this (see DpiScale).
@@ -58,6 +71,8 @@ namespace HuntAndPeck.Views
         public HintCanvas()
         {
             _visuals = new VisualCollection(this);
+            _groupVisual = new DrawingVisual();
+            _visuals.Add(_groupVisual);
             BuildBrushes();
         }
 
@@ -117,6 +132,110 @@ namespace HuntAndPeck.Views
         }
 
         /// <summary>
+        /// Group view on/off (bound from the view-model; <c>GroupViewEnabled</c> config,
+        /// toggled live by <c>&lt;leader&gt;p</c>). While on and no label prefix is typed,
+        /// only the group boxes show (every hint pill renders nothing); once a prefix is
+        /// typed, only the matching group's pills show, labeled by the label minus the
+        /// typed prefix (the group char is known, so just the second char displays).
+        /// Changing it re-renders every hint plus the group visual.
+        /// </summary>
+        public static readonly DependencyProperty GroupViewProperty =
+            DependencyProperty.Register("GroupView", typeof(bool), typeof(HintCanvas),
+                new FrameworkPropertyMetadata(false, OnGroupViewChanged));
+
+        public bool GroupView
+        {
+            get { return (bool)GetValue(GroupViewProperty); }
+            set { SetValue(GroupViewProperty, value); }
+        }
+
+        private static void OnGroupViewChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var c = (HintCanvas)d;
+            c.RenderGroupVisual();
+            c.ReRenderAllHints();
+        }
+
+        /// <summary>
+        /// The group boxes (IList of <see cref="GroupHintBox"/>), one per first-char
+        /// label group, rebuilt by the view-model on each session load. Changing it
+        /// rebuilds the cached key-char texts and re-renders the group visual.
+        /// </summary>
+        public static readonly DependencyProperty GroupBoxesSourceProperty =
+            DependencyProperty.Register("GroupBoxesSource", typeof(IList), typeof(HintCanvas),
+                new FrameworkPropertyMetadata(OnGroupBoxesSourceChanged));
+
+        public IList GroupBoxesSource
+        {
+            get { return (IList)GetValue(GroupBoxesSourceProperty); }
+            set { SetValue(GroupBoxesSourceProperty, value); }
+        }
+
+        private static void OnGroupBoxesSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var c = (HintCanvas)d;
+            c.ParseGroupBoxes();
+            c.RenderGroupVisual();
+        }
+
+        /// <summary>
+        /// Length of the typed label prefix (bound from the view-model's match string).
+        /// In group view, 0 = level 1 (boxes only) and greater = level 2 (prefix-stripped
+        /// labels). Changing it clears the suffix-text cache and re-renders everything.
+        /// </summary>
+        public static readonly DependencyProperty GroupMatchLengthProperty =
+            DependencyProperty.Register("GroupMatchLength", typeof(int), typeof(HintCanvas),
+                new FrameworkPropertyMetadata(0, OnGroupMatchLengthChanged));
+
+        public int GroupMatchLength
+        {
+            get { return (int)GetValue(GroupMatchLengthProperty); }
+            set { SetValue(GroupMatchLengthProperty, value); }
+        }
+
+        private static void OnGroupMatchLengthChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var c = (HintCanvas)d;
+            c._suffixFormatted = null;
+            c.RenderGroupVisual();
+            c.ReRenderAllHints();
+        }
+
+        /// <summary>
+        /// Group key-char font size as a raw string (hot-reload; 0/blank = follow the
+        /// label font size). Changing it rebuilds the cached key-char texts and
+        /// re-renders the group visual.
+        /// </summary>
+        public static readonly DependencyProperty GroupFontSizeTextProperty =
+            DependencyProperty.Register("GroupFontSizeText", typeof(string), typeof(HintCanvas),
+                new FrameworkPropertyMetadata(OnGroupFontSizeTextChanged));
+
+        public string GroupFontSizeText
+        {
+            get { return (string)GetValue(GroupFontSizeTextProperty); }
+            set { SetValue(GroupFontSizeTextProperty, value); }
+        }
+
+        private static void OnGroupFontSizeTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var c = (HintCanvas)d;
+            c._groupFontSize = 0;   // invalidate the parsed cache so the new size applies
+            c.ParseGroupBoxes();
+            c.RenderGroupVisual();
+        }
+
+        private void ReRenderAllHints()
+        {
+            if (_hints != null)
+            {
+                for (int i = 0; i < _hints.Count; i++)
+                {
+                    RenderHint(i);
+                }
+            }
+        }
+
+        /// <summary>
         /// Device scale factor (TransformToDevice) of the overlay's monitor. Label
         /// SIZE constants (font emSize, padding, corner radius) are scaled by this so
         /// they render DPI-correct; hint POSITIONS stay in physical px (they already
@@ -139,11 +258,14 @@ namespace HuntAndPeck.Views
                 if (_hints != null && _hints.Count > 0)
                 {
                     BuildFormatted();
+                    _suffixFormatted = null;      // emSize depends on DPI; rebuild lazily
                     for (int i = 0; i < _hints.Count; i++)
                     {
                         RenderHint(i);
                     }
                 }
+                ParseGroupBoxes();                // group char texts are DPI-scaled too
+                RenderGroupVisual();
             }
         }
 
@@ -189,9 +311,13 @@ namespace HuntAndPeck.Views
             var c = (HintCanvas)d;
             c.DetachAll();
             c._visuals.Clear();
+            // The group visual is a permanent child (index 0, below the pills).
+            c._visuals.Add(c._groupVisual);
             c._hints = null;
             c._formatted = null;
             c._visualByHint = null;
+            c._suffixFormatted = null;
+            c._groupFontSize = 0;      // fallback follows the (possibly new) label size
 
             var list = e.NewValue as IList;
             if (list != null && list.Count > 0)
@@ -273,9 +399,22 @@ namespace HuntAndPeck.Views
             _formatted = new FormattedText[_hints.Count];
             for (int i = 0; i < _hints.Count; i++)
             {
-                _formatted[i] = new FormattedText(_hints[i].Label ?? "", CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight, _typeface, emSize, TextBrush);
+                _formatted[i] = BuildText(_hints[i].Label ?? "", emSize);
             }
+            // The typeface just came into existence: if the boxes binding pulled before
+            // the hints binding (initial attach order is not guaranteed), re-parse so the
+            // key-char texts build now.
+            if (_groupBoxes.Count == 0 && GroupBoxesSource != null && GroupBoxesSource.Count > 0)
+            {
+                ParseGroupBoxes();
+            }
+        }
+
+        /// <summary>Builds a label <see cref="FormattedText"/> with the cached typeface.</summary>
+        private FormattedText BuildText(string text, double emSize)
+        {
+            return new FormattedText(text, CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight, _typeface, emSize, TextBrush);
         }
 
         /// <summary>
@@ -299,17 +438,38 @@ namespace HuntAndPeck.Views
         /// transparent rounded pill plus the cached label text, positioned at the hint's
         /// bounds. Overall dim/hide is driven by the canvas <c>Opacity</c> (bound to
         /// <c>LabelOpacity</c>), not here.
+        /// <para>
+        /// Group view changes what shows: with no typed prefix (level 1) every pill is
+        /// suppressed so only the group boxes draw; with a prefix (level 2) matching
+        /// hints draw with the prefix stripped from their text (only the second char
+        /// shows) and non-matching hints are hidden regardless of <c>HideInactive</c>.
+        /// </para>
         /// </summary>
         private void RenderHint(int i)
         {
             var h = _hints[i];
-            // Hide-non-matching: an inactive label renders nothing (clears its visual).
-            if (!h.Active && HideInactive)
+            FormattedText ft;
+            if (GroupView)
             {
-                using (var dc = _visualByHint[i].RenderOpen()) { }
-                return;
+                // Level 1 (no prefix): boxes only -- suppress every pill.
+                // Level 2: matching pills with the prefix stripped; others hidden.
+                if (GroupMatchLength == 0 || !h.Active)
+                {
+                    using (var dc = _visualByHint[i].RenderOpen()) { }
+                    return;
+                }
+                ft = SuffixText(i);
             }
-            var ft = _formatted[i];
+            else
+            {
+                // Hide-non-matching: an inactive label renders nothing (clears its visual).
+                if (!h.Active && HideInactive)
+                {
+                    using (var dc = _visualByHint[i].RenderOpen()) { }
+                    return;
+                }
+                ft = _formatted[i];
+            }
             var br = h.Hint.BoundingRectangle;
 
             // Scale the size constants by the device DPI so the pill renders at a
@@ -341,6 +501,144 @@ namespace HuntAndPeck.Views
                     new Rect(x, y, pillW, pillH), radius, radius);
                 dc.DrawText(ft, new Point(x + pad, y + pad));
             }
+        }
+
+        // -------- Group view (progressive 1-char labels) --------
+
+        // Visual padding around a group box's tight bounds so the box reads as enclosing
+        // the labels that will appear inside it.
+        private const double GroupBoxPad = 5.0;
+
+        /// <summary>
+        /// Parses <see cref="GroupBoxesSource"/> into the local box list and (re)builds
+        /// the cached key-char texts. The char font size is <see cref="GroupFontSizeText"/>
+        /// when positive, else the label font size. Key-char texts are only built once the
+        /// label typeface exists (BuildFormatted assigns it); if the boxes binding pulls
+        /// before the hints binding on the initial attach, BuildFormatted re-parses.
+        /// </summary>
+        private void ParseGroupBoxes()
+        {
+            _groupBoxes.Clear();
+            _groupTexts.Clear();
+            if (_typeface == null)
+            {
+                return;
+            }
+
+            var src = GroupBoxesSource;
+            if (src != null)
+            {
+                foreach (var item in src)
+                {
+                    if (item is GroupHintBox)
+                    {
+                        var g = (GroupHintBox)item;
+                        _groupBoxes.Add(g);
+                        _groupTexts.Add(BuildText(g.Key.ToString(CultureInfo.CurrentCulture), GroupCharEmSize()));
+                    }
+                }
+            }
+        }
+
+        private double GroupCharEmSize()
+        {
+            if (_groupFontSize <= 0)
+            {
+                double fs;
+                if (!double.TryParse(GroupFontSizeText, out fs) || fs <= 0)
+                {
+                    fs = _fontSize; // 0/blank = follow the label font size
+                }
+                _groupFontSize = fs;
+            }
+            return _groupFontSize * _dpi;
+        }
+
+        /// <summary>
+        /// Draws (or clears) the group boxes: one dotted rounded rect per group plus its
+        /// key char in a small yellow pill at the box's top-left corner. Only drawn at
+        /// level 1 (GroupView on, no typed prefix); at level 2 the boxes clear so only
+        /// the group's prefix-stripped pills show.
+        /// </summary>
+        private void RenderGroupVisual()
+        {
+            bool show = GroupView && GroupMatchLength == 0
+                && _groupBoxes != null && _groupBoxes.Count > 0;
+            if (!show)
+            {
+                using (var dc = _groupVisual.RenderOpen()) { }
+                return;
+            }
+
+            double pad = Pad * _dpi;
+            double radius = DefaultCornerRadius * _dpi;
+            double inflate = GroupBoxPad * _dpi;
+            using (var dc = _groupVisual.RenderOpen())
+            {
+                for (int i = 0; i < _groupBoxes.Count; i++)
+                {
+                    var g = _groupBoxes[i];
+                    var rect = new Rect(
+                        g.Bounds.Left - inflate,
+                        g.Bounds.Top - inflate,
+                        g.Bounds.Width + inflate * 2,
+                        g.Bounds.Height + inflate * 2);
+                    dc.DrawRoundedRectangle(null, DottedPen(), rect, radius, radius);
+
+                    // Key-char pill just inside the box's top-left corner.
+                    var ft = _groupTexts[i];
+                    double pillW = ft.Width + pad * 2;
+                    double pillH = ft.Height + pad * 2;
+                    double px = rect.Left + inflate * 0.5;
+                    double py = rect.Top + inflate * 0.5;
+                    dc.DrawRoundedRectangle(_activeBg, null,
+                        new Rect(px, py, pillW, pillH), radius, radius);
+                    dc.DrawText(ft, new Point(px + pad, py + pad));
+                }
+            }
+        }
+
+        /// <summary>
+        /// The label text for hint <paramref name="i"/> in group-view level 2: the full
+        /// label minus the typed prefix (the group char is already known, so only what
+        /// remains -- typically the single second char -- displays). Cached per index;
+        /// the cache lives until the match length or the session changes.
+        /// </summary>
+        private FormattedText SuffixText(int i)
+        {
+            FormattedText ft;
+            if (_suffixFormatted != null && _suffixFormatted.TryGetValue(i, out ft))
+            {
+                return ft;
+            }
+            var label = _hints[i].Label ?? "";
+            int len = Math.Min(GroupMatchLength, label.Length);
+            ft = BuildText(len < label.Length ? label.Substring(len) : string.Empty, _fontSize * _dpi);
+            if (_suffixFormatted == null)
+            {
+                _suffixFormatted = new Dictionary<int, FormattedText>();
+            }
+            _suffixFormatted[i] = ft;
+            return ft;
+        }
+
+        /// <summary>
+        /// The dotted box outline pen (round dash cap + a 0-length dash = round dots).
+        /// Dash values are multiples of the pen thickness in WPF.
+        /// </summary>
+        private Pen _dottedPen;
+
+        private Pen DottedPen()
+        {
+            if (_dottedPen == null || _dottedPen.Thickness != 1.5 * _dpi)
+            {
+                var pen = new Pen(new SolidColorBrush(Color.FromArgb(0xB4, 0x40, 0x40, 0x40)), 1.5 * _dpi);
+                pen.DashStyle = new DashStyle(new DoubleCollection { 0.0, 3.0 }, 0);
+                pen.DashCap = PenLineCap.Round;
+                pen.Freeze();
+                _dottedPen = pen;
+            }
+            return _dottedPen;
         }
     }
 }

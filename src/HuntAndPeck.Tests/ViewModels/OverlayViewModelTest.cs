@@ -1,4 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
+using HuntAndPeck.Models;
+using HuntAndPeck.Services;
 using HuntAndPeck.ViewModels;
 using Xunit;
 
@@ -6,6 +11,40 @@ namespace HuntAndPeck.Tests.ViewModels
 {
     public class OverlayViewModelTest
     {
+        [Fact]
+        public void GroupView_GridSession_DefaultsOn_AndToggles()
+        {
+            // 40 PointHints in a row: labels are 1-2 chars (capacity > 40), so the
+            // session is groupable and GroupViewEnabled defaults true.
+            var hints = new List<Hint>();
+            for (int i = 0; i < 40; i++)
+            {
+                hints.Add(new PointHint(IntPtr.Zero, new Rect(i * 10, 0, 8, 8), new Point(i * 10, 4)));
+            }
+            var session = new HintSession
+            {
+                Hints = hints,
+                OwningWindow = IntPtr.Zero,
+                OwningWindowBounds = new Rect(0, 0, 400, 100)
+            };
+            var vm = new OverlayViewModel(session, new HintLabelService());
+
+            // On by default: one box per distinct label first char, no prefix typed.
+            Assert.True(vm.GroupView);
+            Assert.NotNull(vm.GroupBoxes);
+            Assert.Equal(vm.Hints.Select(h => h.Label[0]).Distinct().Count(), vm.GroupBoxes.Count);
+            Assert.Equal(0, vm.MatchLength);
+
+            // <leader>p semantics: off -> boxes null; back on -> boxes return.
+            vm.ToggleGroupView();
+            Assert.False(vm.GroupView);
+            Assert.Null(vm.GroupBoxes);
+
+            vm.ToggleGroupView();
+            Assert.True(vm.GroupView);
+            Assert.NotNull(vm.GroupBoxes);
+        }
+
         [Fact]
         public void NormalizeRegion_CornersInOrder_YieldsPositiveRect()
         {

@@ -10,9 +10,9 @@ namespace HuntAndPeck.Tests.Services
         {
             // Mirrors the shipped LeaderBindings value (no q: Q is the direct close alias).
             var list = LeaderBindingConfig.ParseLeaderBindings(
-                "l=Left,r=Right,d=Double,t=Triple,m=Move,z=Suspend,g=CycleLayout,i=ToggleDim,s=Snapshot,v=SelectText");
+                "l=Left,r=Right,d=Double,t=Triple,m=Move,z=Suspend,g=CycleLayout,i=ToggleDim,s=Snapshot,v=SelectText,p=GroupView");
 
-            Assert.Equal(10, list.Count);
+            Assert.Equal(11, list.Count);
             AssertBinding(list, 'L', LeaderKind.Mode, ClickAction.Left);
             AssertBinding(list, 'R', LeaderKind.Mode, ClickAction.Right);
             AssertBinding(list, 'D', LeaderKind.Mode, ClickAction.Double);
@@ -23,6 +23,7 @@ namespace HuntAndPeck.Tests.Services
             AssertBinding(list, 'I', LeaderKind.ToggleDim);
             AssertBinding(list, 'S', LeaderKind.Snapshot);
             AssertBinding(list, 'V', LeaderKind.SelectText);
+            AssertBinding(list, 'P', LeaderKind.ToggleGroupView);
         }
 
         [Fact]
@@ -57,6 +58,22 @@ namespace HuntAndPeck.Tests.Services
             // "Select" is an alias for "SelectText".
             var b = Assert.Single(LeaderBindingConfig.ParseLeaderBindings("v=Select"));
             Assert.Equal(LeaderKind.SelectText, b.Kind);
+        }
+
+        [Fact]
+        public void Parse_GroupViewTarget()
+        {
+            var b = Assert.Single(LeaderBindingConfig.ParseLeaderBindings("p=GroupView"));
+            Assert.Equal('P', b.Key);
+            Assert.Equal(LeaderKind.ToggleGroupView, b.Kind);
+        }
+
+        [Fact]
+        public void Parse_GroupsAlias()
+        {
+            // "Groups" is an alias for "GroupView".
+            var b = Assert.Single(LeaderBindingConfig.ParseLeaderBindings("b=Groups"));
+            Assert.Equal(LeaderKind.ToggleGroupView, b.Kind);
         }
 
         [Theory]
@@ -122,11 +139,12 @@ namespace HuntAndPeck.Tests.Services
             // must be returned and be non-empty. No Q binding: Q is the direct
             // Esc/close alias in the hook, so a <leader>q binding could never fire.
             var list = LeaderBindingConfig.ReadLeaderBindings();
-            Assert.True(list.Count >= 9);
+            Assert.True(list.Count >= 10);
             Assert.Contains(list, b => b.Key == 'L' && b.Kind == LeaderKind.Mode && b.Mode == ClickAction.Left);
             Assert.Contains(list, b => b.Key == 'S' && b.Kind == LeaderKind.Snapshot);
             Assert.Contains(list, b => b.Key == 'T' && b.Kind == LeaderKind.Mode && b.Mode == ClickAction.Triple);
             Assert.Contains(list, b => b.Key == 'V' && b.Kind == LeaderKind.SelectText);
+            Assert.Contains(list, b => b.Key == 'P' && b.Kind == LeaderKind.ToggleGroupView);
             Assert.DoesNotContain(list, b => b.Key == 'Q');
         }
 
@@ -134,7 +152,7 @@ namespace HuntAndPeck.Tests.Services
         public void DisplayLabel_DescribesEachBinding()
         {
             var list = LeaderBindingConfig.ParseLeaderBindings(
-                "l=Left,r=Right,d=Double,t=Triple,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim,s=Snapshot,v=SelectText");
+                "l=Left,r=Right,d=Double,t=Triple,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim,s=Snapshot,v=SelectText,p=GroupView");
 
             Assert.Equal("left click", Find(list, 'L').DisplayLabel());
             Assert.Equal("right click", Find(list, 'R').DisplayLabel());
@@ -147,6 +165,7 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal("toggle dim", Find(list, 'I').DisplayLabel());
             Assert.Equal("snapshot region", Find(list, 'S').DisplayLabel());
             Assert.Equal("select text", Find(list, 'V').DisplayLabel());
+            Assert.Equal("toggle group view", Find(list, 'P').DisplayLabel());
         }
 
         private static void AssertBinding(System.Collections.Generic.IReadOnlyList<LeaderBinding> list,

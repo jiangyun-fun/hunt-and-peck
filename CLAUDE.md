@@ -123,7 +123,8 @@ Two kinds of settings:
   `ClickModeOrder` (only the first entry matters now — it is the default mode; Space no longer cycles),
   `TextSelectMethod`, `SelectionActionsClose`, `TopmostReassertEnabled`, `LeaderBindings`, `ArrowKeyBehavior`, `MaxEnumerationDepth`, `GridLayouts`, `TimingLogEnabled`,
   `ZoneZoomEnabled`, `ZoneCols`, `ZoneRows`, `ZoneFontSize`, `ZoneZoomReturnToPickOnFire`,
-  `ZoneGridStep`, `ZoneWidth`, `ZoneHeight`, `OverlayAutoCloseSec`, `HideNonMatchingLabels`.
+  `ZoneGridStep`, `ZoneWidth`, `ZoneHeight`, `OverlayAutoCloseSec`, `HideNonMatchingLabels`,
+  `GroupViewEnabled`, `GroupFontSize`.
   (`ActiveLayout` is also in appSettings but is rewritten by `<leader>g`, not hand-edited.)
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
@@ -175,6 +176,24 @@ through to the app — do not put `Q` or `0–9` in `HintCharacters`.
 - **Labels are all highlighted (yellow) at start**; typing narrows the highlight to the
   matching labels; a unique match fires. (In continuous mode the highlight resets to
   all-yellow after each click.)
+- **Group view (progressive 1-char labels; `GroupViewEnabled`, default on; `<leader>p`
+  toggles per-session)**: the overlay opens with ONE dotted box per first-char label
+  group (≤29 boxes, the group's key char in a small pill at each box's top-left corner)
+  instead of every pill. Type a group char → only that group's points show, labeled by
+  their SECOND char alone; the second char fires the click (still 2 keystrokes). Same
+  points, labels and coverage as the full view (29×29 = 841) — pure presentation over
+  the existing prefix-match machinery: far fewer labels on screen at once (the text
+  behind stays readable, less overlap) and the next char is only revealed after the
+  first is pressed (sequential, so no mis-typed second char from memory). Labels are
+  ordinal-sorted and assigned in grid emission order, so each first char names a
+  spatially coherent chunk (≈ one grid column on the default uniform layout). `Esc`
+  backs out to the boxes (clears the prefix; `Esc` again closes); continuous mode
+  returns to the boxes after each click; `<leader>s`/`v` 2-picks work through it.
+  Non-matching labels are hidden at level 2 regardless of `HideNonMatchingLabels`.
+  Applies wherever the session is grid-like (all-`PointHint`: Grid+Screen, Grid+Window
+  **without** a taskbar merge, quadrants); Automation, taskbar-merged and zone sessions
+  keep full labels (their assignment order is not spatially coherent). `GroupFontSize`
+  (default 14, `0` = follow `HintFontSize`) sizes the box-corner key chars.
 - **Arrows move focus in the app beneath** by default (`ArrowKeyBehavior=Passthrough`) — e.g.
   Excel cell nav, list selection — so the dedicated arrow cluster is no longer eaten by the
   overlay. Set `ArrowKeyBehavior=Pan` to restore legacy arrow-panning (plain arrows 3 px,
@@ -195,7 +214,8 @@ through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   entry, Left) after every click. Default bindings (`LeaderBindings`, hot-reload):
   `<leader>l/r/d/m/t` = Left/Right/Double/Move/Triple (plain `Q` closes), `<leader>z` = suspend,
   `<leader>g` = cycle layout, `<leader>i` = toggle dim, `<leader>s` = snapshot region (see
-  below), `<leader>v` = select text span (see below). The badge still shows the active mode.
+  below), `<leader>v` = select text span (see below), `<leader>p` = toggle group view (see
+  above). The badge still shows the active mode.
 - **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
   current mode (left / right / double / triple click via `mouse_event`, or move-only).
   **Triple click** (`<leader>t`) = three rapid left clicks — selects a whole line in most

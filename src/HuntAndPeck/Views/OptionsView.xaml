@@ -111,6 +111,11 @@
                     <TextBlock Text="Hide non-matching labels after first char (true/false)" FontWeight="Bold" />
                     <TextBox Text="{Binding HideNonMatchingLabels}" Margin="0,2,0,10" />
 
+                    <CheckBox Content="Group view: open with dotted first-char group boxes, not every label (&lt;leader&gt;p toggles)" IsChecked="{Binding GroupViewEnabled}" Margin="0,4,0,6" />
+
+                    <TextBlock Text="Group key-char font size px (0 = follow font size)" FontWeight="Bold" />
+                    <TextBox Text="{Binding GroupFontSize}" Margin="0,2,0,10" />
+
                     <TextBlock Text="Hotkey key (System.Windows.Forms.Keys name)" FontWeight="Bold" />
                     <TextBox Text="{Binding HotkeyKey}" Margin="0,2,0,10" />
 

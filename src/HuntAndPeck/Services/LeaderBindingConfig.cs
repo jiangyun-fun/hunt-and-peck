@@ -24,7 +24,9 @@ namespace HuntAndPeck.Services
         /// <summary>Enter snapshot-region mode (2-pick; captures the rectangle to the clipboard).</summary>
         Snapshot,
         /// <summary>Enter text-span selection (2-pick; selects the text between two labels).</summary>
-        SelectText
+        SelectText,
+        /// <summary>Toggle the group view (dotted first-char group boxes vs. full labels).</summary>
+        ToggleGroupView
     }
 
     /// <summary>
@@ -66,6 +68,7 @@ namespace HuntAndPeck.Services
                 case LeaderKind.ToggleDim: return "toggle dim";
                 case LeaderKind.Snapshot: return "snapshot region";
                 case LeaderKind.SelectText: return "select text";
+                case LeaderKind.ToggleGroupView: return "toggle group view";
                 default: return Kind.ToString().ToLowerInvariant();
             }
         }
@@ -87,7 +90,8 @@ namespace HuntAndPeck.Services
 
         // Default leader map. No `q` binding: Q is the direct Esc/close alias in the
         // keyboard hook (it classifies as Escape before label input, so a <leader>q
-        // binding could never fire). `s` = snapshot region, `v` = select text span.
+        // binding could never fire). `s` = snapshot region, `v` = select text span,
+        // `p` = toggle group view (dotted first-char boxes vs. full labels).
         private static readonly LeaderBinding[] DefaultBindings =
         {
             new LeaderBinding('L', LeaderKind.Mode, ClickAction.Left),
@@ -100,6 +104,7 @@ namespace HuntAndPeck.Services
             new LeaderBinding('I', LeaderKind.ToggleDim),
             new LeaderBinding('S', LeaderKind.Snapshot),
             new LeaderBinding('V', LeaderKind.SelectText),
+            new LeaderBinding('P', LeaderKind.ToggleGroupView),
         };
 
         /// <summary>
@@ -183,6 +188,8 @@ namespace HuntAndPeck.Services
                 case "SNAPSHOT": return new LeaderBinding(key, LeaderKind.Snapshot);
                 case "SELECTTEXT":
                 case "SELECT": return new LeaderBinding(key, LeaderKind.SelectText);
+                case "GROUPVIEW":
+                case "GROUPS": return new LeaderBinding(key, LeaderKind.ToggleGroupView);
                 default: return null; // unknown target -> skip
             }
         }
