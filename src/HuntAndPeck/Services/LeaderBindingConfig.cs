@@ -85,7 +85,9 @@ namespace HuntAndPeck.Services
         /// <summary>The App.config key for the leader binding list.</summary>
         public const string AppSettingKey = "LeaderBindings";
 
-        // Default leader map. `s` = snapshot region (2-pick; captures to the clipboard).
+        // Default leader map. No `q` binding: Q is the direct Esc/close alias in the
+        // keyboard hook (it classifies as Escape before label input, so a <leader>q
+        // binding could never fire). `s` = snapshot region, `v` = select text span.
         private static readonly LeaderBinding[] DefaultBindings =
         {
             new LeaderBinding('L', LeaderKind.Mode, ClickAction.Left),
@@ -93,7 +95,6 @@ namespace HuntAndPeck.Services
             new LeaderBinding('D', LeaderKind.Mode, ClickAction.Double),
             new LeaderBinding('T', LeaderKind.Mode, ClickAction.Triple),
             new LeaderBinding('M', LeaderKind.Mode, ClickAction.Move),
-            new LeaderBinding('Q', LeaderKind.Close),
             new LeaderBinding('Z', LeaderKind.Suspend),
             new LeaderBinding('G', LeaderKind.CycleLayout),
             new LeaderBinding('I', LeaderKind.ToggleDim),

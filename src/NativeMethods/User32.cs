@@ -178,11 +178,12 @@ namespace HuntAndPeck.NativeMethods
         public const int VK_RIGHT = 0x27;
         public const int VK_DOWN = 0x28;
         public const int VK_0 = 0x30;
-        public const int VK_1 = 0x31;  // close overlay (Esc alias) -- digit labels retired
+        public const int VK_1 = 0x31;  // passes through to the app (Esc alias moved to Q)
         public const int VK_2 = 0x32;  // suspend (was `\`)
         public const int VK_3 = 0x33;  // cycle grid layout (was `;`)
         public const int VK_9 = 0x39;
         public const int VK_A = 0x41;
+        public const int VK_Q = 0x51;  // close overlay (Esc alias); reserved, not a label
         public const int VK_Z = 0x5A;
         public const int VK_C = 0x43;  // Ctrl+C (regression guard: Ctrl+letter passthrough)
         public const int VK_V = 0x56;  // Ctrl+V (regression guard: Ctrl+letter passthrough)

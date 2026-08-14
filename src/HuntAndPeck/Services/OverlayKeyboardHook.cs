@@ -378,11 +378,14 @@ namespace HuntAndPeck.Services
             // already handled above.
             if (!(ctrl || win))
             {
-                // 1 = close (Esc alias) -- kept direct for convenience. The other former
-                // digit/backtick functions (suspend, cycle-layout, toggle-dim) moved under
-                // the leader (<leader>z/g/i); 2/3 and backtick now pass through to the app
-                // (LabelCharForVk returns null for them, so they fall through to None).
-                if (vkCode == User32.VK_1) return Action(OverlayKeyActionKind.Escape);
+                // Q = close (Esc alias) -- kept direct for convenience. Q is therefore a
+                // RESERVED letter: the default HintCharacters excludes it (a label
+                // containing Q could never be typed), and <leader>q cannot fire (Q
+                // classifies as Escape before label input, and HandleEscape cancels a
+                // pending leader). Digits 0-9 are NOT aliases -- `1` was unaliased, so
+                // all digits pass through to the app (LabelCharForVk returns null for
+                // them, so they fall through to None).
+                if (vkCode == User32.VK_Q) return Action(OverlayKeyActionKind.Escape);
 
                 // Label-character input: letters are always typeable; OEM punctuation
                 // only when its (US-layout) char is in the configured HintCharacters.

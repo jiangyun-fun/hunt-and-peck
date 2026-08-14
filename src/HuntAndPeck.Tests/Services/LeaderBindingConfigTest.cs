@@ -8,16 +8,16 @@ namespace HuntAndPeck.Tests.Services
         [Fact]
         public void Parse_FullDefaultString_YieldsAllBindings()
         {
+            // Mirrors the shipped LeaderBindings value (no q: Q is the direct close alias).
             var list = LeaderBindingConfig.ParseLeaderBindings(
-                "l=Left,r=Right,d=Double,t=Triple,m=Move,q=Close,z=Suspend,g=CycleLayout,i=ToggleDim,s=Snapshot,v=SelectText");
+                "l=Left,r=Right,d=Double,t=Triple,m=Move,z=Suspend,g=CycleLayout,i=ToggleDim,s=Snapshot,v=SelectText");
 
-            Assert.Equal(11, list.Count);
+            Assert.Equal(10, list.Count);
             AssertBinding(list, 'L', LeaderKind.Mode, ClickAction.Left);
             AssertBinding(list, 'R', LeaderKind.Mode, ClickAction.Right);
             AssertBinding(list, 'D', LeaderKind.Mode, ClickAction.Double);
             AssertBinding(list, 'T', LeaderKind.Mode, ClickAction.Triple);
             AssertBinding(list, 'M', LeaderKind.Mode, ClickAction.Move);
-            AssertBinding(list, 'Q', LeaderKind.Close);
             AssertBinding(list, 'Z', LeaderKind.Suspend);
             AssertBinding(list, 'G', LeaderKind.CycleLayout);
             AssertBinding(list, 'I', LeaderKind.ToggleDim);
@@ -119,14 +119,15 @@ namespace HuntAndPeck.Tests.Services
         public void ReadLeaderBindings_FallsBackToDefault_WhenKeyAbsent()
         {
             // The test App.config does not define LeaderBindings, so the default map
-            // (l/r/d/m/q/z/g/i) must be returned and be non-empty.
+            // must be returned and be non-empty. No Q binding: Q is the direct
+            // Esc/close alias in the hook, so a <leader>q binding could never fire.
             var list = LeaderBindingConfig.ReadLeaderBindings();
-            Assert.True(list.Count >= 8);
+            Assert.True(list.Count >= 9);
             Assert.Contains(list, b => b.Key == 'L' && b.Kind == LeaderKind.Mode && b.Mode == ClickAction.Left);
-            Assert.Contains(list, b => b.Key == 'Q' && b.Kind == LeaderKind.Close);
             Assert.Contains(list, b => b.Key == 'S' && b.Kind == LeaderKind.Snapshot);
             Assert.Contains(list, b => b.Key == 'T' && b.Kind == LeaderKind.Mode && b.Mode == ClickAction.Triple);
             Assert.Contains(list, b => b.Key == 'V' && b.Kind == LeaderKind.SelectText);
+            Assert.DoesNotContain(list, b => b.Key == 'Q');
         }
 
         [Fact]

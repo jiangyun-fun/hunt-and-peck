@@ -112,11 +112,20 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Fact]
-        public void Digit1_MapsToEscape()
+        public void LetterQ_MapsToEscape()
         {
-            // `1` is the close alias (Esc), not a label.
-            var act = OverlayKeyboardHook.Classify(User32.VK_1, false, false);
+            // `Q` is the close alias (Esc) -- reserved, so the default HintCharacters
+            // excludes it (a Q-label could never be typed).
+            var act = OverlayKeyboardHook.Classify(User32.VK_Q, false, false);
             Assert.Equal(OverlayKeyActionKind.Escape, act.Kind);
+        }
+
+        [Fact]
+        public void Digit1_PassesThrough()
+        {
+            // `1` was unaliased (Q is the close alias now); it reaches the app.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_1, false, false).Kind);
         }
 
         [Fact]
@@ -155,6 +164,14 @@ namespace HuntAndPeck.Tests.Services
             // Ctrl+digit is an app shortcut, not an overlay function.
             Assert.Equal(OverlayKeyActionKind.None,
                 OverlayKeyboardHook.Classify(vk, false, true).Kind);
+        }
+
+        [Fact]
+        public void CtrlQ_PassesThrough()
+        {
+            // The Q close-alias must not eat the Ctrl+Q app shortcut.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_Q, false, true).Kind);
         }
 
         [Fact]

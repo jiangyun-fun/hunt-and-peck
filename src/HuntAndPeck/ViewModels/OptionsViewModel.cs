@@ -58,7 +58,10 @@ namespace HuntAndPeck.ViewModels
 
         public string HintCharacters
         {
-            get { return Get("HintCharacters", "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"); }
+            // Mirrors the shipped App.config default: A-Z minus Q (the direct close/Esc
+            // alias in the overlay hook) plus the ;',/ punctuation. Digits are never
+            // typeable label chars, so the old 0-9 tail only generated dead labels.
+            get { return Get("HintCharacters", "ABCDEFGHIJKLMNOPRSTUVWXYZ;',/"); }
             set { Set("HintCharacters", value); OnPropertyChanged("HintCharacters"); }
         }
 

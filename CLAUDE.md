@@ -134,11 +134,13 @@ Two kinds of settings:
   `MacroHotkeyModifier` (default `Ctrl+Shift+;` / `OemSemicolon`, no `Alt`)
   opens the macro palette.
 
-`HintCharacters` defaults to `A–Z` (easy to recognize). The punctuation set
-`,./;'[]\` is also supported — add any of them here to opt in. The matching input
-captures `A–Z` plus any configured punctuation. **`1` is reserved** (close, the Esc
-alias); digits `2`–`9` and `0` pass through to the app and are not labels — do not
-put `0–9` in `HintCharacters` (a generated digit label could never be typed).
+`HintCharacters` defaults to `A–Z` **minus `Q`** plus `;'`,/` (25 letters + 4 punctuation
+= 29 chars, 841 two-char labels). The wider punctuation set `,./;'[]\` is also supported —
+add any of them here to opt in. The matching input captures `A–Z` plus any configured
+punctuation. **`Q` is reserved** (the direct close/Esc alias — a label containing `Q` could
+never be typed; `<leader>q` is therefore not a binding); digits are not labels either
+(`LabelCharForVk` never returns them) and, since the `1` alias was retired, they all pass
+through to the app — do not put `Q` or `0–9` in `HintCharacters`.
 
 ## Runtime behavior (current)
 
@@ -188,10 +190,10 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
 - **`<Space>` is the leader key** (LazyVim/which-key style): pressing it opens a
   transient centered popup listing the bindings; the next key fires its action and
   closes the popup. Mode-cycling is gone — modes are reached only via leader chords.
-  `Esc`/`1` or an unmapped key cancels a pending leader; `<Space>` again also cancels
+  `Esc`/`Q` or an unmapped key cancels a pending leader; `<Space>` again also cancels
   (toggle). In continuous mode the mode reverts to the default (first `ClickModeOrder`
   entry, Left) after every click. Default bindings (`LeaderBindings`, hot-reload):
-  `<leader>l/r/d/m/t` = Left/Right/Double/Move/Triple, `<leader>q` = close, `<leader>z` = suspend,
+  `<leader>l/r/d/m/t` = Left/Right/Double/Move/Triple (plain `Q` closes), `<leader>z` = suspend,
   `<leader>g` = cycle layout, `<leader>i` = toggle dim, `<leader>s` = snapshot region (see
   below), `<leader>v` = select text span (see below). The badge still shows the active mode.
 - **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
@@ -207,7 +209,7 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
   the overlay hides for ~40ms so its labels don't appear in the shot). Works in Grid and
   Automation; coords use the label's target point + pan offset (what you label is what you
   capture). After capture it follows trigger mode (one-shot closes; continuous stays up).
-  `Esc`/`1` cancels the pick; a degenerate pick (same point) is a no-op.
+  `Esc`/`Q` cancels the pick; a degenerate pick (same point) is a no-op.
 - **Select text span (`<leader>v`)**: a 2-pick mode like snapshot (badge `SEL 1/2`). Type
   the label of one end of the span, then the other → the text between them is selected. The
   gesture is `TextSelectMethod` (hot-reload): `ShiftClick` (default) = pick-1 plain click
@@ -219,7 +221,7 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
   Shift+click (e.g. column-select in some editors).
   Works in Grid and Automation; coords use the label's
   target point + pan offset. After the selection the overlay always closes (even in
-  Continuous mode — staying up clears the selection). `Esc`/`1` cancels the pick.
+  Continuous mode — staying up clears the selection). `Esc`/`Q` cancels the pick.
   **Caveat (observed on-box 2026-08-14, build 8f47655):** Edge and Notepad3 work for
   d/t/v in BOTH modes. Feishu does not: `v` fails with BOTH methods (ShiftClick: no
   selection results; Drag: the selection is made then canceled), and d/t alternate
@@ -251,7 +253,7 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
   overlay stops capturing keys AND **hides its labels** (opacity 0), leaving only the
   `SUSPENDED` status, so you can type into the app beneath (vimium, Excel shortcuts)
   with zero key collision. Clicks pass through (no dismiss). Resume by pressing the
-  **main hotkey** (`Ctrl+Shift+M` / `Capslock+f`) again; `Esc`/`1` closes. Per-session
+  **main hotkey** (`Ctrl+Shift+M` / `Capslock+f`) again; `Esc`/`Q` closes. Per-session
   (resets each new overlay). `2` now passes through to the app. (`\` is a label char.)
 - **`<leader>g` cycles grid layouts** (Grid only; was `3`/`;`): `GridLayouts` lists N
   geometry presets (layouts separated by `||`, fields
@@ -302,15 +304,15 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
   cycles the quarters** (badge `Q n/4`); `Ctrl+Tab`/`Ctrl+Shift+Tab`/`Win+Tab` still pass
   through. Each cycle resets the typed prefix + pan (same as monitor cycling).
   Keys/modifier configurable via `QuadrantHotkeyKeys`/`QuadrantHotkeyModifier`.
-- **Esc** (or **`1`**, an alias that's closer to type) first cancels a pending leader
-  if one is open; otherwise clears the typed prefix if any has been typed (cancel the
-  selection, stay up so you can retype from scratch); if nothing is typed, it closes the
-  overlay. Pan and click-mode are kept on a clear. Any **mouse click** also dismisses the
-  overlay (and still reaches the app beneath). Digits `2`–`0` (`1` stays the close alias)
-  are not labels and pass through to the app.
+- **Esc** (or **`Q`**, an alias that's closer to type; `Ctrl+Q` passes through) first cancels
+  a pending leader if one is open; otherwise clears the typed prefix if any has been typed
+  (cancel the selection, stay up so you can retype from scratch); if nothing is typed, it
+  closes the overlay. Pan and click-mode are kept on a clear. Any **mouse click** also
+  dismisses the overlay (and still reaches the app beneath). Digits `0`–`9` are not labels
+  (the former `1` alias was retired) and pass through to the app.
 - **Doesn't dismiss open menus**: the overlay shows non-activated (`ShowActivated=False`
   + `WS_EX_NOACTIVATE`), so an open context menu / popup stays open when you press the
-  hotkey, and closing the overlay with `Esc`/`1`/a click no longer dismisses it either —
+  hotkey, and closing the overlay with `Esc`/`Q`/a click no longer dismisses it either —
   you can label-click items inside it. (Trade-off: the app is no longer fully key-
   isolated while the overlay is up — non-label keystrokes, e.g. Ctrl-shortcuts, pass
   through to it.)
