@@ -268,6 +268,70 @@ namespace HuntAndPeck.Tests.Services
         public void TryDeriveZoneGrid_Landscape16x9_25Chars_Is6x4()
         {
             int c, r;
+            GroupViewService.TryDeriveZoneGrid(25, 1920, 1080, 5, 5, out c, out r);
+            Assert.Equal(6, c);   // floor(sqrt(25 * 16/9)) = 6
+            Assert.Equal(4, r);   // 25 / 6 = 4 -> 24 points per zone, <= 25 budget
+        }
+
+        [Fact]
+        public void TryDeriveZoneGrid_Quadrant960x540_Is6x4()
+        {
+            // Regression (on-box 2026-08-14): a path-dependent density floor (the
+            // quadrant grid's ZoneGridStep=30) clamped the quadrant's rows 4->3 while
+            // the main hotkey kept 6x4. The floor is now the constant
+            // MinZonePointSpacing (20px), so every 16:9 bounds gets the same shape.
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(25, 960, 540, 5, 5, out c, out r);
+            Assert.Equal(6, c);   // maxCols = floor(960/100) = 9 >= 6: no clamp
+            Assert.Equal(4, r);   // maxRows = floor(540/100) = 5 >= 4: no clamp
+        }
+
+        [Fact]
+        public void TryDeriveZoneGrid_Square_Is5x5()
+        {
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(25, 1000, 1000, 5, 5, out c, out r);
+            Assert.Equal(5, c);
+            Assert.Equal(5, r);
+        }
+
+        [Fact]
+        public void TryDeriveZoneGrid_Portrait_TracksAspect()
+        {
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(25, 1080, 1920, 5, 5, out c, out r);
+            Assert.Equal(3, c);
+            Assert.Equal(8, r);
+        }
+
+        [Fact]
+        public void TryDeriveZoneGrid_SmallBounds_LegibilityFloorClamps()
+        {
+            // A 400x300 window must not get a 30x20 lattice; the constant 20px floor
+            // clamps each axis (still uniform: every zone gets the same 4x3).
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(25, 400, 300, 5, 5, out c, out r);
+            Assert.Equal(4, c);   // floor(400 / (5 * 20)) = 4
+            Assert.Equal(3, r);   // floor(300 / (5 * 20)) = 3
+        }
+
+        [Fact]
+        public void TryDeriveZoneGrid_SmallCharCount_ClampsAtOne()
+        {
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(2, 1920, 1080, 5, 5, out c, out r);
+            Assert.Equal(1, c);
+            Assert.Equal(2, r);
+        }
+
+        // ---- TryGridZoneSpec (spec fits the char set) ----
+
+        // ---- TryDeriveZoneGrid (zone-aligned per-zone dimensions) ----
+
+        [Fact]
+        public void TryDeriveZoneGrid_Landscape16x9_25Chars_Is6x4()
+        {
+            int c, r;
             GroupViewService.TryDeriveZoneGrid(25, 1920, 1080, 40, 5, 5, out c, out r);
             Assert.Equal(6, c);   // floor(sqrt(25 * 16/9)) = 6
             Assert.Equal(4, r);   // 25 / 6 = 4 -> 24 points per zone, <= 25 budget

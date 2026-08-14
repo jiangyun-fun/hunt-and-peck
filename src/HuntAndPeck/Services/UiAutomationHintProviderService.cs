@@ -451,10 +451,12 @@ namespace HuntAndPeck.Services
                 // inCols*inRows <= chars by construction, so zone label assignment
                 // can never overflow. GridLayouts presets and dense regions do not
                 // apply while a zone spec is active (zone mode wants uniform); the
-                // layout's centerStep is the density FLOOR (minStep below).
+                // density floor is the constant MinZonePointSpacing (legibility), NOT
+                // a layout step (a path-dependent floor gave quadrants 6x3 while the
+                // main hotkey got 6x4).
                 int inCols, inRows;
                 GroupViewService.TryDeriveZoneGrid(chars, windowBounds.Width, windowBounds.Height,
-                    centerStep, zoneCols, zoneRows, out inCols, out inRows);
+                    zoneCols, zoneRows, out inCols, out inRows);
                 hints = GenerateZoneAlignedPoints(hWnd, windowBounds,
                     zoneCols * inCols, zoneRows * inRows);
             }

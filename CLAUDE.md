@@ -195,8 +195,10 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   holds EXACTLY the same inCols×inRows points (6×4 = 24 on 16:9 with 25 letters; a
   single global lattice previously sliced unevenly into mixed 6×3 / 6×4 / 5-wide
   zones) and zone overflow is impossible by construction. inCols/inRows is derived
-  from the bounds' aspect (near-square cells) with the layout's centerStep as a
-  density floor; `GridLayouts` presets and dense regions do NOT apply while zoned
+  from the bounds' aspect (near-square cells), clamped by a CONSTANT legibility
+  floor (`MinZonePointSpacing`, 20 px — never one pill-width closer; a
+  path-dependent layout-step floor once gave quadrants 6×3 while the main hotkey
+  got 6×4). `GridLayouts` presets and dense regions do NOT apply while zoned
   (zone mode wants uniform), and zone-zoom's lens fill is zone-aligned too. On 1080p
   that is 30×20 = 600 points (~66×57 px step). A genuinely degenerate session (spec
   blank/invalid/oversized, or zone assignment still overflows) falls back to

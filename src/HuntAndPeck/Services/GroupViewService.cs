@@ -152,19 +152,29 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// The per-axis legibility floor for zone-aligned points: never denser than this
+        /// many px between points inside a zone (~one label pill at the default font 8;
+        /// adjacent pills would collide below it). A CONSTANT, deliberately not the
+        /// configured layout steps: GridLayouts do not apply while zoned, and a
+        /// path-dependent floor made the in-zone shape inconsistent (the quadrant grid's
+        /// ZoneGridStep=30 clamped its rows 4-&gt;3 on 960x540 while the main hotkey's
+        /// 40px preset did not).
+        /// </summary>
+        public const double MinZonePointSpacing = 20.0;
+
+        /// <summary>
         /// Derives the PER-ZONE point-grid dimensions for zone-aligned generation: the
         /// largest inCols x inRows with near-square cells (inCols/inRows tracks the
         /// bounds' aspect) whose product stays within the second-char budget. 16:9 with
-        /// 25 letters gives 6x4 = 24. A density floor clamps each axis so small bounds
-        /// (e.g. a 400x300 window) do not get an absurd point lattice: never denser
-        /// than <paramref name="minStep"/> px between points in either axis. Pure.
+        /// 25 letters gives 6x4 = 24. Each axis is clamped by the
+        /// <see cref="MinZonePointSpacing"/> legibility floor so small bounds (e.g. a
+        /// 400x300 window) get a sparser -- but still uniform -- lattice. Pure.
         /// </summary>
         public static void TryDeriveZoneGrid(
-            int charCount, double width, double height, double minStep,
+            int charCount, double width, double height,
             int zoneCols, int zoneRows, out int inCols, out int inRows)
         {
             if (charCount < 1) charCount = 1;
-            if (minStep < 1) minStep = 1;
             if (width < 1) width = 1;
             if (height < 1) height = 1;
             double aspect = width / height;
@@ -172,9 +182,10 @@ namespace HuntAndPeck.Services
             if (inCols < 1) inCols = 1;
             inRows = charCount / inCols;
             if (inRows < 1) inRows = 1;
-            // Density floor: at most one point per minStep px within a zone cell.
-            int maxCols = Math.Max(1, (int)(width / (zoneCols * minStep)));
-            int maxRows = Math.Max(1, (int)(height / (zoneRows * minStep)));
+            // Legibility floor: at most one point per MinZonePointSpacing px within a
+            // zone cell, per axis.
+            int maxCols = Math.Max(1, (int)(width / (zoneCols * MinZonePointSpacing)));
+            int maxRows = Math.Max(1, (int)(height / (zoneRows * MinZonePointSpacing)));
             if (inCols > maxCols) inCols = maxCols;
             if (inRows > maxRows) inRows = maxRows;
         }
