@@ -68,6 +68,16 @@ CI `31794460021` caught a wrong expectation in the new regression test
 assertion fixed in `c2f80ff`; `31794575390` green. Current drop:
 `$HAP_WIN_TEST_DIR/hap-zonefix/hap.exe`.
 
+# Fix round 2 (2026-08-14)
+
+On-box: quadrant hotkeys (Ctrl+Shift+F1..F4) still showed v1 strips, and the
+key char moved to the box center. Quadrant sessions set
+`OwningWindowBounds = monitor` (full-screen overlay) while their points
+cluster in one quarter, so bounds-based zone slicing overflowed. Fix
+(`5c2249d`): zones tile the hints' extent (`HintExtent`) in both
+`TryAssignZoneLabels` and the provider cap loop's `MaxZoneCount`; key-char
+pill centered. CI `31796151578` green; drop `hap-zonectr`.
+
 # Commits
 
 - `4588d07` feat(overlay): zone-grid group view (default 5x5) + all-letter labels

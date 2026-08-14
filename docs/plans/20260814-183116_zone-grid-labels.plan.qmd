@@ -94,6 +94,27 @@ labels were copied from the same-zone case (AA/AB); two points in DIFFERENT
 single-point zones are each labeled by their key alone (A, B). The code was
 right; the assertion was fixed. Run `31794575390` green.
 
+# Fix round 2 (on-box 2026-08-14, "F1..F4 still one row with multiple cols" + centering)
+
+1. **Quadrant sessions fell back.** Quadrant construction sets
+   `OwningWindowBounds = monitor` (full screen, for the full-screen overlay)
+   after rebasing the quadrant's points into monitor space
+   (`ShellViewModel` quadrant builder). Bounds-based zone slicing therefore
+   tiled the whole monitor while all points clustered in one quarter — the few
+   occupied monitor-zones held ~4× the 25-char budget → overflow → v1 strips.
+   Fix (`5c2249d`): zones tile the hints' **EXTENT** (`HintExtent`, union of
+   their render rects) everywhere — monitor, window, quadrant.
+   `TryAssignZoneLabels` and the provider cap loop's `MaxZoneCount` both slice
+   the extent, so loop and assignment agree by construction. Quadrants now get
+   their own 5×5 grid inside the quadrant.
+2. **Centered key char.** The box key-char pill moved from the box's top-left
+   corner to its CENTER: a corner pill sits exactly where box boundaries meet
+   (ambiguous ownership at a glance), and centered matches the zone-zoom pick
+   view (labels at zone centers) and reads as the target.
+
+Zone tests rewritten for extent semantics (2×1 zones over hand-computable
+extents; the quadrant shape is covered by a cluster-away-from-origin test).
+
 # Verification
 
 1. Unit tests: spec parse (12 cases), cap math (valid/invalid/oversized),
