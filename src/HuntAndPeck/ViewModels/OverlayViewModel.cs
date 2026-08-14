@@ -41,10 +41,12 @@ namespace HuntAndPeck.ViewModels
 
         // --- Text-span selection (<leader>v) ---
         // A 2-pick sub-phase mirroring snapshot: type the start label, then the end
-        // label; the text between is selected. ShiftClick (default): pick-1 plain click
-        // (anchor), pick-2 Shift+click (extend); Drag: pick-1 remembers the start, pick-2
-        // synthesizes the whole drag in one shot (down@anchor, move, up) -- no button is
-        // held while typing the second label, so a cancel never leaves it stuck.
+        // label; the text between is selected. Pick-1 always plain-clicks (clears the
+        // prior selection -- a later mousedown ON a selection starts a text drag-drop,
+        // not a selection drag -- and sets the anchor). Pick-2: ShiftClick (default)
+        // Shift+click extends; Drag synthesizes the whole drag in one shot (down@anchor,
+        // move, up) -- no button is held while typing the second label, so a cancel
+        // never leaves it stuck.
         private enum SelectPhase { None, AwaitStart, AwaitEnd }
         private SelectPhase _selectPhase = SelectPhase.None;
         private Point _selectAnchor;           // Drag method: start point (screen px, offset-applied)
@@ -1100,10 +1102,10 @@ namespace HuntAndPeck.ViewModels
         }
 
         /// <summary>
-        /// Handles a matched label as a selection endpoint. Start (ShiftClick): move +
-        /// plain click (anchor); Start (Drag): just remember the point. End: ShiftClick
-        /// move + Shift+click to extend, or Drag synthesizes the whole drag (down@anchor,
-        /// move, up) in one shot. Then follows trigger mode.
+        /// Handles a matched label as a selection endpoint. Start: move + plain click
+        /// (clears any prior selection; anchors). End: ShiftClick Shift+click extends,
+        /// or Drag synthesizes the whole drag (down@anchor, move, up) in one shot. Then
+        /// follows trigger mode.
         /// </summary>
         private void HandleSelectPoint(Hint hint)
         {
@@ -1117,15 +1119,15 @@ namespace HuntAndPeck.ViewModels
 
             if (_selectPhase == SelectPhase.AwaitStart)
             {
-                if (_selectMethod == TextSelectMethod.Drag)
-                {
-                    _selectAnchor = new Point(x, y);   // remember start; no button held yet
-                }
-                else
-                {
-                    User32.SetCursorPos(x, y);
-                    DoLeftClick();                      // plain click places the caret/anchor
-                }
+                // BOTH methods plain-click at the start. The click CLEARS any existing
+                // selection: without it, the Drag method's later mousedown lands ON the
+                // previous selection and the app starts a text drag-and-drop (moving the
+                // text) instead of a new selection drag -- observed as selection working,
+                // then cancelling, alternating between attempts. It also sets the
+                // anchor/caret for the extend.
+                User32.SetCursorPos(x, y);
+                DoLeftClick();
+                _selectAnchor = new Point(x, y);
                 _selectPhase = SelectPhase.AwaitEnd;
                 NotifyOfPropertyChange(nameof(SelectBadgeLabel));
                 ClearMatch();                           // re-highlight so the end label is pickable

@@ -211,10 +211,13 @@ put `0–9` in `HintCharacters` (a generated digit label could never be typed).
 - **Select text span (`<leader>v`)**: a 2-pick mode like snapshot (badge `SEL 1/2`). Type
   the label of one end of the span, then the other → the text between them is selected. The
   gesture is `TextSelectMethod` (hot-reload): `ShiftClick` (default) = pick-1 plain click
-  (anchor) + pick-2 Shift+click (extend, one atomic `SendInput`); `Drag` = pick-2
-  synthesizes the whole drag (down@anchor → move → up) in one shot. ShiftClick holds no
-  button while you type the second label (safer); Drag is the fallback where an app remaps
-  Shift+click (e.g. column-select). Works in Grid and Automation; coords use the label's
+  (anchor) + pick-2 Shift+click (extend); `Drag` = pick-2 synthesizes the whole drag
+  (down@anchor → move → up) in one shot. Pick-1 **always plain-clicks** — it clears any
+  prior selection (a mousedown *on* a selection starts a text drag-drop instead of a new
+  selection drag, which made Drag alternate work/fail between attempts). ShiftClick holds no
+  button while you type the second label; Drag is the fallback where an app remaps
+  Shift+click (e.g. Feishu/Electron ignores the synthesized Shift — use Drag there).
+  Works in Grid and Automation; coords use the label's
   target point + pan offset. After the selection the overlay always closes (even in
   Continuous mode — staying up clears the selection). `Esc`/`1` cancels the pick.
   **Caveat:** ShiftClick relies on a synthesized Shift; some Electron apps (e.g. Feishu)
