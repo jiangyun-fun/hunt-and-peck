@@ -437,25 +437,42 @@ namespace HuntAndPeck.Services
             // Cap the total at the two-character label capacity so every hint stays two
             // chars. With a valid GroupZones spec the cap is zones x chars instead
             // (each zone can hold at most chars.Length points for its second chars) --
-            // 25x25 = 625 vs 25x29 = 725 vs the legacy chars^2, so the grid coarsens
-            // slightly but zones fit the second-char budget by construction on even
-            // layouts. If the window is large and the steps would produce too many
-            // points, scale the steps up and regenerate.
+            // 25x25 = 625 vs the legacy chars^2 -- AND the loop additionally coarsens
+            // until the LARGEST single zone fits the second-char budget: a global count
+            // cap alone does not guarantee it (spanEdges rounding on 1920x1080 gave
+            // 627 points with 28-point zones vs a 25-char budget -> zone assignment
+            // overflowed and every session fell back to scan-order labels). If the
+            // steps cannot satisfy the fit within the guard, the session falls back.
             int chars = ReadHintCharacterCount();
-            int maxHints = GroupViewService.EffectiveGridCap(
-                chars, OverlayActionConfig.ReadGroupZones(), out _);
+            int zoneCols, zoneRows;
+            bool zoned = GroupViewService.TryGridZoneSpec(
+                OverlayActionConfig.ReadGroupZones(), chars, out zoneCols, out zoneRows);
+            int maxHints = zoned ? zoneCols * zoneRows * chars : chars * chars;
 
             List<Hint> hints;
             var guard = 0;
             do
             {
                 hints = GenerateGridPoints(hWnd, windowBounds, inset, bandPct, edgeStep, centerStep, want);
-                if (hints.Count <= maxHints || guard >= 6)
+                int maxZone = zoned
+                    ? GroupViewService.MaxZoneCount(hints, windowBounds, zoneCols, zoneRows)
+                    : 0;
+                if (hints.Count <= maxHints && maxZone <= chars)
                 {
                     break;
                 }
+                if (guard >= 10)
+                {
+                    break;   // accept; zone labeling falls back if a zone still overflows
+                }
 
-                double scale = Math.Sqrt((double)hints.Count / maxHints);
+                double scale = Math.Sqrt(Math.Max(
+                    hints.Count > maxHints ? (double)hints.Count / maxHints : 1.0,
+                    maxZone > chars ? (double)maxZone / chars : 1.0));
+                if (scale <= 1.0)
+                {
+                    break;
+                }
                 edgeStep *= scale;
                 centerStep *= scale;
                 guard++;

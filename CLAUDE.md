@@ -184,12 +184,17 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   the click (2 keystrokes; a zone holding exactly one point is labeled by its key alone
   and fires on that single keystroke). **Grid-session labels are zone-based** (first
   char = the zone's key, second char cycles `HintCharacters` within the zone), in BOTH
-  the group and full views — so `<leader>p` never relabels mid-session — and the grid
-  cap becomes zones×chars (25×25 = 625 vs the old 841; the grid is ~16% coarser) so
-  zones fit the second-char budget. A zone denser than the char set (edge-dense
-  layouts) makes the session fall back to scan-order labels + derived first-char-group
-  boxes (the original v1 shape). Blank/invalid `GroupZones` (or cols×rows above the
-  char count) also falls back to v1. `Esc` backs out to the boxes (clears the prefix;
+  the group and full views — so `<leader>p` never relabels mid-session. The grid cap
+  loop coarsens until the LARGEST zone fits the second-char budget (a global
+  zones×chars cap alone was not enough: spanEdges rounding gave 28-point zones vs 25
+  chars and every session silently fell back to v1 strips); on 1080p uniform that
+  converges to ~29×16 = 464 points (~65 px step, vs ~50 px at the old 841 cap). If the
+  fit cannot be satisfied (guard exhaustion, extreme layouts) the session falls back
+  to scan-order labels + derived first-char-group boxes (the original v1 shape).
+  Blank/invalid `GroupZones` (or cols×rows above the char count) also falls back to
+  v1. Zone boxes and lookups use session-RELATIVE coordinates (PointHint rects are
+  relative to the session bounds — absolute coords broke secondary monitors).
+  `Esc` backs out to the boxes (clears the prefix;
   `Esc` again closes); continuous mode returns to the boxes after each click;
   `<leader>s`/`v` 2-picks work through it. Non-matching labels are hidden at level 2
   regardless of `HideNonMatchingLabels`. Applies wherever the session is grid-like

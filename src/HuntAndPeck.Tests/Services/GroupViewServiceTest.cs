@@ -275,6 +275,67 @@ namespace HuntAndPeck.Tests.Services
                 new List<Hint> { P(10, 10) }, new Rect(0, 0, 0, 0), 5, 5, chars, out labels, out boxes));
         }
 
+        [Fact]
+        public void TryAssignZoneLabels_NonZeroOriginBounds_CoordsAreRelative()
+        {
+            // Regression (on-box 2026-08-14): PointHint rects are RELATIVE to the
+            // session bounds (a secondary monitor at Left=1920 stores 0..1920), and
+            // boxes must be relative too. Using absolute bounds coords clamped every
+            // secondary-monitor point into zone 0 and drew boxes off-canvas.
+            string chars = "ABCDEFGHIJKLMNOPRSTUVWXYZ";
+            var hints = new List<Hint> { P(10, 5), P(110, 5) };
+
+            List<string> labels;
+            List<GroupHintBox> boxes;
+            bool ok = GroupViewService.TryAssignZoneLabels(hints, new Rect(1920, 0, 500, 100),
+                5, 5, chars.ToCharArray(), out labels, out boxes);
+
+            Assert.True(ok);
+            Assert.Equal(new[] { "AA", "AB" }, labels);   // zones A and B, relative x
+            Assert.Equal(2, boxes.Count);
+            Assert.Equal(new Rect(0, 0, 100, 20), boxes[0].Bounds);    // relative!
+            Assert.Equal(new Rect(100, 0, 100, 20), boxes[1].Bounds);
+        }
+
+        // ---- MaxZoneCount / TryGridZoneSpec (grid cap loop support) ----
+
+        [Fact]
+        public void MaxZoneCount_ReturnsLargestZone()
+        {
+            // 3 points in zone A, 1 in zone B -> max 3.
+            var hints = new List<Hint> { P(10, 5), P(50, 5), P(90, 5), P(110, 5) };
+            Assert.Equal(3, GroupViewService.MaxZoneCount(hints, new Rect(0, 0, 500, 100), 5, 5));
+        }
+
+        [Fact]
+        public void MaxZoneCount_PointBeyondEdge_ClampsIntoLastZone()
+        {
+            var hints = new List<Hint> { P(10, 5), P(490, 95) };
+            Assert.Equal(1, GroupViewService.MaxZoneCount(hints, new Rect(0, 0, 500, 100), 5, 5));
+        }
+
+        [Fact]
+        public void MaxZoneCount_Degenerate_ReturnsZero()
+        {
+            Assert.Equal(0, GroupViewService.MaxZoneCount(null, new Rect(0, 0, 500, 100), 5, 5));
+            Assert.Equal(0, GroupViewService.MaxZoneCount(
+                new List<Hint>(), new Rect(0, 0, 500, 100), 5, 5));
+            Assert.Equal(0, GroupViewService.MaxZoneCount(
+                new List<Hint> { P(10, 5) }, new Rect(0, 0, 0, 0), 5, 5));
+        }
+
+        [Fact]
+        public void TryGridZoneSpec_FitsCharSet()
+        {
+            int cols, rows;
+            Assert.True(GroupViewService.TryGridZoneSpec("5x5", 25, out cols, out rows));
+            Assert.Equal(5, cols);
+            Assert.Equal(5, rows);
+            // 26 zones do not fit a 10-char set (every zone needs its own key char).
+            Assert.False(GroupViewService.TryGridZoneSpec("2x13", 10, out cols, out rows));
+            Assert.False(GroupViewService.TryGridZoneSpec("bogus", 25, out cols, out rows));
+        }
+
         // ---- helpers ----
 
         private static PointHint P(double x, double y)
