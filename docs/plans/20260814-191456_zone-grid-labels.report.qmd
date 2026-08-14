@@ -1,0 +1,55 @@
+---
+title: "Group view v2 (fixed 5×5 zone grid, all-letter labels) — completion report"
+author: "Yun Jiang"
+date: 2026-08-14
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔤</text></svg>">
+---
+
+# What was done
+
+Replaced the group view's derived (irregular) boxes with a **fixed 5×5 zone
+grid** and made labels **all letters** (user-confirmed 2026-08-14: 5×5, all 25
+letters A–Z minus Q, letters-only second level; `;'`,/` removed from
+`HintCharacters`).
+
+- Level 1: 25 regular dotted boxes over the session bounds, keyed A–Z minus Q
+  in scan order (`GroupZones="5x5"`, hot-reload).
+- Grid-session labels are now **zone-based**: first char = the zone key,
+  second char cycles the char set within the zone; a single-point zone is
+  labeled by its key alone and fires on one keystroke. Zone-based in BOTH
+  views, so `<leader>p` never relabels mid-session.
+- Grid cap becomes zones×chars = 25×25 = 625 (was 841) — the grid is ~16%
+  coarser by construction so zones fit the second-char budget.
+- Safety valve: a zone denser than the char set (edge-dense layouts), or an
+  invalid/oversized spec, falls back to the v1 scan-order labels + derived
+  boxes shipped earlier today.
+- `; ' , /` are no longer configured label chars → they pass through to the
+  app while the overlay is up (the hook captures punctuation only when
+  configured).
+
+# Verification status (evidence)
+
+| Item | Evidence |
+|------|----------|
+| Unit tests | CI run `31793000138` step `Test` ✓ (incl. 7 new GroupViewService tests: spec parse, cap, assignment, boundary determinism, overflow) |
+| Build | same run, `Build (Release, Any CPU)` ✓ |
+| Shipped config | grep of the downloaded artifact: `HintCharacters=ABCDEFGHIJKLMNOPRSTUVWXYZ`, `GroupZones=5x5`, `GroupViewEnabled=true` |
+| Drop on the box | ssh `ls`: `$HAP_WIN_TEST_DIR/hap-zonegrid/hap.exe`, 570,368 bytes |
+
+**Not yet verified (needs the Windows box, manual):** the on-box matrix — 25
+regular boxes render; zone char narrows to letter second chars; 2nd char
+fires; single-point zone fires on one keystroke; punctuation passes through;
+`<leader>p` keeps labels stable; Esc ladder; monitor cycle; Automation
+unchanged.
+
+# Commits
+
+- `4588d07` feat(overlay): zone-grid group view (default 5x5) + all-letter labels
+
+Plan: `20260814-183116_zone-grid-labels.plan.qmd` (rewritten in place to match
+what was built).

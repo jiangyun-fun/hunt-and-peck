@@ -1,0 +1,85 @@
+---
+title: "Group view v2 — fixed 5×5 zone grid + all-letter labels"
+author: "Yun Jiang"
+date: 2026-08-14
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔤</text></svg>">
+---
+
+# Objective
+
+Replace the group view's derived (irregular) first-char boxes with a **fixed
+5×5 zone grid**, and make the label system **all letters**: `HintCharacters`
+loses `;'`,/` (25 letters, A–Z minus Q), the 25 zone keys are those letters in
+scan order, and the second keystroke is also letters-only. Confirmed with the
+user 2026-08-14: 5×5 / all 25 letters (nothing dropped) / letters-only second
+level.
+
+# Design
+
+Zone-based label assignment for grid sessions (all-`PointHint`), replacing the
+ordinal-sorted scan-order assignment there:
+
+- Level 1: session bounds sliced 5×5 (`ZoneService.SliceIntoZones` reused);
+  zone i's key = `HintCharacters[i]` (scan order). Boxes are the regular zone
+  rects (empty zones draw no box).
+- Each point's label first char = its zone's letter (containment by
+  `BoundingRectangle`); second char = `HintCharacters[j]` cycling in emission
+  order within the zone. Zone with exactly 1 point → 1-char label (type the
+  zone letter, instant fire). Labels stay unique + prefix-free.
+- Labels are zone-based for BOTH views (full + group) so `<leader>p` never
+  relabels mid-session. Zone-mode sessions keep scan-order labels (their own
+  drill UX; the zone ctor opts out).
+- **Overflow safety valve**: if any zone would need more than
+  `HintCharacters.Length` second chars (dense layouts concentrate points), the
+  session falls back to today's scan-order labels + derived boxes.
+- **Grid cap**: with a valid zone spec the grid cap becomes
+  `zones × chars` (25×25 = 625) instead of `chars²` (625 < 841 → the grid
+  coarsens ~16%, step ≈58 px @1080p uniform, was ≈50) so zones fit the second
+  char budget by construction on even layouts.
+- Config: new hot-reload `GroupZones` = `"5x5"` (cols x rows; blank/invalid or
+  cols×rows > char count → the v1 derived-group mode). `HintCharacters` value
+  becomes `ABCDEFGHIJKLMNOPRSTUVWXYZ`.
+- Punctuation keys (`; ' , /`) leave the label set → they pass through to the
+  app again (hook captures them only when configured).
+
+# Files (as touched)
+
+- `Services/GroupViewService.cs`: `TryParseZoneSpec`, `EffectiveGridCap`
+  (pure), `TryAssignZoneLabels` (pure; labels + regular boxes in one call,
+  false/null on zone overflow; cell-index math with clamping, not
+  Rect.Contains, so boundary points land deterministically).
+- `Services/HintLabelService.cs`: `ReadHintCharacters` became internal so the
+  VM reads the set once per overlay.
+- `Services/UiAutomationHintProviderService.cs`: `EnumGridHints` cap =
+  `EffectiveGridCap(chars, GroupZones)` — applies to every grid it generates
+  (monitor, window, quadrant, zone-mode lens fills), so non-groupable grids
+  (e.g. taskbar-merged) also coarsen to the 625 cap. Accepted trade-off.
+- `ViewModels/OverlayViewModel.cs`: spec parsed once per ctor (0x0 when
+  invalid/oversized; the zone ctor never sets it, so zone-mode sessions keep
+  scan-order labels); `LoadSession` tries zone labels first, falls back to
+  `GetHintStrings`; `_zoneBoxes` stored per session so `ToggleGroupView`
+  restores the ZONE boxes (not derived) when re-enabling.
+- `App.config` (`GroupZones=5x5`, letters-only `HintCharacters`),
+  `OptionsViewModel.cs` + `OptionsView.xaml` (GroupZones field),
+  `CLAUDE.md`, `GroupViewServiceTest.cs` (+7 tests).
+
+# Verification
+
+1. Unit tests: spec parse (12 cases), cap math (valid/invalid/oversized),
+  label assignment (zone-key first char, second char cycling, single-point
+  zone → 1-char label, boundary point determinism, edge clamping, overflow →
+  false, degenerate inputs).
+2. CI green: run `31793000138` on commit `4588d07` (build + test + artifact).
+3. Shipped config grep: `HintCharacters=ABCDEFGHIJKLMNOPRSTUVWXYZ`,
+  `GroupZones=5x5`, `GroupViewEnabled=true`.
+4. Drop: `$HAP_WIN_TEST_DIR/hap-zonegrid/hap.exe` (570,368 bytes).
+5. On-box matrix (user, pending): 25 regular boxes; type zone char → that
+   zone's points with letter second chars; 2nd char fires; single-point zone
+   fires on the zone char alone; `; ' , /` pass through to the app;
+   `<leader>p` round-trip keeps labels stable; Esc ladder; monitor cycle;
+   Automation unchanged.
