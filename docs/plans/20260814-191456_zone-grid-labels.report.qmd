@@ -89,6 +89,19 @@ pending flag). Fix (`88dfa69`): zone-ALIGNED generation (every zone exactly
 `MaxZoneCount`/`EffectiveGridCap` removed as superseded. CI `31799957316`
 green; drop `hap-zone64`.
 
+# Fix round 4 (2026-08-14)
+
+On-box: quadrants (F1–F4) were 6×3 while the main hotkey was 6×4. The zone
+density floor used the calling path's layout step — the quadrant grid builds
+its layout from `ZoneGridStep` (30), so `floor(540/(5×30)) = 3` clamped rows
+4→3 on a 960×540 quadrant, while the main hotkey's uniform preset (40) never
+clamped. Fix (`6c2cbcc`): the floor is now the constant
+`MinZonePointSpacing = 20px` (legibility, ~one pill at font 8), so every 16:9
+bounds — monitor or quadrant — derives the same 6×4; small bounds still clamp
+(400×300 → 4×3) but stay uniform. CI `31800825822` caught a duplicated test
+block from a botched splice (CS0111); repaired in `ec6fb68`; `31801052814`
+green. Drop `hap-quad64`.
+
 # Commits
 
 - `4588d07` feat(overlay): zone-grid group view (default 5x5) + all-letter labels
