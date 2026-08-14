@@ -68,16 +68,43 @@ ordinal-sorted scan-order assignment there:
   `OptionsViewModel.cs` + `OptionsView.xaml` (GroupZones field),
   `CLAUDE.md`, `GroupViewServiceTest.cs` (+7 tests).
 
+# Fix round 1 (on-box 2026-08-14, "it's still one row with multiple cols")
+
+The first zone-grid build silently fell back to the v1 tall strips. Two
+defects, both fixed in `6a9cf41` (+ test-expectation fix `c2f80ff`):
+
+1. **Zone overflow → silent fallback.** The cap loop accepted a global count
+   (627 points, guard-exhausted, maxHints 625) whose 5×5 zones held up to 28
+   points vs a 25-char second-char budget (reproduced by arithmetic:
+   spanEdges rounding on 1920×1080 gives 33×19 points; the ceil-split into 5
+   columns/rows yields 7×4 = 28). `TryAssignZoneLabels` failed → `LoadSession`
+   fell back to scan-order labels + derived boxes = the v1 strips the user
+   saw. Fix: the cap loop now coarsens until the LARGEST zone fits the budget
+   (`MaxZoneCount`, guard 10); a simulation of the exact `FillRegion`
+   spanEdges math converges in 2 rounds to 29×16 = 464 points, max zone 24
+   (~65 px step on 1080p).
+2. **Absolute-vs-relative coordinates.** Zone lookup subtracted
+   `bounds.Left/Top` and boxes were emitted at absolute origins, but PointHint
+   rects and HintCanvas are session-RELATIVE — on any monitor not at (0,0)
+   every point clamped into zone 0 and boxes drew off-canvas. Fix: bounds is a
+   pure size; lookups divide br.Left/Top directly; boxes are relative.
+
+CI note: run `31794460021` failed on the new regression test — its expected
+labels were copied from the same-zone case (AA/AB); two points in DIFFERENT
+single-point zones are each labeled by their key alone (A, B). The code was
+right; the assertion was fixed. Run `31794575390` green.
+
 # Verification
 
 1. Unit tests: spec parse (12 cases), cap math (valid/invalid/oversized),
   label assignment (zone-key first char, second char cycling, single-point
-  zone → 1-char label, boundary point determinism, edge clamping, overflow →
-  false, degenerate inputs).
-2. CI green: run `31793000138` on commit `4588d07` (build + test + artifact).
+  zone → 1-char label, boundary determinism, edge clamping, overflow →
+  false, degenerate inputs, RELATIVE coords with a non-zero-origin bounds),
+  MaxZoneCount (max / clamp / degenerate), TryGridZoneSpec fit.
+2. CI green: `31793000138` (initial), `31794575390` (after fix round).
 3. Shipped config grep: `HintCharacters=ABCDEFGHIJKLMNOPRSTUVWXYZ`,
   `GroupZones=5x5`, `GroupViewEnabled=true`.
-4. Drop: `$HAP_WIN_TEST_DIR/hap-zonegrid/hap.exe` (570,368 bytes).
+4. Drops: `hap-zonegrid` (initial), **`hap-zonefix`** (fix round, current).
 5. On-box matrix (user, pending): 25 regular boxes; type zone char → that
    zone's points with letter second chars; 2nd char fires; single-point zone
    fires on the zone char alone; `; ' , /` pass through to the app;

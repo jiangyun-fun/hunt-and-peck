@@ -47,9 +47,32 @@ fires; single-point zone fires on one keystroke; punctuation passes through;
 `<leader>p` keeps labels stable; Esc ladder; monitor cycle; Automation
 unchanged.
 
+# Fix round 1 (2026-08-14, after on-box test)
+
+Symptom: "it's still one row with multiple cols" — the first build silently
+fell back to the v1 tall strips. Root causes and fixes in `6a9cf41`:
+
+1. **Zone overflow → silent fallback**: the cap loop accepted 627 points
+   whose zones held up to 28 points vs the 25-char budget (spanEdges
+   rounding + ceil-split; reproduced by arithmetic). Fix: the loop now
+   coarsens until the largest zone fits (`MaxZoneCount`); converges to
+   ~29×16 = 464 points, max zone 24 on 1080p (simulation of the exact
+   generation math).
+2. **Absolute-vs-relative coordinates**: zone lookups and boxes used the
+   session bounds' absolute origin, but PointHint rects and the canvas are
+   session-relative — broken on any monitor not at (0,0). Fix: bounds is a
+   pure size; lookups and boxes are relative.
+
+CI `31794460021` caught a wrong expectation in the new regression test
+(two points in different single-point zones are each 1-char labeled);
+assertion fixed in `c2f80ff`; `31794575390` green. Current drop:
+`$HAP_WIN_TEST_DIR/hap-zonefix/hap.exe`.
+
 # Commits
 
 - `4588d07` feat(overlay): zone-grid group view (default 5x5) + all-letter labels
+- `6a9cf41` fix(overlay): zone-grid fell back to v1 strips (zone overflow + abs coords)
+- `c2f80ff` test(overlay): fix relative-coords regression test expectation
 
 Plan: `20260814-183116_zone-grid-labels.plan.qmd` (rewritten in place to match
 what was built).
