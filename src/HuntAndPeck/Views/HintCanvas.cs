@@ -585,12 +585,15 @@ namespace HuntAndPeck.Views
                         g.Bounds.Height + inflate * 2);
                     dc.DrawRoundedRectangle(null, DottedPen(), rect, radius, radius);
 
-                    // Key-char pill just inside the box's top-left corner.
+                    // Key-char pill centered in the box. A corner pill sits exactly
+                    // where box boundaries meet (ambiguous ownership at a glance);
+                    // centered matches the zone-zoom pick view (labels at zone centers)
+                    // and reads as the target.
                     var ft = _groupTexts[i];
                     double pillW = ft.Width + pad * 2;
                     double pillH = ft.Height + pad * 2;
-                    double px = rect.Left + inflate * 0.5;
-                    double py = rect.Top + inflate * 0.5;
+                    double px = rect.Left + (rect.Width - pillW) / 2.0;
+                    double py = rect.Top + (rect.Height - pillH) / 2.0;
                     dc.DrawRoundedRectangle(_activeBg, null,
                         new Rect(px, py, pillW, pillH), radius, radius);
                     dc.DrawText(ft, new Point(px + pad, py + pad));

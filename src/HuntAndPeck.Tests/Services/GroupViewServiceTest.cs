@@ -175,86 +175,75 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Fact]
-        public void TryAssignZoneLabels_ZoneKeyFirstChar_SecondCharCyclesInEmissionOrder()
+        public void TryAssignZoneLabels_ZonesTileThePointExtent()
         {
-            // 5x5 over a 500x100 bounds: cells 100x20. Zone A (x<100, y<20) gets two
-            // points -> AA, AB; zone B -> BA, BB; zone index 5 ('F', row 1 col 0) one
-            // point -> "F" alone.
-            string chars = "ABCDEFGHIJKLMNOPRSTUVWXYZ";
-            var hints = new List<Hint>
-            {
-                P(10, 5), P(50, 5),      // zone A
-                P(110, 5), P(150, 5),    // zone B
-                P(10, 25),               // y=25 -> row 1 -> zone index 5 = 'F'
-            };
+            // 2x1 zones over the EXTENT of the points (0,0)-(28,8): cellW = 14.
+            // Zone A: x=0,10 -> labels AA, AB (emission order); zone B: x=20 single
+            // -> 1-char "B" (instant fire).
+            var hints = new List<Hint> { P(0, 0), P(10, 0), P(20, 0) };
 
             List<string> labels;
             List<GroupHintBox> boxes;
-            bool ok = GroupViewService.TryAssignZoneLabels(hints, new Rect(0, 0, 500, 100),
-                5, 5, chars.ToCharArray(), out labels, out boxes);
+            bool ok = GroupViewService.TryAssignZoneLabels(hints, 2, 1, "AB".ToCharArray(),
+                out labels, out boxes);
 
             Assert.True(ok);
-            Assert.Equal(new[] { "AA", "AB", "BA", "BB", "F" }, labels);
-            // Boxes: only the occupied zones, in scan order, regular cell rects.
-            Assert.Equal(3, boxes.Count);
+            Assert.Equal(new[] { "AA", "AB", "B" }, labels);
+            Assert.Equal(2, boxes.Count);
             Assert.Equal('A', boxes[0].Key);
-            Assert.Equal(new Rect(0, 0, 100, 20), boxes[0].Bounds);
+            Assert.Equal(new Rect(0, 0, 14, 8), boxes[0].Bounds);
             Assert.Equal('B', boxes[1].Key);
-            Assert.Equal(new Rect(100, 0, 100, 20), boxes[1].Bounds);
-            Assert.Equal('F', boxes[2].Key);
-            Assert.Equal(new Rect(0, 20, 100, 20), boxes[2].Bounds);
+            Assert.Equal(new Rect(14, 0, 14, 8), boxes[1].Bounds);
+        }
+
+        [Fact]
+        public void TryAssignZoneLabels_ClusterAwayFromOrigin_ZonesTileTheCluster()
+        {
+            // Regression (on-box 2026-08-14, quadrant hotkeys): quadrant sessions set
+            // OwningWindowBounds to the FULL monitor while their points cluster in one
+            // quarter, so bounds-based slicing overflowed every occupied monitor-zone.
+            // Zones must tile the cluster's extent (960,540)-(1048,548): cellW = 44.
+            var hints = new List<Hint> { P(960, 540), P(1000, 540), P(1040, 540) };
+
+            List<string> labels;
+            List<GroupHintBox> boxes;
+            bool ok = GroupViewService.TryAssignZoneLabels(hints, 2, 1, "AB".ToCharArray(),
+                out labels, out boxes);
+
+            Assert.True(ok);
+            Assert.Equal(new[] { "AA", "AB", "B" }, labels);
+            Assert.Equal(2, boxes.Count);
+            Assert.Equal(new Rect(960, 540, 44, 8), boxes[0].Bounds);   // at the cluster
+            Assert.Equal(new Rect(1004, 540, 44, 8), boxes[1].Bounds);
         }
 
         [Fact]
         public void TryAssignZoneLabels_BoundaryPoint_LandsInOneDeterminateZone()
         {
-            // A point exactly on the A|B boundary (x=100) goes to zone B (index math,
-            // clamped -- not Rect.Contains, which would match both cells).
-            string chars = "ABCDEFGHIJKLMNOPRSTUVWXYZ";
-            var hints = new List<Hint> { P(100, 5) };
+            // A point exactly on the A|B boundary goes to zone B (index math with
+            // clamping -- not Rect.Contains, which would match both cells).
+            var hints = new List<Hint> { P(0, 0), P(14, 0) };   // extent (0,0,22,8), cellW 11
 
             List<string> labels;
             List<GroupHintBox> boxes;
-            bool ok = GroupViewService.TryAssignZoneLabels(hints, new Rect(0, 0, 500, 100),
-                5, 5, chars.ToCharArray(), out labels, out boxes);
+            bool ok = GroupViewService.TryAssignZoneLabels(hints, 2, 1, "AB".ToCharArray(),
+                out labels, out boxes);
 
             Assert.True(ok);
-            Assert.Equal(new[] { "B" }, labels);    // single point in zone B -> 1-char
-            Assert.Single(boxes);
-            Assert.Equal('B', boxes[0].Key);
-        }
-
-        [Fact]
-        public void TryAssignZoneLabels_PointBeyondEdge_ClampsToLastZone()
-        {
-            string chars = "ABCDEFGHIJKLMNOPRSTUVWXYZ";
-            var hints = new List<Hint> { P(490, 95) };
-
-            List<string> labels;
-            List<GroupHintBox> boxes;
-            bool ok = GroupViewService.TryAssignZoneLabels(hints, new Rect(0, 0, 500, 100),
-                5, 5, chars.ToCharArray(), out labels, out boxes);
-
-            Assert.True(ok);
-            Assert.Equal(new[] { "Z" }, labels);    // last zone (row 4, col 4) = index 24 = 'Z'
-            Assert.Equal(new Rect(400, 80, 100, 20), boxes[0].Bounds);
+            Assert.Equal(new[] { "A", "B" }, labels);   // both single-point zones
         }
 
         [Fact]
         public void TryAssignZoneLabels_ZoneOverflow_ReturnsFalse()
         {
-            // 25 chars means a zone can hold at most 25 points; 26 in one zone overflows.
-            string chars = "ABCDEFGHIJKLMNOPRSTUVWXYZ";
-            var hints = new List<Hint>();
-            for (int i = 0; i < 26; i++)
-            {
-                hints.Add(P(10 + (i % 5) * 10, 2 + (i / 5) * 3));   // all inside zone A
-            }
+            // chars "AB" gives a 2-point budget per zone; 3 points in zone A overflows
+            // (extent (0,0,12,8), cellW 6 -> x=0,2,4 all in zone A).
+            var hints = new List<Hint> { P(0, 0), P(2, 0), P(4, 0) };
 
             List<string> labels;
             List<GroupHintBox> boxes;
-            bool ok = GroupViewService.TryAssignZoneLabels(hints, new Rect(0, 0, 500, 100),
-                5, 5, chars.ToCharArray(), out labels, out boxes);
+            bool ok = GroupViewService.TryAssignZoneLabels(hints, 2, 1, "AB".ToCharArray(),
+                out labels, out boxes);
 
             Assert.False(ok);
             Assert.Null(labels);
@@ -266,64 +255,60 @@ namespace HuntAndPeck.Tests.Services
         {
             List<string> labels;
             List<GroupHintBox> boxes;
-            var bounds = new Rect(0, 0, 500, 100);
-            var chars = "ABCDEF".ToCharArray();
-
-            Assert.False(GroupViewService.TryAssignZoneLabels(null, bounds, 5, 5, chars, out labels, out boxes));
-            Assert.False(GroupViewService.TryAssignZoneLabels(new List<Hint>(), bounds, 5, 5, chars, out labels, out boxes));
+            Assert.False(GroupViewService.TryAssignZoneLabels(null, 5, 5,
+                "AB".ToCharArray(), out labels, out boxes));
+            Assert.False(GroupViewService.TryAssignZoneLabels(new List<Hint>(), 5, 5,
+                "AB".ToCharArray(), out labels, out boxes));
             Assert.False(GroupViewService.TryAssignZoneLabels(
-                new List<Hint> { P(10, 10) }, new Rect(0, 0, 0, 0), 5, 5, chars, out labels, out boxes));
+                new List<Hint> { P(10, 5) }, 5, 5, "A".ToCharArray(), out labels, out boxes));
+        }
+
+        // ---- HintExtent ----
+
+        [Fact]
+        public void HintExtent_UnionOfRects_FirstMemberInitializes()
+        {
+            // Union must not be seeded with default(Rect) -- (0,0,0,0) is a degenerate
+            // rect at the ORIGIN, not Rect.Empty, so seeding with it would stretch the
+            // extent to the top-left corner.
+            var hints = new List<Hint> { P(300, 400), P(340, 420) };
+            Assert.Equal(new Rect(300, 400, 48, 28), GroupViewService.HintExtent(hints));
+
+            Assert.Equal(new Rect(300, 400, 8, 8),
+                GroupViewService.HintExtent(new List<Hint> { P(300, 400) }));
         }
 
         [Fact]
-        public void TryAssignZoneLabels_NonZeroOriginBounds_CoordsAreRelative()
+        public void HintExtent_NullOrEmpty_IsEmpty()
         {
-            // Regression (on-box 2026-08-14): PointHint rects are RELATIVE to the
-            // session bounds (a secondary monitor at Left=1920 stores 0..1920), and
-            // boxes must be relative too. Using absolute bounds coords clamped every
-            // secondary-monitor point into zone 0 and drew boxes off-canvas.
-            string chars = "ABCDEFGHIJKLMNOPRSTUVWXYZ";
-            var hints = new List<Hint> { P(10, 5), P(110, 5) };
-
-            List<string> labels;
-            List<GroupHintBox> boxes;
-            bool ok = GroupViewService.TryAssignZoneLabels(hints, new Rect(1920, 0, 500, 100),
-                5, 5, chars.ToCharArray(), out labels, out boxes);
-
-            Assert.True(ok);
-            // Relative x=10 -> zone A, x=110 -> zone B; each is a single-point zone,
-            // so each is labeled by its key alone (1-char, instant fire).
-            Assert.Equal(new[] { "A", "B" }, labels);
-            Assert.Equal(2, boxes.Count);
-            Assert.Equal(new Rect(0, 0, 100, 20), boxes[0].Bounds);    // relative!
-            Assert.Equal(new Rect(100, 0, 100, 20), boxes[1].Bounds);
+            Assert.True(GroupViewService.HintExtent(null).IsEmpty);
+            Assert.True(GroupViewService.HintExtent(new List<Hint>()).IsEmpty);
         }
 
         // ---- MaxZoneCount / TryGridZoneSpec (grid cap loop support) ----
 
         [Fact]
-        public void MaxZoneCount_ReturnsLargestZone()
+        public void MaxZoneCount_TilesTheExtent_ReturnsLargestZone()
         {
-            // 3 points in zone A, 1 in zone B -> max 3.
-            var hints = new List<Hint> { P(10, 5), P(50, 5), P(90, 5), P(110, 5) };
-            Assert.Equal(3, GroupViewService.MaxZoneCount(hints, new Rect(0, 0, 500, 100), 5, 5));
+            // Extent (0,0,28,8), 2x1 zones -> cellW 14: zone A {0,10}, zone B {20}.
+            var hints = new List<Hint> { P(0, 0), P(10, 0), P(20, 0) };
+            Assert.Equal(2, GroupViewService.MaxZoneCount(hints, 2, 1));
         }
 
         [Fact]
-        public void MaxZoneCount_PointBeyondEdge_ClampsIntoLastZone()
+        public void MaxZoneCount_ClusterAwayFromOrigin_TilesTheCluster()
         {
-            var hints = new List<Hint> { P(10, 5), P(490, 95) };
-            Assert.Equal(1, GroupViewService.MaxZoneCount(hints, new Rect(0, 0, 500, 100), 5, 5));
+            // The quadrant shape: points clustered at (960,540)+. Extent-based zones
+            // split them 2/1 regardless of the distance from the origin.
+            var hints = new List<Hint> { P(960, 540), P(1000, 540), P(1040, 540) };
+            Assert.Equal(2, GroupViewService.MaxZoneCount(hints, 2, 1));
         }
 
         [Fact]
         public void MaxZoneCount_Degenerate_ReturnsZero()
         {
-            Assert.Equal(0, GroupViewService.MaxZoneCount(null, new Rect(0, 0, 500, 100), 5, 5));
-            Assert.Equal(0, GroupViewService.MaxZoneCount(
-                new List<Hint>(), new Rect(0, 0, 500, 100), 5, 5));
-            Assert.Equal(0, GroupViewService.MaxZoneCount(
-                new List<Hint> { P(10, 5) }, new Rect(0, 0, 0, 0), 5, 5));
+            Assert.Equal(0, GroupViewService.MaxZoneCount(null, 5, 5));
+            Assert.Equal(0, GroupViewService.MaxZoneCount(new List<Hint>(), 5, 5));
         }
 
         [Fact]

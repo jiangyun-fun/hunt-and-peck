@@ -173,28 +173,57 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// The union of the hints' bounding rectangles -- the region the points actually
+        /// OCCUPY, in the same (session-relative) coordinate space they render in.
+        /// Zones tile this extent, not the session bounds: quadrant sessions set their
+        /// bounds to the FULL monitor (for the full-screen overlay) while their points
+        /// cluster in one quarter, so bounds-based slicing put ~4x the points in the
+        /// few occupied monitor-zones and overflowed every quadrant session into the
+        /// v1 fallback. The first hint initializes the union (never default(Rect),
+        /// which is a degenerate rect at the ORIGIN, not Rect.Empty). Returns
+        /// <see cref="Rect.Empty"/> when there are no hints. Pure.
+        /// </summary>
+        public static Rect HintExtent(IList<Hint> hints)
+        {
+            if (hints == null || hints.Count == 0)
+            {
+                return Rect.Empty;
+            }
+            var extent = hints[0].BoundingRectangle;
+            for (int i = 1; i < hints.Count; i++)
+            {
+                var br = hints[i].BoundingRectangle;
+                if (!br.IsEmpty)
+                {
+                    extent = extent.IsEmpty ? br : Rect.Union(extent, br);
+                }
+            }
+            return extent;
+        }
+
+        /// <summary>
         /// The largest point count in any single zone (cell-index math with clamping,
         /// mirroring <see cref="TryAssignZoneLabels"/>). Used by the grid cap loop: the
         /// grid must coarsen until this is &lt;= the second-char budget, otherwise zone
         /// label assignment overflows and the session falls back to scan-order labels.
-        /// Point rects are RELATIVE to <paramref name="bounds"/> (PointHint invariant);
-        /// bounds acts as a pure size here. Pure.
+        /// Zones tile the hints' extent (<see cref="HintExtent"/>) -- the same slicing
+        /// <see cref="TryAssignZoneLabels"/> uses, so loop and assignment agree. Pure.
         /// </summary>
-        public static int MaxZoneCount(IList<Hint> hints, Rect bounds, int cols, int rows)
+        public static int MaxZoneCount(IList<Hint> hints, int cols, int rows)
         {
-            if (hints == null || hints.Count == 0 || cols < 1 || rows < 1
-                || bounds.Width <= 0 || bounds.Height <= 0)
+            var extent = HintExtent(hints);
+            if (extent.IsEmpty || cols < 1 || rows < 1)
             {
                 return 0;
             }
-            double cellW = bounds.Width / cols;
-            double cellH = bounds.Height / rows;
+            double cellW = extent.Width / cols;
+            double cellH = extent.Height / rows;
             var counts = new int[cols * rows];
             foreach (var h in hints)
             {
                 var br = h.BoundingRectangle;
-                int c = (int)(br.Left / cellW);
-                int r = (int)(br.Top / cellH);
+                int c = (int)((br.Left - extent.Left) / cellW);
+                int r = (int)((br.Top - extent.Top) / cellH);
                 if (c < 0) c = 0; else if (c > cols - 1) c = cols - 1;
                 if (r < 0) r = 0; else if (r > rows - 1) r = rows - 1;
                 counts[r * cols + c]++;
@@ -211,21 +240,20 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
-        /// Zone-grid label assignment: slices the session bounds (a pure SIZE -- see
-        /// below) into cols x rows cells (scan order), keys zone i with
+        /// Zone-grid label assignment: slices the hints' EXTENT
+        /// (<see cref="HintExtent"/> -- the region the points occupy, in their own
+        /// render space) into cols x rows cells (scan order), keys zone i with
         /// <paramref name="chars"/>[i], and labels each point
         /// <c>zoneChar + chars[j]</c> where j cycles through the char set in emission
         /// order within the zone. A zone holding exactly ONE point gets a 1-char label
         /// (typing the zone char fires it immediately). Labels are unique and
         /// prefix-free.
         /// <para>
-        /// COORDINATES: PointHint bounding rects are RELATIVE to the session's
-        /// OwningWindowBounds (e.g. a secondary monitor at Left=1920 stores points at
-        /// 0..1920), and HintCanvas renders in that relative space. So bounds is used
-        /// as a size only: zone lookup divides br.Left/Top by the cell size directly,
-        /// and the emitted boxes are relative (cell origin, not bounds.Left + ...).
-        /// Using absolute bounds coords here put every secondary-monitor point in a
-        /// clamped zone and drew boxes off-canvas.
+        /// WHY THE EXTENT, NOT THE SESSION BOUNDS: PointHint rects are relative to the
+        /// session and HintCanvas renders in that space, so the extent is the exact
+        /// region the labels live in -- and quadrant sessions set their bounds to the
+        /// FULL monitor while their points cluster in one quarter, so bounds-based
+        /// slicing overflowed every quadrant session into the fallback.
         /// </para>
         /// <para>Returns false (null outputs) when any zone would need more second
         /// chars than the set provides (overflow; dense layouts concentrate points) --
@@ -233,32 +261,32 @@ namespace HuntAndPeck.Services
         /// INDEX math with clamping, not Rect.Contains, so a point exactly on a zone
         /// boundary lands in one determinate zone.</para>
         /// Pure. <paramref name="boxes"/> receives one regular box per NON-EMPTY zone
-        /// (the fixed grid look).
+        /// (the fixed grid look), in the points' own coordinate space.
         /// </summary>
         public static bool TryAssignZoneLabels(
-            IList<Hint> hints, Rect bounds, int cols, int rows, char[] chars,
+            IList<Hint> hints, int cols, int rows, char[] chars,
             out List<string> labels, out List<GroupHintBox> boxes)
         {
             labels = null;
             boxes = null;
-            if (hints == null || hints.Count == 0 || chars == null || chars.Length < 2
-                || cols < 1 || rows < 1 || bounds.Width <= 0 || bounds.Height <= 0)
+            var extent = HintExtent(hints);
+            if (extent.IsEmpty || chars == null || chars.Length < 2 || cols < 1 || rows < 1)
             {
                 return false;
             }
 
-            double cellW = bounds.Width / cols;
-            double cellH = bounds.Height / rows;
+            double cellW = extent.Width / cols;
+            double cellH = extent.Height / rows;
             int zoneCount = cols * rows;
 
-            // Pass 1: zone index per hint + per-zone occupancy (relative coords).
+            // Pass 1: zone index per hint + per-zone occupancy.
             var zoneOf = new int[hints.Count];
             var counts = new int[zoneCount];
             for (int i = 0; i < hints.Count; i++)
             {
                 var br = hints[i].BoundingRectangle;
-                int c = (int)(br.Left / cellW);
-                int r = (int)(br.Top / cellH);
+                int c = (int)((br.Left - extent.Left) / cellW);
+                int r = (int)((br.Top - extent.Top) / cellH);
                 if (c < 0) c = 0; else if (c > cols - 1) c = cols - 1;
                 if (r < 0) r = 0; else if (r > rows - 1) r = rows - 1;
                 int z = r * cols + c;
@@ -290,7 +318,7 @@ namespace HuntAndPeck.Services
                 }
             }
 
-            // Boxes: one regular cell per non-empty zone (scan order, RELATIVE coords).
+            // Boxes: one regular cell per non-empty zone (scan order, in the points' space).
             boxes = new List<GroupHintBox>();
             for (int z = 0; z < zoneCount; z++)
             {
@@ -299,7 +327,7 @@ namespace HuntAndPeck.Services
                     int c = z % cols;
                     int r = z / cols;
                     boxes.Add(new GroupHintBox(chars[z], new Rect(
-                        c * cellW, r * cellH, cellW, cellH)));
+                        extent.Left + c * cellW, extent.Top + r * cellH, cellW, cellH)));
                 }
             }
             return true;

@@ -178,8 +178,13 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   all-yellow after each click.)
 - **Group view (progressive 1-char labels; `GroupViewEnabled`, default on; `<leader>p`
   toggles per-session)**: the overlay opens with a **`GroupZones` grid (default 5×5) of
-  dotted boxes** over the session instead of every pill — zone i keyed by
-  `HintCharacters[i]` in scan order (default = A–Z minus Q). Type a zone char → only
+  dotted boxes** instead of every pill — zone i keyed by `HintCharacters[i]` in scan
+  order (default = A–Z minus Q), the key char in a small pill **centered** in each box.
+  The grid tiles the region the session's points actually OCCUPY (their union extent —
+  the monitor for Grid+Screen, the window, or just the quadrant for quadrant hotkeys),
+  not the session bounds: quadrant sessions set bounds = the full monitor (for the
+  full-screen overlay) while their points cluster in one quarter, so bounds-based
+  slicing overflowed every quadrant session into the fallback. Type a zone char → only
   that zone's points show, labeled by their SECOND char alone; the second char fires
   the click (2 keystrokes; a zone holding exactly one point is labeled by its key alone
   and fires on that single keystroke). **Grid-session labels are zone-based** (first
@@ -192,15 +197,13 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   fit cannot be satisfied (guard exhaustion, extreme layouts) the session falls back
   to scan-order labels + derived first-char-group boxes (the original v1 shape).
   Blank/invalid `GroupZones` (or cols×rows above the char count) also falls back to
-  v1. Zone boxes and lookups use session-RELATIVE coordinates (PointHint rects are
-  relative to the session bounds — absolute coords broke secondary monitors).
-  `Esc` backs out to the boxes (clears the prefix;
+  v1. `Esc` backs out to the boxes (clears the prefix;
   `Esc` again closes); continuous mode returns to the boxes after each click;
   `<leader>s`/`v` 2-picks work through it. Non-matching labels are hidden at level 2
   regardless of `HideNonMatchingLabels`. Applies wherever the session is grid-like
   (all-`PointHint`: Grid+Screen, Grid+Window **without** a taskbar merge, quadrants);
   Automation, taskbar-merged and zone sessions keep full scan-order labels. `GroupFontSize`
-  (default 14, `0` = follow `HintFontSize`) sizes the box-corner key chars.
+  (default 14, `0` = follow `HintFontSize`) sizes the centered key chars.
 - **Arrows move focus in the app beneath** by default (`ArrowKeyBehavior=Passthrough`) — e.g.
   Excel cell nav, list selection — so the dedicated arrow cluster is no longer eaten by the
   overlay. Set `ArrowKeyBehavior=Pan` to restore legacy arrow-panning (plain arrows 3 px,

@@ -455,7 +455,7 @@ namespace HuntAndPeck.Services
             {
                 hints = GenerateGridPoints(hWnd, windowBounds, inset, bandPct, edgeStep, centerStep, want);
                 int maxZone = zoned
-                    ? GroupViewService.MaxZoneCount(hints, windowBounds, zoneCols, zoneRows)
+                    ? GroupViewService.MaxZoneCount(hints, zoneCols, zoneRows)
                     : 0;
                 if (hints.Count <= maxHints && maxZone <= chars)
                 {

@@ -281,13 +281,15 @@ namespace HuntAndPeck.ViewModels
             _bounds = session.OwningWindowBounds;
             // Zone-grid labeling (grid sessions with a valid GroupZones spec): first
             // char = the zone's key, second char cycles the char set within the zone.
-            // On overflow (a zone denser than the char set) this returns false and the
-            // session keeps the scan-order labels below.
+            // Zones tile the hints' EXTENT (not the session bounds -- quadrant
+            // sessions bound to the full monitor while their points cluster in one
+            // quarter). On overflow (a zone denser than the char set) this returns
+            // false and the session keeps the scan-order labels below.
             List<string> zoneLabels = null;
             List<GroupHintBox> zoneBoxes = null;
             if (_groupZoneCols > 0)
             {
-                GroupViewService.TryAssignZoneLabels(session.Hints, session.OwningWindowBounds,
+                GroupViewService.TryAssignZoneLabels(session.Hints,
                     _groupZoneCols, _groupZoneRows, _hintChars, out zoneLabels, out zoneBoxes);
             }
             _zoneBoxes = zoneBoxes;
