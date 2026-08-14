@@ -72,6 +72,7 @@
     <Compile Include="Services\LeaderBindingConfigTest.cs" />
     <Compile Include="ViewModels\OverlayViewModelTest.cs" />
     <Compile Include="Services\ZoneServiceTest.cs" />
+    <Compile Include="Services\GroupViewServiceTest.cs" />
     <Compile Include="Services\InputSynthesisTest.cs" />
     <Compile Include="Services\WindowFinderTest.cs" />
     <Compile Include="Services\MacroStoreTest.cs" />
