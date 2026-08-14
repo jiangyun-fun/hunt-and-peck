@@ -189,15 +189,19 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   the click (2 keystrokes; a zone holding exactly one point is labeled by its key alone
   and fires on that single keystroke). **Grid-session labels are zone-based** (first
   char = the zone's key, second char cycles `HintCharacters` within the zone), in BOTH
-  the group and full views — so `<leader>p` never relabels mid-session. The grid cap
-  loop coarsens until the LARGEST zone fits the second-char budget (a global
-  zones×chars cap alone was not enough: spanEdges rounding gave 28-point zones vs 25
-  chars and every session silently fell back to v1 strips); on 1080p uniform that
-  converges to ~29×16 = 464 points (~65 px step, vs ~50 px at the old 841 cap). If the
-  fit cannot be satisfied (guard exhaustion, extreme layouts) the session falls back
-  to scan-order labels + derived first-char-group boxes (the original v1 shape).
-  Blank/invalid `GroupZones` (or cols×rows above the char count) also falls back to
-  v1. `Esc` backs out to the boxes (clears the prefix;
+  the group and full views — so `<leader>p` never relabels mid-session. **Grid
+  generation is zone-aligned** while a zone spec is active: totalCols = zoneCols ×
+  inCols, totalRows = zoneRows × inRows, spanEdges over the bounds, so every zone
+  holds EXACTLY the same inCols×inRows points (6×4 = 24 on 16:9 with 25 letters; a
+  single global lattice previously sliced unevenly into mixed 6×3 / 6×4 / 5-wide
+  zones) and zone overflow is impossible by construction. inCols/inRows is derived
+  from the bounds' aspect (near-square cells) with the layout's centerStep as a
+  density floor; `GridLayouts` presets and dense regions do NOT apply while zoned
+  (zone mode wants uniform), and zone-zoom's lens fill is zone-aligned too. On 1080p
+  that is 30×20 = 600 points (~66×57 px step). A genuinely degenerate session (spec
+  blank/invalid/oversized, or zone assignment still overflows) falls back to
+  scan-order labels + derived first-char-group boxes (the original v1 shape).
+  `Esc` backs out to the boxes (clears the prefix;
   `Esc` again closes); continuous mode returns to the boxes after each click;
   `<leader>s`/`v` 2-picks work through it. Non-matching labels are hidden at level 2
   regardless of `HideNonMatchingLabels`. Applies wherever the session is grid-like
@@ -220,7 +224,10 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   transient centered popup listing the bindings; the next key fires its action and
   closes the popup. Mode-cycling is gone — modes are reached only via leader chords.
   `Esc`/`Q` or an unmapped key cancels a pending leader; `<Space>` again also cancels
-  (toggle). In continuous mode the mode reverts to the default (first `ClickModeOrder`
+  (toggle). A typed label prefix is **preserved** across the leader (a mid-drill
+  `<Space>r` returns you to the drilled zone's level-2 labels, not the boxes); the
+  snapshot/select 2-pick phases clear the prefix on entry. In continuous mode the mode
+  reverts to the default (first `ClickModeOrder`
   entry, Left) after every click. Default bindings (`LeaderBindings`, hot-reload):
   `<leader>l/r/d/m/t` = Left/Right/Double/Move/Triple (plain `Q` closes), `<leader>z` = suspend,
   `<leader>g` = cycle layout, `<leader>i` = toggle dim, `<leader>s` = snapshot region (see

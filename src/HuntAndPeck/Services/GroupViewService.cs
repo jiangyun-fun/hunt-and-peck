@@ -141,35 +141,42 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
-        /// The grid-generation cap for zone labeling: zones x chars when a valid spec
-        /// fits the char set (every point needs a second char from it, so a zone can
-        /// hold at most chars.Length points); chars x chars otherwise (the legacy cap).
-        /// <paramref name="zoneCount"/> is the parsed zone count (0 when invalid/does
-        /// not fit). Pure.
-        /// </summary>
-        public static int EffectiveGridCap(int charCount, string zoneSpecRaw, out int zoneCount)
-        {
-            int cols, rows;
-            if (charCount > 1 && TryParseZoneSpec(zoneSpecRaw, out cols, out rows)
-                && cols * rows <= charCount)
-            {
-                zoneCount = cols * rows;
-                return zoneCount * charCount;
-            }
-            zoneCount = 0;
-            return charCount * charCount;
-        }
-
-        /// <summary>
         /// Parses a GroupZones spec AND checks it fits the char set (every zone needs
         /// its own key char): true with cols/rows out when valid and
-        /// cols*rows &lt;= charCount. Pure; the provider's cap loop uses this plus
-        /// <see cref="MaxZoneCount"/> to coarsen the grid until every zone fits the
-        /// second-char budget.
+        /// cols*rows &lt;= charCount. Pure; the provider and the view-model both gate
+        /// zone-grid labeling on this.
         /// </summary>
         public static bool TryGridZoneSpec(string raw, int charCount, out int cols, out int rows)
         {
             return TryParseZoneSpec(raw, out cols, out rows) && cols * rows <= charCount;
+        }
+
+        /// <summary>
+        /// Derives the PER-ZONE point-grid dimensions for zone-aligned generation: the
+        /// largest inCols x inRows with near-square cells (inCols/inRows tracks the
+        /// bounds' aspect) whose product stays within the second-char budget. 16:9 with
+        /// 25 letters gives 6x4 = 24. A density floor clamps each axis so small bounds
+        /// (e.g. a 400x300 window) do not get an absurd point lattice: never denser
+        /// than <paramref name="minStep"/> px between points in either axis. Pure.
+        /// </summary>
+        public static void TryDeriveZoneGrid(
+            int charCount, double width, double height, double minStep,
+            int zoneCols, int zoneRows, out int inCols, out int inRows)
+        {
+            if (charCount < 1) charCount = 1;
+            if (minStep < 1) minStep = 1;
+            if (width < 1) width = 1;
+            if (height < 1) height = 1;
+            double aspect = width / height;
+            inCols = (int)Math.Floor(Math.Sqrt(charCount * aspect));
+            if (inCols < 1) inCols = 1;
+            inRows = charCount / inCols;
+            if (inRows < 1) inRows = 1;
+            // Density floor: at most one point per minStep px within a zone cell.
+            int maxCols = Math.Max(1, (int)(width / (zoneCols * minStep)));
+            int maxRows = Math.Max(1, (int)(height / (zoneRows * minStep)));
+            if (inCols > maxCols) inCols = maxCols;
+            if (inRows > maxRows) inRows = maxRows;
         }
 
         /// <summary>
@@ -199,44 +206,6 @@ namespace HuntAndPeck.Services
                 }
             }
             return extent;
-        }
-
-        /// <summary>
-        /// The largest point count in any single zone (cell-index math with clamping,
-        /// mirroring <see cref="TryAssignZoneLabels"/>). Used by the grid cap loop: the
-        /// grid must coarsen until this is &lt;= the second-char budget, otherwise zone
-        /// label assignment overflows and the session falls back to scan-order labels.
-        /// Zones tile the hints' extent (<see cref="HintExtent"/>) -- the same slicing
-        /// <see cref="TryAssignZoneLabels"/> uses, so loop and assignment agree. Pure.
-        /// </summary>
-        public static int MaxZoneCount(IList<Hint> hints, int cols, int rows)
-        {
-            var extent = HintExtent(hints);
-            if (extent.IsEmpty || cols < 1 || rows < 1)
-            {
-                return 0;
-            }
-            double cellW = extent.Width / cols;
-            double cellH = extent.Height / rows;
-            var counts = new int[cols * rows];
-            foreach (var h in hints)
-            {
-                var br = h.BoundingRectangle;
-                int c = (int)((br.Left - extent.Left) / cellW);
-                int r = (int)((br.Top - extent.Top) / cellH);
-                if (c < 0) c = 0; else if (c > cols - 1) c = cols - 1;
-                if (r < 0) r = 0; else if (r > rows - 1) r = rows - 1;
-                counts[r * cols + c]++;
-            }
-            int max = 0;
-            foreach (var n in counts)
-            {
-                if (n > max)
-                {
-                    max = n;
-                }
-            }
-            return max;
         }
 
         /// <summary>

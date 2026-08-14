@@ -123,7 +123,7 @@ namespace HuntAndPeck.Tests.Services
             Assert.Equal('A', b.Key);
         }
 
-        // ---- Zone-grid labeling (TryParseZoneSpec / EffectiveGridCap / TryAssignZoneLabels) ----
+        // ---- Zone-grid labeling (TryParseZoneSpec / TryDeriveZoneGrid / TryAssignZoneLabels) ----
 
         [Theory]
         [InlineData("5x5", 5, 5, true)]
@@ -147,31 +147,6 @@ namespace HuntAndPeck.Tests.Services
                 Assert.Equal(cols, c);
                 Assert.Equal(rows, r);
             }
-        }
-
-        [Fact]
-        public void EffectiveGridCap_ValidSpec_ZonesTimesChars()
-        {
-            int zoneCount;
-            // 25 chars x 5x5 zones = 625 (fits: 25 zones <= 25 chars).
-            Assert.Equal(625, GroupViewService.EffectiveGridCap(25, "5x5", out zoneCount));
-            Assert.Equal(25, zoneCount);
-
-            // 29 chars (punctuation still configured) x 5x5 = 725 < the legacy 841.
-            Assert.Equal(725, GroupViewService.EffectiveGridCap(29, "5x5", out zoneCount));
-            Assert.Equal(25, zoneCount);
-        }
-
-        [Fact]
-        public void EffectiveGridCap_InvalidOrOversizedSpec_LegacyCharsSquared()
-        {
-            int zoneCount;
-            Assert.Equal(625, GroupViewService.EffectiveGridCap(25, "", out zoneCount));
-            Assert.Equal(0, zoneCount);
-            Assert.Equal(841, GroupViewService.EffectiveGridCap(29, "", out zoneCount));
-            // 26 zones do not fit a 10-char set (every zone needs its own key char).
-            Assert.Equal(100, GroupViewService.EffectiveGridCap(10, "2x13", out zoneCount));
-            Assert.Equal(0, zoneCount);
         }
 
         [Fact]
@@ -285,30 +260,55 @@ namespace HuntAndPeck.Tests.Services
             Assert.True(GroupViewService.HintExtent(new List<Hint>()).IsEmpty);
         }
 
-        // ---- MaxZoneCount / TryGridZoneSpec (grid cap loop support) ----
+        // ---- TryGridZoneSpec (spec fits the char set) ----
+
+        // ---- TryDeriveZoneGrid (zone-aligned per-zone dimensions) ----
 
         [Fact]
-        public void MaxZoneCount_TilesTheExtent_ReturnsLargestZone()
+        public void TryDeriveZoneGrid_Landscape16x9_25Chars_Is6x4()
         {
-            // Extent (0,0,28,8), 2x1 zones -> cellW 14: zone A {0,10}, zone B {20}.
-            var hints = new List<Hint> { P(0, 0), P(10, 0), P(20, 0) };
-            Assert.Equal(2, GroupViewService.MaxZoneCount(hints, 2, 1));
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(25, 1920, 1080, 40, 5, 5, out c, out r);
+            Assert.Equal(6, c);   // floor(sqrt(25 * 16/9)) = 6
+            Assert.Equal(4, r);   // 25 / 6 = 4 -> 24 points per zone, <= 25 budget
         }
 
         [Fact]
-        public void MaxZoneCount_ClusterAwayFromOrigin_TilesTheCluster()
+        public void TryDeriveZoneGrid_Square_Is5x5()
         {
-            // The quadrant shape: points clustered at (960,540)+. Extent-based zones
-            // split them 2/1 regardless of the distance from the origin.
-            var hints = new List<Hint> { P(960, 540), P(1000, 540), P(1040, 540) };
-            Assert.Equal(2, GroupViewService.MaxZoneCount(hints, 2, 1));
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(25, 1000, 1000, 40, 5, 5, out c, out r);
+            Assert.Equal(5, c);
+            Assert.Equal(5, r);
         }
 
         [Fact]
-        public void MaxZoneCount_Degenerate_ReturnsZero()
+        public void TryDeriveZoneGrid_Portrait_TracksAspect()
         {
-            Assert.Equal(0, GroupViewService.MaxZoneCount(null, 5, 5));
-            Assert.Equal(0, GroupViewService.MaxZoneCount(new List<Hint>(), 5, 5));
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(25, 1080, 1920, 40, 5, 5, out c, out r);
+            Assert.Equal(3, c);
+            Assert.Equal(8, r);
+        }
+
+        [Fact]
+        public void TryDeriveZoneGrid_SmallBounds_DensityFloorClamps()
+        {
+            // A 400x300 window must not get a 30x20 lattice; the minStep floor clamps
+            // each axis to at most width/(zoneCols*step) point columns per zone.
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(25, 400, 300, 40, 5, 5, out c, out r);
+            Assert.Equal(2, c);
+            Assert.Equal(1, r);
+        }
+
+        [Fact]
+        public void TryDeriveZoneGrid_SmallCharCount_ClampsAtOne()
+        {
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(2, 1920, 1080, 40, 5, 5, out c, out r);
+            Assert.Equal(1, c);
+            Assert.Equal(2, r);
         }
 
         [Fact]

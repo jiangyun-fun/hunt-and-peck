@@ -996,8 +996,13 @@ namespace HuntAndPeck.ViewModels
         /// <summary>
         /// Opens the leader dispatcher (<Space>). Guards: ignored while suspended (keys
         /// pass through then anyway) or already pending -- a second <Space> cancels
-        /// (toggle), so the menu can never get stuck open. Clears any partial label
-        /// prefix so the next key is read as a command, not a label char.
+        /// (toggle), so the menu can never get stuck open. The typed label prefix is
+        /// PRESERVED across the leader: dispatch branches on <see cref="_leaderPending"/>
+        /// (the hook checks it before label chars), not on the prefix, so a stale
+        /// prefix never intercepts leader keys -- and keeping it means a mid-drill
+        /// mode switch (<Space>r while inside zone K) returns you to K's level-2
+        /// labels instead of resetting to the boxes. The 2-pick phases (snapshot /
+        /// select) clear the prefix on entry themselves.
         /// </summary>
         public void EnterLeader()
         {
@@ -1011,10 +1016,6 @@ namespace HuntAndPeck.ViewModels
                 return;
             }
             _leaderPending = true;
-            if (!string.IsNullOrEmpty(_match))
-            {
-                ClearMatch();
-            }
             NotifyOfPropertyChange(nameof(LeaderMenuVisibility));
         }
 

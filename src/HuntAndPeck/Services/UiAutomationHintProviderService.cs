@@ -434,49 +434,52 @@ namespace HuntAndPeck.Services
                 (layout.DenseRegions ?? "Left,Top,TR,BR,Center").Split(',').Select(s => s.Trim()),
                 StringComparer.OrdinalIgnoreCase);
 
-            // Cap the total at the two-character label capacity so every hint stays two
-            // chars. With a valid GroupZones spec the cap is zones x chars instead
-            // (each zone can hold at most chars.Length points for its second chars) --
-            // 25x25 = 625 vs the legacy chars^2 -- AND the loop additionally coarsens
-            // until the LARGEST single zone fits the second-char budget: a global count
-            // cap alone does not guarantee it (spanEdges rounding on 1920x1080 gave
-            // 627 points with 28-point zones vs a 25-char budget -> zone assignment
-            // overflowed and every session fell back to scan-order labels). If the
-            // steps cannot satisfy the fit within the guard, the session falls back.
             int chars = ReadHintCharacterCount();
             int zoneCols, zoneRows;
             bool zoned = GroupViewService.TryGridZoneSpec(
                 OverlayActionConfig.ReadGroupZones(), chars, out zoneCols, out zoneRows);
-            int maxHints = zoned ? zoneCols * zoneRows * chars : chars * chars;
 
             List<Hint> hints;
-            var guard = 0;
-            do
+            if (zoned)
             {
-                hints = GenerateGridPoints(hWnd, windowBounds, inset, bandPct, edgeStep, centerStep, want);
-                int maxZone = zoned
-                    ? GroupViewService.MaxZoneCount(hints, zoneCols, zoneRows)
-                    : 0;
-                if (hints.Count <= maxHints && maxZone <= chars)
+                // ZONE-ALIGNED generation: totalCols = zoneCols x inCols,
+                // totalRows = zoneRows x inRows, spanEdges over the bounds, so the
+                // zone boundaries (extent / zoneCols) split each axis into EXACT
+                // integer chunks and every zone holds exactly inCols x inRows points
+                // (6x4 = 24 on 16:9 with 25 letters -- previously a single global
+                // 29x16 lattice sliced unevenly into mixed 6x3 / 6x4 / 5-wide zones).
+                // inCols*inRows <= chars by construction, so zone label assignment
+                // can never overflow. GridLayouts presets and dense regions do not
+                // apply while a zone spec is active (zone mode wants uniform); the
+                // layout's centerStep is the density FLOOR (minStep below).
+                int inCols, inRows;
+                GroupViewService.TryDeriveZoneGrid(chars, windowBounds.Width, windowBounds.Height,
+                    centerStep, zoneCols, zoneRows, out inCols, out inRows);
+                hints = GenerateZoneAlignedPoints(hWnd, windowBounds,
+                    zoneCols * inCols, zoneRows * inRows);
+            }
+            else
+            {
+                // Legacy path: cap the total at the two-character label capacity
+                // (HintCharacters^2) so every hint stays two chars. If the window is
+                // large and the steps would produce too many points, scale the steps
+                // up and regenerate.
+                int maxHints = chars * chars;
+                var guard = 0;
+                do
                 {
-                    break;
-                }
-                if (guard >= 10)
-                {
-                    break;   // accept; zone labeling falls back if a zone still overflows
-                }
+                    hints = GenerateGridPoints(hWnd, windowBounds, inset, bandPct, edgeStep, centerStep, want);
+                    if (hints.Count <= maxHints || guard >= 6)
+                    {
+                        break;
+                    }
 
-                double scale = Math.Sqrt(Math.Max(
-                    hints.Count > maxHints ? (double)hints.Count / maxHints : 1.0,
-                    maxZone > chars ? (double)maxZone / chars : 1.0));
-                if (scale <= 1.0)
-                {
-                    break;
-                }
-                edgeStep *= scale;
-                centerStep *= scale;
-                guard++;
-            } while (true);
+                    double scale = Math.Sqrt((double)hints.Count / maxHints);
+                    edgeStep *= scale;
+                    centerStep *= scale;
+                    guard++;
+                } while (true);
+            }
 
             return new HintSession
             {
@@ -492,6 +495,39 @@ namespace HuntAndPeck.Services
         /// non-dense areas (e.g. bottom-middle, right-middle) still get sparse coverage
         /// instead of being empty, while dense regions are not doubled up.
         /// </summary>
+        /// <summary>
+        /// Zone-aligned uniform grid: totalCols x totalRows points spanning the bounds
+        /// edge-to-edge in BOTH axes (first point at the origin, last at the far edge),
+        /// so zone boundaries at width/zoneCols multiples split each axis into exact
+        /// integer chunks and every zone holds the same inCols x inRows points.
+        /// Mirrors FillRegion's spanEdges construction and PointHint bookkeeping
+        /// (rel render rect + absolute screen point); column-major emission order like
+        /// FillRegion. A uniform lattice cannot self-collide, so no dedup pass.
+        /// </summary>
+        private static List<Hint> GenerateZoneAlignedPoints(IntPtr hWnd, Rect bounds, int totalCols, int totalRows)
+        {
+            if (totalCols < 2) totalCols = 2;
+            if (totalRows < 2) totalRows = 2;
+            double dx = bounds.Width / (totalCols - 1);
+            double dy = bounds.Height / (totalRows - 1);
+            double box = Math.Min(dx, dy) * 0.8;
+            if (box <= 0)
+            {
+                box = 1;
+            }
+            var hints = new List<Hint>(totalCols * totalRows);
+            for (int i = 0; i < totalCols; i++)
+            {
+                for (int j = 0; j < totalRows; j++)
+                {
+                    double sx = bounds.Left + i * dx;
+                    double sy = bounds.Top + j * dy;
+                    hints.Add(new PointHint(hWnd, new Rect(sx - bounds.Left, sy - bounds.Top, box, box), new Point(sx, sy)));
+                }
+            }
+            return hints;
+        }
+
         private static List<Hint> GenerateGridPoints(IntPtr hWnd, Rect windowBounds, double inset, double bandPct, double edgeStep, double centerStep, HashSet<string> want)
         {
             double left = windowBounds.Left + inset;
