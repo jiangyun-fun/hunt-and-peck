@@ -66,6 +66,16 @@ namespace HuntAndPeck.ViewModels
         private static readonly object SynthGate = new object();
         private const int ClickGapMs = 20;
 
+        // The UI dispatcher for input-burst continuations (FireInputAsync). MUST be
+        // the APPLICATION dispatcher, not Dispatcher.CurrentDispatcher: quadrant
+        // overlay VMs are constructed inside Task.Run (ShellViewModel.
+        // OpenQuadrantOverlayAsync), and CurrentDispatcher on that worker thread
+        // creates a dispatcher nothing ever pumps -- every post-fire continuation
+        // (close / continuous reset) posted to it was silently lost, leaving the
+        // overlay stuck on the fired label after d/t/v (observed on-box via
+        // Ctrl+Shift+F1 + <leader>d).
+        private readonly Dispatcher _uiDispatcher = Application.Current.Dispatcher;
+
         private readonly IHintLabelService _hintLabelService;
         private readonly string _fontSizeRaw;
         private readonly string _fontFamilyRaw;
@@ -990,11 +1000,23 @@ namespace HuntAndPeck.ViewModels
         {
             System.Threading.Tasks.Task.Run(() =>
             {
-                lock (SynthGate)
+                try
                 {
-                    synth();
+                    lock (SynthGate)
+                    {
+                        synth();
+                    }
                 }
-                _uiDispatcher.BeginInvoke(after);
+                catch (Exception ex)
+                {
+                    // Never let a burst failure strand the overlay: log it, and still
+                    // run the continuation (close / reset) below.
+                    TimingLog.Log("input burst failed: " + ex.Message);
+                }
+                finally
+                {
+                    _uiDispatcher.BeginInvoke(after);
+                }
             });
         }
 
