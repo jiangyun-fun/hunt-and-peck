@@ -69,8 +69,12 @@ namespace HuntAndPeck.ViewModels
         // that worker thread creates a dispatcher nothing ever pumps -- every post-fire
         // continuation (close / continuous reset) posted to it was silently lost,
         // leaving the overlay stuck on the fired label after d/t/v (observed on-box
-        // via Ctrl+Shift+F1 + <leader>d).
-        private readonly Dispatcher _uiDispatcher = Application.Current.Dispatcher;
+        // via Ctrl+Shift+F1 + <leader>d). Null-guarded only for hosts without a WPF
+        // Application (the xUnit test runner): FireInputAsync is not exercised there,
+        // so the fallback dispatcher is never used.
+        private readonly Dispatcher _uiDispatcher = Application.Current != null
+            ? Application.Current.Dispatcher
+            : Dispatcher.CurrentDispatcher;
         private static readonly object SynthGate = new object();
         private const int ClickGapMs = 20;
 
