@@ -138,6 +138,8 @@ namespace HuntAndPeck.Tests.Services
             // The test App.config does not define LeaderBindings, so the default map
             // must be returned and be non-empty. No Q binding: Q is the direct
             // Esc/close alias in the hook, so a <leader>q binding could never fire.
+            // No I binding either: plain I is insert mode (classified before leader
+            // input), so dim lives on X.
             var list = LeaderBindingConfig.ReadLeaderBindings();
             Assert.True(list.Count >= 10);
             Assert.Contains(list, b => b.Key == 'L' && b.Kind == LeaderKind.Mode && b.Mode == ClickAction.Left);
@@ -145,7 +147,9 @@ namespace HuntAndPeck.Tests.Services
             Assert.Contains(list, b => b.Key == 'T' && b.Kind == LeaderKind.Mode && b.Mode == ClickAction.Triple);
             Assert.Contains(list, b => b.Key == 'V' && b.Kind == LeaderKind.SelectText);
             Assert.Contains(list, b => b.Key == 'P' && b.Kind == LeaderKind.ToggleGroupView);
+            Assert.Contains(list, b => b.Key == 'X' && b.Kind == LeaderKind.ToggleDim);
             Assert.DoesNotContain(list, b => b.Key == 'Q');
+            Assert.DoesNotContain(list, b => b.Key == 'I');
         }
 
         [Fact]

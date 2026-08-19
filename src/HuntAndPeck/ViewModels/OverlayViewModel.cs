@@ -650,10 +650,12 @@ namespace HuntAndPeck.ViewModels
         }
 
         /// <summary>
-        /// Persistent suspend (backslash): the overlay stops capturing keys AND hides its
-        /// labels (opacity 0), leaving only the SUSPENDED status, so you can type into the
-        /// app beneath (vimium, Excel) with zero key collision. Resume by pressing the
-        /// main hotkey again (Ctrl+Shift+M / Capslock+f); Esc closes.
+        /// Insert mode / persistent suspend: the overlay stops capturing keys AND hides
+        /// its labels (opacity 0), leaving only the SUSPENDED status, so you can type
+        /// into the app beneath (vimium, Excel) with zero key collision. Vim-style:
+        /// enter with plain <c>i</c> (or <c>&lt;leader&gt;z</c>); exit with <c>q</c>/
+        /// <c>Esc</c> (intercepted by the hook while suspended) or the main hotkey
+        /// (Ctrl+Shift+M / Capslock+f).
         /// </summary>
         public bool Suspended
         {
@@ -668,10 +670,11 @@ namespace HuntAndPeck.ViewModels
         }
 
         /// <summary>
-        /// Dimmed (backtick): labels drop to a low opacity so the text behind is readable,
-        /// but keys stay captured so you can still type a label. Toggle (backtick again
-        /// restores). Note: opacity-dim couples label contrast to the background, so it is
-        /// harder to see on dark surfaces -- accepted tradeoff for the simpler look.
+        /// Dimmed (<c>&lt;leader&gt;x</c>): labels drop to a low opacity so the text behind
+        /// is readable, but keys stay captured so you can still type a label. Toggle
+        /// (again restores). Note: opacity-dim couples label contrast to the background,
+        /// so it is harder to see on dark surfaces -- accepted tradeoff for the simpler
+        /// look.
         /// </summary>
         public bool Dimmed
         {
@@ -681,9 +684,9 @@ namespace HuntAndPeck.ViewModels
 
         /// <summary>
         /// Render opacity for the label canvas: 0 (hidden) when suspended, the configured
-        /// dim level when dimmed (backtick), full otherwise. Base mode relies on the
-        /// semi-transparent pill fill (HintCanvas) for its slight see-through, not on a
-        /// canvas-wide dim, so the text stays crisp.
+        /// dim level when dimmed (<c>&lt;leader&gt;x</c>), full otherwise. Base mode relies
+        /// on the semi-transparent pill fill (HintCanvas) for its slight see-through, not
+        /// on a canvas-wide dim, so the text stays crisp.
         /// </summary>
         public double LabelOpacity => _suspended ? 0.0 : (_dimmed ? _dimOpacity : 1.0);
 
@@ -693,11 +696,36 @@ namespace HuntAndPeck.ViewModels
         /// </summary>
         public Visibility ClickModeBadgeVisibility => _suspended ? Visibility.Collapsed : Visibility.Visible;
 
-        /// <summary>Toggles dim mode (backtick): full &lt;-&gt; dimmed labels.</summary>
+        /// <summary>Toggles dim mode (<c>&lt;leader&gt;x</c>): full &lt;-&gt; dimmed labels.</summary>
         public void ToggleDimmed() { Dimmed = !Dimmed; }
 
-        /// <summary>Enters persistent suspend (backslash). Resume via the main hotkey.</summary>
-        public void EnterSuspend() { Suspended = true; }
+        /// <summary>
+        /// Enters insert mode / persistent suspend (plain <c>i</c>, <c>&lt;leader&gt;z</c>).
+        /// Cancels a pending leader first; no-op while a 2-pick phase (snapshot/select)
+        /// is active, so an accidental <c>i</c> mid-pick cannot suspend under the phase.
+        /// Exit via <see cref="ExitSuspend"/> or the main hotkey.
+        /// </summary>
+        public void EnterSuspend()
+        {
+            if (_leaderPending)
+            {
+                ExitLeaderPending();
+            }
+            if (_snapshotPhase != SnapshotPhase.None || _selectPhase != SelectPhase.None)
+            {
+                return;
+            }
+            Suspended = true;
+        }
+
+        /// <summary>Exits insert mode / suspend, back to the live overlay (q/Esc, main hotkey).</summary>
+        public void ExitSuspend()
+        {
+            if (_suspended)
+            {
+                Suspended = false;
+            }
+        }
 
         /// <summary>
         /// The typed label prefix, for display (bound one-way to the TextBox). Input

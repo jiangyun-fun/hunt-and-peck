@@ -90,8 +90,10 @@ namespace HuntAndPeck.Services
 
         // Default leader map. No `q` binding: Q is the direct Esc/close alias in the
         // keyboard hook (it classifies as Escape before label input, so a <leader>q
-        // binding could never fire). `s` = snapshot region, `v` = select text span,
-        // `p` = toggle group view (dotted first-char boxes vs. full labels).
+        // binding could never fire). No `i` binding either: plain I is insert mode
+        // (it classifies as InsertToggle before label/leader input). Dim therefore
+        // lives on `x`. `s` = snapshot region, `v` = select text span, `p` = toggle
+        // group view (dotted first-char boxes vs. full labels).
         private static readonly LeaderBinding[] DefaultBindings =
         {
             new LeaderBinding('L', LeaderKind.Mode, ClickAction.Left),
@@ -101,7 +103,7 @@ namespace HuntAndPeck.Services
             new LeaderBinding('M', LeaderKind.Mode, ClickAction.Move),
             new LeaderBinding('Z', LeaderKind.Suspend),
             new LeaderBinding('G', LeaderKind.CycleLayout),
-            new LeaderBinding('I', LeaderKind.ToggleDim),
+            new LeaderBinding('X', LeaderKind.ToggleDim),
             new LeaderBinding('S', LeaderKind.Snapshot),
             new LeaderBinding('V', LeaderKind.SelectText),
             new LeaderBinding('P', LeaderKind.ToggleGroupView),

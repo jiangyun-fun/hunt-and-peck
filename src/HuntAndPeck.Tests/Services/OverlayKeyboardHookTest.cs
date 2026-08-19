@@ -121,6 +121,43 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Fact]
+        public void LetterI_MapsToInsertToggle()
+        {
+            // Plain `i` enters insert mode (vim-style suspend) -- reserved like Q, so
+            // the default HintCharacters excludes I (an I-label could never be typed).
+            var act = OverlayKeyboardHook.Classify(User32.VK_I, false, false);
+            Assert.Equal(OverlayKeyActionKind.InsertToggle, act.Kind);
+        }
+
+        [Fact]
+        public void ShiftI_IsStillLargeNudgeUp()
+        {
+            // Shift+I is the Large nudge-up chord (NudgeKeysLarge = U,I,O,P) and must
+            // keep working even though plain I is now insert mode.
+            var act = OverlayKeyboardHook.Classify(User32.VK_I, true, false);
+            Assert.Equal(OverlayKeyActionKind.Nudge, act.Kind);
+            Assert.Equal(NudgeTier.Large, act.Tier);
+            Assert.Equal(0, act.Dx);
+            Assert.Equal(-1, act.Dy);
+        }
+
+        [Fact]
+        public void CtrlI_PassesThrough()
+        {
+            // The insert-mode key must not eat the Ctrl+I app shortcut.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_I, false, true).Kind);
+        }
+
+        [Fact]
+        public void WinI_PassesThrough()
+        {
+            // Win+I opens Windows Settings; it must pass through.
+            Assert.Equal(OverlayKeyActionKind.None,
+                OverlayKeyboardHook.Classify(User32.VK_I, false, false, win: true).Kind);
+        }
+
+        [Fact]
         public void Digit1_PassesThrough()
         {
             // `1` was unaliased (Q is the close alias now); it reaches the app.

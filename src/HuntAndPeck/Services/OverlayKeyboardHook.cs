@@ -16,6 +16,7 @@ namespace HuntAndPeck.Services
         AppendChar,
         Escape,
         Leader,
+        InsertToggle,
         CycleMonitorNext,
         CycleMonitorPrev,
         Nudge
@@ -263,7 +264,24 @@ namespace HuntAndPeck.Services
             // (Capslock stays event-only: GetAsyncKeyState(VK_CAPITAL) misses a Capslock
             // AutoHotkey has neutralized for a custom combo.)
             bool altHeld = _sAltHeld || IsDown(User32.VK_MENU);
-            if (altHeld || _sCapsHeld || (_vm != null && _vm.Suspended))
+            if (_vm != null && _vm.Suspended)
+            {
+                // Insert mode exit keys: while suspended everything passes through to
+                // the app (that IS insert mode), EXCEPT a plain Esc/Q, which resumes
+                // the overlay (vim semantics: `i` enters, Esc exits). Modifier chords
+                // (Alt/Capslock-held, Ctrl+Esc, Win+.) keep passing through untouched.
+                if (down && !altHeld && !_sCapsHeld
+                    && (vk == User32.VK_ESCAPE || vk == User32.VK_Q)
+                    && !IsDown(User32.VK_CONTROL)
+                    && !IsDown(User32.VK_LWIN) && !IsDown(User32.VK_RWIN))
+                {
+                    _dispatcher.BeginInvoke(new Action(() => _vm.ExitSuspend()));
+                    ResetAutoClose();
+                    return new IntPtr(1);
+                }
+                return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
+            }
+            if (altHeld || _sCapsHeld)
             {
                 return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
             }
@@ -382,10 +400,15 @@ namespace HuntAndPeck.Services
                 // RESERVED letter: the default HintCharacters excludes it (a label
                 // containing Q could never be typed), and <leader>q cannot fire (Q
                 // classifies as Escape before label input, and HandleEscape cancels a
-                // pending leader). Digits 0-9 are NOT aliases -- `1` was unaliased, so
-                // all digits pass through to the app (LabelCharForVk returns null for
-                // them, so they fall through to None).
+                // pending leader). I = insert mode (vim-style suspend) and is reserved
+                // the same way: the default HintCharacters excludes it, and <leader>i
+                // cannot fire (I classifies as InsertToggle before label/leader input).
+                // Shift+I is still the Large nudge-up chord (classified above), and
+                // Ctrl+I / Win+I pass through. Digits 0-9 are NOT aliases -- `1` was
+                // unaliased, so all digits pass through to the app (LabelCharForVk
+                // returns null for them, so they fall through to None).
                 if (vkCode == User32.VK_Q) return Action(OverlayKeyActionKind.Escape);
+                if (vkCode == User32.VK_I) return Action(OverlayKeyActionKind.InsertToggle);
 
                 // Label-character input: letters are always typeable; OEM punctuation
                 // only when its (US-layout) char is in the configured HintCharacters.
@@ -445,6 +468,12 @@ namespace HuntAndPeck.Services
                     // <Space> opens the leader dispatcher. Toggle semantics: a second
                     // <Space> while a leader is already pending cancels it.
                     return () => _vm.EnterLeader();
+                case OverlayKeyActionKind.InsertToggle:
+                    // Plain `i` enters insert mode (persistent suspend): the overlay
+                    // stops capturing keys and hides its labels so you can type into
+                    // the app beneath; q/Esc (intercepted in KeyboardProc while
+                    // suspended) or the main hotkey resumes.
+                    return () => _vm.EnterSuspend();
                 case OverlayKeyActionKind.CycleMonitorNext:
                     return () => _vm.CycleMonitor(1);
                 case OverlayKeyActionKind.CycleMonitorPrev:
