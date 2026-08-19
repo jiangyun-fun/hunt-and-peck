@@ -547,9 +547,10 @@ namespace HuntAndPeck.Views
         private const double GroupBoxPad = 5.0;
 
         // Point-preview dots (level 1): one small dot at every clickable position,
-        // same color family as the dotted box outline but opaque.
-        private const double DotRadius = 2.0;
-        private static readonly Brush DotFill = FreezeBrush(Color.FromArgb(0xFF, 0x40, 0x40, 0x40));
+        // same color/alpha family as the dotted box outline (on-box feedback: the
+        // first cut at radius 2 + opaque read too heavy against the boxes).
+        private const double DotRadius = 1.25;
+        private static readonly Brush DotFill = FreezeBrush(Color.FromArgb(0xB4, 0x40, 0x40, 0x40));
 
         private static Brush FreezeBrush(Color color)
         {
