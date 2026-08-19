@@ -167,15 +167,19 @@ namespace HuntAndPeck.Views
                     return; // not sized yet; Dpi setter re-renders
                 }
 
+                // All positions are MONITOR-RELATIVE (origin = this window's top-left),
+                // never the monitor's absolute screen coords -- a secondary monitor has
+                // Left/Top != 0 and absolute coords would draw outside the window.
+                double w = _monitor.Width;
+                double h = _monitor.Height;
+
                 // Cross through the monitor center, dotted like the zone borders.
                 var pen = new Pen(new SolidColorBrush(Color.FromArgb(0xB4, 0x40, 0x40, 0x40)), 1.5 * _dpi);
                 pen.DashStyle = new DashStyle(new DoubleCollection { 0.0, 3.0 }, 0);
                 pen.DashCap = PenLineCap.Round;
                 pen.Freeze();
-                double midX = _monitor.Left + _monitor.Width / 2.0;
-                double midY = _monitor.Top + _monitor.Height / 2.0;
-                dc.DrawLine(pen, new Point(midX, _monitor.Top), new Point(midX, _monitor.Bottom));
-                dc.DrawLine(pen, new Point(_monitor.Left, midY), new Point(_monitor.Right, midY));
+                dc.DrawLine(pen, new Point(w / 2.0, 0), new Point(w / 2.0, h));
+                dc.DrawLine(pen, new Point(0, h / 2.0), new Point(w, h / 2.0));
 
                 // One letter pill at each quadrant center (scan order TL,TR,BL,BR --
                 // the quadrant hotkey order). Same yellow pill look as the labels.
@@ -189,8 +193,8 @@ namespace HuntAndPeck.Views
                 double em = LabelEmSize * _dpi;
                 for (int q = 0; q < 4 && q < _labels.Length; q++)
                 {
-                    double cx = _monitor.Left + _monitor.Width * (q % 2 == 0 ? 0.25 : 0.75);
-                    double cy = _monitor.Top + _monitor.Height * (q < 2 ? 0.25 : 0.75);
+                    double cx = w * (q % 2 == 0 ? 0.25 : 0.75);
+                    double cy = h * (q < 2 ? 0.25 : 0.75);
                     var text = (_labels[q] ?? string.Empty).ToUpperInvariant();
                     var ft = new FormattedText(text, CultureInfo.CurrentCulture,
                         FlowDirection.LeftToRight, typeface, em, Brushes.Black);

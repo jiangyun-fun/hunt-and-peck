@@ -130,15 +130,16 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Fact]
-        public void ShiftI_IsStillLargeNudgeUp()
+        public void ShiftI_IsStillLargeNudgeDown()
         {
-            // Shift+I is the Large nudge-up chord (NudgeKeysLarge = U,I,O,P) and must
-            // keep working even though plain I is now insert mode.
+            // Shift+I is the Large nudge-DOWN chord (NudgeKeysLarge = U,I,O,P maps
+            // positional L,D,U,R: u=left, i=down, o=up, p=right) and must keep working
+            // even though plain I is now insert mode.
             var act = OverlayKeyboardHook.Classify(User32.VK_I, true, false);
             Assert.Equal(OverlayKeyActionKind.Nudge, act.Kind);
             Assert.Equal(NudgeTier.Large, act.Tier);
             Assert.Equal(0, act.Dx);
-            Assert.Equal(-1, act.Dy);
+            Assert.Equal(1, act.Dy);
         }
 
         [Fact]

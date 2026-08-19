@@ -128,20 +128,26 @@ Two kinds of settings:
   (`ActiveLayout` is also in appSettings but is rewritten by `<leader>g`, not hand-edited.)
 - **Startup-only** (the global hotkey is registered once; **restart** to apply):
   `HotkeyKey`, `HotkeyModifier` (default `Ctrl+Shift+M` — no `Alt`, since Alt
-  dismisses open context menus even inside a chord); and the quadrant hotkeys
+  dismisses open context menus even inside a chord); the quadrant hotkeys
   `QuadrantHotkeyKeys` (default `F1,F2,F3,F4` = TL/TR/BL/BR) +
   `QuadrantHotkeyModifier` (default `Control,Shift`), which open the overlay
-  scoped to one screen quadrant. The macro-picker hotkey `MacroHotkeyKey`,
+  scoped to one screen quadrant; the persistent quadrant guide
+  `QuadrantGuideEnabled` (default `true`) + `QuadrantGuideLabels` (default
+  `I,O,J,K` in TL/TR/BL/BR order — mnemonic letters over the F1–F4 chords; they
+  do NOT change the hotkeys); and the macro-picker hotkey `MacroHotkeyKey`,
   `MacroHotkeyModifier` (default `Ctrl+Shift+;` / `OemSemicolon`, no `Alt`)
   opens the macro palette.
 
-`HintCharacters` defaults to `A–Z` **minus `Q`** (25 letters, 625 two-char labels). The
+`HintCharacters` defaults to `A–Z` **minus `Q` and `I`** (24 letters, 576 two-char labels —
+exactly the default 4×6 zone grid × 6×4 in-zone points). The
 punctuation set `,./;'[]\` is also supported — add any of them here to opt in (they then
-also become typeable while the overlay is up). The first 25 entries double as the
-`GroupZones` box keys. **`Q` is reserved** (the direct close/Esc alias — a label containing
-`Q` could never be typed; `<leader>q` is therefore not a binding); digits are not labels
-either (`LabelCharForVk` never returns them) and, since the `1` alias was retired, they all
-pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
+also become typeable while the overlay is up). The first 24 entries double as the
+`GroupZones` box keys. **`Q` is reserved** (the direct close/Esc alias) and **`I` is
+reserved** (plain `i` enters insert mode — the vim-style suspend); a label containing
+either could never be typed, so `<leader>q`/`<leader>i` are therefore not bindings; digits
+are not labels either (`LabelCharForVk` never returns them) and, since the `1` alias was
+retired, they all pass through to the app — do not put `Q`, `I`, or `0–9` in
+`HintCharacters`.
 
 ## Runtime behavior (current)
 
@@ -177,10 +183,14 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   matching labels; a unique match fires. (In continuous mode the highlight resets to
   all-yellow after each click.)
 - **Group view (progressive 1-char labels; `GroupViewEnabled`, default on; `<leader>p`
-  toggles per-session)**: the overlay opens with a **`GroupZones` grid (default 5×5) of
+  toggles per-session)**: the overlay opens with a **`GroupZones` grid (default 4×6) of
   dotted boxes** instead of every pill — zone i keyed by `HintCharacters[i]` in scan
-  order (default = A–Z minus Q), the key char in a small pill **centered** in each box.
-  The grid tiles the region the session's points actually OCCUPY (their union extent —
+  order (default = A–Z minus Q and I), the key char in a small pill **centered** in each
+  box, and **one small dot at every point position inside the boxes** (the point preview:
+  you see where each zone's labels WILL land before typing its key). The zone grid draws
+  ONE outer border plus each interior separator ONCE (the old per-box outlines doubled
+  the line between adjacent boxes). The grid tiles the region the session's points
+  actually OCCUPY (their union extent —
   the monitor for Grid+Screen, the window, or just the quadrant for quadrant hotkeys),
   not the session bounds: quadrant sessions set bounds = the full monitor (for the
   full-screen overlay) while their points cluster in one quarter, so bounds-based
@@ -192,15 +202,18 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   the group and full views — so `<leader>p` never relabels mid-session. **Grid
   generation is zone-aligned** while a zone spec is active: totalCols = zoneCols ×
   inCols, totalRows = zoneRows × inRows, spanEdges over the bounds, so every zone
-  holds EXACTLY the same inCols×inRows points (6×4 = 24 on 16:9 with 25 letters; a
+  holds EXACTLY the same inCols×inRows points (best-fit to the bounds' aspect: 6×4 = 24
+  per zone on 16:9, **4×6 on portrait monitors**; a
   single global lattice previously sliced unevenly into mixed 6×3 / 6×4 / 5-wide
-  zones) and zone overflow is impossible by construction. inCols/inRows is derived
-  from the bounds' aspect (near-square cells), clamped by a CONSTANT legibility
+  zones) and zone overflow is impossible by construction. inCols/inRows is the
+  best factorization of the char budget for the bounds' aspect (min |cols/rows −
+  aspect|), clamped by a CONSTANT legibility
   floor (`MinZonePointSpacing`, 20 px — never one pill-width closer; a
   path-dependent layout-step floor once gave quadrants 6×3 while the main hotkey
   got 6×4). `GridLayouts` presets and dense regions do NOT apply while zoned
   (zone mode wants uniform), and zone-zoom's lens fill is zone-aligned too. On 1080p
-  that is 30×20 = 600 points (~66×57 px step). A genuinely degenerate session (spec
+  landscape with the default 4×6 zones that is 24×24 = 576 points (~83×47 px step).
+  A genuinely degenerate session (spec
   blank/invalid/oversized, or zone assignment still overflows) falls back to
   scan-order labels + derived first-char-group boxes (the original v1 shape).
   `Esc` backs out to the boxes (clears the prefix;
@@ -232,22 +245,26 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   reverts to the default (first `ClickModeOrder`
   entry, Left) after every click. Default bindings (`LeaderBindings`, hot-reload):
   `<leader>l/r/d/m/t` = Left/Right/Double/Move/Triple (plain `Q` closes), `<leader>z` = suspend,
-  `<leader>g` = cycle layout, `<leader>i` = toggle dim, `<leader>s` = snapshot region (see
+  `<leader>g` = cycle layout, `<leader>x` = toggle dim, `<leader>s` = snapshot region (see
   below), `<leader>v` = select text span (see below), `<leader>p` = toggle group view (see
-  above). The badge still shows the active mode.
+  above). The badge still shows the active mode. `Q` and `I` can never be leader keys (the
+  hook classifies them as close/insert before leader input).
 - **Type a label's 2 chars** → cursor jumps to its (panned) position and fires the
-  current mode (left / right / double / triple click via `mouse_event`, or move-only).
+  current mode (left / right / double / triple click via `SendInput`, or move-only).
   **Triple click** (`<leader>t`) = three rapid left clicks — selects a whole line in most
-  apps (a sentence in Word). **Selection actions (Double/Triple/`<leader>v`) always close
+  apps (a sentence in Word). **Selection actions (Double/Triple/`<leader>v`/`<leader>s`)
+  always close
   the overlay, even in Continuous mode** — keeping the overlay up clears the just-made
   selection in the target app (observed in Notepad3/Edge), so closing is what makes it
-  persist and become copyable. Left/Right/Move stay continuous.
+  persist and become copyable. Left/Right/Move stay continuous. (`SelectionActionsClose`
+  =false restores stay-up for all of d/t/v/s.)
 - **Snapshot region (`<leader>s`)**: enters a 2-pick mode (badge `SNAP 1/2`). Type the
   label of one corner, then the opposite corner (any order) → the screen rectangle between
   them is captured to the clipboard (in-process `CopyFromScreen` + `Clipboard.SetImage`;
   the overlay hides for ~40ms so its labels don't appear in the shot). Works in Grid and
   Automation; coords use the label's target point + pan offset (what you label is what you
-  capture). After capture it follows trigger mode (one-shot closes; continuous stays up).
+  capture). After capture the overlay **always closes** (like d/t/v — see
+  `SelectionActionsClose` above; continuous-stays-up is opt-in).
   `Esc`/`Q` cancels the pick; a degenerate pick (same point) is a no-op.
 - **Select text span (`<leader>v`)**: a 2-pick mode like snapshot (badge `SEL 1/2`). Type
   the label of one end of the span, then the other → the text between them is selected. The
@@ -281,19 +298,25 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   hap started *after* the last AHK reload — so **restart `hap.exe` after reloading your AHK
   script** if Capslock combos stop passing through. (Raw input does not help here: AHK's
   remap intercepts Capslock at the low-level-hook layer before raw input is generated.)
-- **`<leader>i` dims the labels** (was backtick): drops label opacity to the configured
-  dim level (default ~20%, `HintDimOpacity`) so the text passage behind is readable, then
-  `<leader>i` again to restore. Keys stay captured, so labels stay typeable while dim
-  (you can still type a label to fire it). Tradeoff: opacity-dim couples label contrast
-  to the background, so dimmed labels are harder to see on dark surfaces (acceptable on
-  light backgrounds; raise `HintDimOpacity` to improve). A two-tone-outline read-mode was
-  tried and rejected as ugly/hard to read. Backtick now passes through.
-- **`<leader>z` suspends the overlay** (was `2`/`\`): enters persistent suspend — the
-  overlay stops capturing keys AND **hides its labels** (opacity 0), leaving only the
+- **`<leader>x` dims the labels** (was `<leader>i`, earlier backtick): drops label opacity
+  to the configured dim level (default ~20%, `HintDimOpacity`) so the text passage behind
+  is readable, then `<leader>x` again to restore. Keys stay captured, so labels stay
+  typeable while dim (you can still type a label to fire it). Tradeoff: opacity-dim
+  couples label contrast to the background, so dimmed labels are harder to see on dark
+  surfaces (acceptable on light backgrounds; raise `HintDimOpacity` to improve). A
+  two-tone-outline read-mode was tried and rejected as ugly/hard to read. Backtick now
+  passes through. (Dim moved off `i` because plain `i` became insert mode.)
+- **Insert mode: plain `i` suspends the overlay** (vim-style; same state as `<leader>z`):
+  the overlay stops capturing keys AND **hides its labels** (opacity 0), leaving only the
   `SUSPENDED` status, so you can type into the app beneath (vimium, Excel shortcuts)
-  with zero key collision. Clicks pass through (no dismiss). Resume by pressing the
-  **main hotkey** (`Ctrl+Shift+M` / `Capslock+f`) again; `Esc`/`Q` closes. Per-session
-  (resets each new overlay). `2` now passes through to the app. (`\` is a label char.)
+  with zero key collision. Clicks pass through (no dismiss). **`q`/`Esc` exits insert
+  mode back to the live overlay** (intercepted by the hook while suspended — they do NOT
+  reach the app, and they resume rather than close; a second `Esc` after resuming behaves
+  normally), and the **main hotkey** (`Ctrl+Shift+M` / `Capslock+f`) also exits. `i` is
+  therefore a RESERVED letter (excluded from `HintCharacters`); `Shift+I` stays the
+  Large nudge-down chord, `Ctrl+I`/`Win+I` pass through. An `i` pressed while a
+  snapshot/select 2-pick is in progress is ignored (no suspend mid-pick). Per-session
+  (resets each new overlay).
 - **`<leader>g` cycles grid layouts** (Grid only; was `3`/`;`): `GridLayouts` lists N
   geometry presets (layouts separated by `||`, fields
   `edgeStep|centerStep|inset|edgeBandPercent|denseRegions`); it regenerates the grid with
@@ -324,6 +347,12 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   (softened yellow, background peeks through) while the text stays fully opaque
   (crisp). Configurable via `HintPillOpacity` (0-100 percent; hot-reload). Base mode
   is NOT dimmed canvas-wide, so it stays readable on dark backgrounds.
+- **Chrome scales with the monitor resolution**: the bottom badge strip, the leader
+  popup, and the typed-prefix box are laid out at fixed physical px (the DPI
+  counter-scale cancels WPF's render scaling), so `OverlayView.ApplyChromeScale`
+  multiplies them by `clamp(DIU-height / 1080, 1, 3)` — nothing shrinks below the
+  1080p baseline; a 4K monitor at 100% renders them 2×. Labels scale separately
+  (`HintFontSize` × the HintCanvas DPI scale).
 - **Trigger mode** (`OverlayTriggerMode`, hot-reload; Grid only): `Continuous` (default)
   keeps the overlay up for repeated clicks until `Esc` / a mouse click — e.g. `af`→
   navigate, `bd`→click again, `Space`→right-click, `aa`→open a menu, `bb`→click a menu
@@ -343,6 +372,23 @@ pass through to the app — do not put `Q` or `0–9` in `HintCharacters`.
   cycles the quarters** (badge `Q n/4`); `Ctrl+Tab`/`Ctrl+Shift+Tab`/`Win+Tab` still pass
   through. Each cycle resets the typed prefix + pan (same as monitor cycling).
   Keys/modifier configurable via `QuadrantHotkeyKeys`/`QuadrantHotkeyModifier`.
+- **Persistent quadrant guide** (`QuadrantGuideEnabled`/`QuadrantGuideLabels`, startup-only,
+  default on): a per-monitor, always-on-top, click-through window drawing a faint (~30%
+  opacity) dotted cross at the monitor center plus one letter pill at each quadrant center
+  (default `I,O,J,K` in TL/TR/BL/BR order) — a spatial memory aid for which
+  `Ctrl+Shift+F1..F4` region is where, visible during normal use. The letters are mnemonic
+  only (the user's AutoHotkey layer over the chords); they do NOT change the hotkeys. The
+  hint overlay re-asserts topmost and paints above the guide while open; `WS_EX_TOOLWINDOW`
+  keeps the guide out of Alt+Tab. Shows over fullscreen apps too — set
+  `QuadrantGuideEnabled=false` (restart) to hide it.
+- **Elevation / UIPI**: synthesized clicks (SendInput) are BLOCKED by Windows when the
+  target window is more elevated than hap — e.g. an elevated v2rayN while hap runs
+  unelevated; the symptom is "hap stops working" on that app. hap now detects it (SendInput
+  injects 0 events) and shows a red `INPUT BLOCKED - RUN hap AS ADMIN` badge + timing-log
+  line. To click elevated apps, **run hap as administrator**; make sure only ONE instance
+  runs (a second copy now says so and exits; hotkey-registration conflicts also pop a
+  MessageBox instead of failing silently). Startup logs hap's own elevation to the timing
+  log.
 - **Esc** (or **`Q`**, an alias that's closer to type; `Ctrl+Q` passes through) first cancels
   a pending leader if one is open; otherwise clears the typed prefix if any has been typed
   (cancel the selection, stay up so you can retype from scratch); if nothing is typed, it

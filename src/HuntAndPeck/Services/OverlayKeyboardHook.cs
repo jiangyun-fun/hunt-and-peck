@@ -403,7 +403,7 @@ namespace HuntAndPeck.Services
                 // pending leader). I = insert mode (vim-style suspend) and is reserved
                 // the same way: the default HintCharacters excludes it, and <leader>i
                 // cannot fire (I classifies as InsertToggle before label/leader input).
-                // Shift+I is still the Large nudge-up chord (classified above), and
+                // Shift+I is still the Large nudge-down chord (classified above), and
                 // Ctrl+I / Win+I pass through. Digits 0-9 are NOT aliases -- `1` was
                 // unaliased, so all digits pass through to the app (LabelCharForVk
                 // returns null for them, so they fall through to None).
