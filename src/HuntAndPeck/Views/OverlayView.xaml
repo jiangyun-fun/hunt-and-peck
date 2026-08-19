@@ -72,7 +72,7 @@
                        FontFamily="Helvetica, Arial" FontWeight="Bold" FontSize="12"
                        Foreground="White" Background="SteelBlue" Padding="6,2"
                        Margin="6,0,0,0" Visibility="{Binding SelectBadgeVisibility}" />
-            <!-- Input-blocked indicator: SendInput was refused (UIPI) -- the target
+            <!-- Input-blocked indicator: SendInput was refused (UIPI): the target
                  app is more elevated than hap; restart hap as administrator to
                  click into it. Clears on the next attempt. -->
             <TextBlock Text="{Binding BlockedBadgeLabel}"
