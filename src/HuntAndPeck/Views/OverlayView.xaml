@@ -27,13 +27,13 @@
         <!-- Display-only: shows the typed prefix. Input arrives via the global
              keyboard hook (not a focused TextBox), so the overlay can stay
              non-activated and not dismiss an open context menu. -->
-        <TextBox Text="{Binding MatchString, Mode=OneWay}" Width="50"
+        <TextBox x:Name="matchBox" Text="{Binding MatchString, Mode=OneWay}" Width="50"
                  HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4"
                  Background="Transparent" Foreground="White" IsReadOnly="True" Focusable="False" />
         <!-- Bottom-center status strip (sits over the empty middle of the taskbar).
              The click-mode badge hides while suspended so only SUSPENDED shows.
              Semi-transparent so it never fully obscures content behind it. -->
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+        <StackPanel x:Name="badgeStrip" Orientation="Horizontal" HorizontalAlignment="Center"
                     VerticalAlignment="Bottom" Margin="0,0,0,8" Opacity="0.75">
             <TextBlock Text="{Binding CurrentModeName}"
                        Background="{Binding CurrentModeBrush}"
@@ -76,7 +76,7 @@
         <!-- Leader dispatcher popup (<Space>): centered and transient. Shown only while
              a leader is pending (LeaderMenuVisibility). Lists the key -> action bindings
              (LeaderMenuText). Last child of the Grid so it renders above the canvas. -->
-        <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+        <Border x:Name="leaderPopup" HorizontalAlignment="Center" VerticalAlignment="Center"
                 Visibility="{Binding LeaderMenuVisibility}"
                 Background="#F0151A22" CornerRadius="8" Padding="20,12"
                 BorderBrush="#66000000" BorderThickness="1">

@@ -34,6 +34,15 @@ namespace HuntAndPeck.Views
         // window is ~free.
         private const int TopmostReassertIntervalMs = 100;
 
+        // Chrome (badge strip / leader popup / match box) is laid out at fixed
+        // physical px (the layoutGrid counter-scale cancels WPF's DPI render, and
+        // unlike HintCanvas these XAML panels have no DpiScale hook), so on a
+        // high-resolution monitor they render tiny relative to the screen. They are
+        // scaled by the monitor's DIU height vs. this 1080p reference (>= 1: a
+        // 1080p-equivalent screen keeps today's sizes; 4K@100% doubles them).
+        private const double ChromeReferenceHeightPx = 1080.0;
+        private const double ChromeScaleMax = 3.0;
+
         public OverlayView()
         {
             InitializeComponent();
@@ -121,6 +130,7 @@ namespace HuntAndPeck.Views
         /// Positions and sizes the overlay window to the view-model's current Bounds,
         /// dividing by the device scale (Bounds is in physical pixels; the window is in
         /// WPF device-independent units). Called on load and on every monitor switch.
+        /// Also re-applies the chrome scale (it follows the monitor's resolution).
         /// </summary>
         private void ApplyBounds(OverlayViewModel vm)
         {
@@ -132,6 +142,38 @@ namespace HuntAndPeck.Views
             Top = vm.Bounds.Top / _scaleY;
             Width = vm.Bounds.Width / _scaleX;
             Height = vm.Bounds.Height / _scaleY;
+            ApplyChromeScale(vm);
+        }
+
+        /// <summary>
+        /// Scales the fixed-size chrome (bottom badge strip, leader popup, match box)
+        /// with the monitor's resolution: their FontSize/Padding values are physical
+        /// px (the layoutGrid counter-scale cancels WPF's DPI render), so without this
+        /// they render tiny on a high-resolution monitor. The factor is the monitor's
+        /// DIU height (physical / device scale) vs. a 1080p reference, clamped to
+        /// [1, <see cref="ChromeScaleMax"/>] -- nothing ever shrinks below today's
+        /// sizes. Labels scale separately via HintCanvas.DpiScale + HintFontSize.
+        /// </summary>
+        private void ApplyChromeScale(OverlayViewModel vm)
+        {
+            if (vm == null || _scaleY <= 0)
+            {
+                return;
+            }
+            double diuHeight = vm.Bounds.Height / _scaleY;
+            double s = diuHeight / ChromeReferenceHeightPx;
+            if (s < 1.0)
+            {
+                s = 1.0;
+            }
+            else if (s > ChromeScaleMax)
+            {
+                s = ChromeScaleMax;
+            }
+            var scale = new ScaleTransform(s, s);
+            badgeStrip.LayoutTransform = scale;
+            leaderPopup.LayoutTransform = scale;
+            matchBox.LayoutTransform = scale;
         }
 
         private void OverlayView_OnContentRendered(object sender, EventArgs e)
