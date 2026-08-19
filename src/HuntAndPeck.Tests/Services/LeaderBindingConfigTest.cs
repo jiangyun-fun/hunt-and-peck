@@ -114,6 +114,8 @@ namespace HuntAndPeck.Tests.Services
         [InlineData("b=CYCLELAYOUT", LeaderKind.CycleLayout)]
         [InlineData("c=Dim", LeaderKind.ToggleDim)]
         [InlineData("d=TOGGLEDIM", LeaderKind.ToggleDim)]
+        [InlineData("e=Guide", LeaderKind.ToggleQuadrantGuide)]
+        [InlineData("f=QUADRANTGUIDE", LeaderKind.ToggleQuadrantGuide)]
         public void Parse_FunctionNameAliases(string raw, LeaderKind expected)
         {
             var list = LeaderBindingConfig.ParseLeaderBindings(raw);
@@ -148,6 +150,7 @@ namespace HuntAndPeck.Tests.Services
             Assert.Contains(list, b => b.Key == 'V' && b.Kind == LeaderKind.SelectText);
             Assert.Contains(list, b => b.Key == 'P' && b.Kind == LeaderKind.ToggleGroupView);
             Assert.Contains(list, b => b.Key == 'X' && b.Kind == LeaderKind.ToggleDim);
+            Assert.Contains(list, b => b.Key == 'C' && b.Kind == LeaderKind.ToggleQuadrantGuide);
             Assert.DoesNotContain(list, b => b.Key == 'Q');
             Assert.DoesNotContain(list, b => b.Key == 'I');
         }

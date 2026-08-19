@@ -248,7 +248,8 @@ retired, they all pass through to the app — do not put `Q`, `I`, or `0–9` in
   reverts to the default (first `ClickModeOrder`
   entry, Left) after every click. Default bindings (`LeaderBindings`, hot-reload):
   `<leader>l/r/d/m/t` = Left/Right/Double/Move/Triple (plain `Q` closes), `<leader>z` = suspend,
-  `<leader>g` = cycle layout, `<leader>x` = toggle dim, `<leader>s` = snapshot region (see
+  `<leader>g` = cycle layout, `<leader>c` = toggle the quadrant guide (live; persists to
+  `QuadrantGuideEnabled`), `<leader>x` = toggle dim, `<leader>s` = snapshot region (see
   below), `<leader>v` = select text span (see below), `<leader>p` = toggle group view (see
   above). The badge still shows the active mode. `Q` and `I` can never be leader keys (the
   hook classifies them as close/insert before leader input).
@@ -389,7 +390,9 @@ retired, they all pass through to the app — do not put `Q`, `I`, or `0–9` in
   monitor. The letters are mnemonic only (the user's AutoHotkey layer over the chords);
   they do NOT change the hotkeys. The hint overlay re-asserts topmost and paints above
   the guide while open; `WS_EX_TOOLWINDOW` keeps the guide out of Alt+Tab. Shows over
-  fullscreen apps too — set `QuadrantGuideEnabled=false` (restart) to hide it.
+  fullscreen apps too — `<leader>c` toggles the guide live (no restart; the choice is
+  persisted back to `QuadrantGuideEnabled`, and enabling after a disabled startup builds
+  the windows on demand), or set `QuadrantGuideEnabled=false` (restart) to start without it.
 - **Elevation / UIPI**: synthesized clicks (SendInput) are BLOCKED by Windows when the
   target window is more elevated than hap — e.g. an elevated v2rayN while hap runs
   unelevated; the symptom is "hap stops working" on that app. hap now detects it (SendInput

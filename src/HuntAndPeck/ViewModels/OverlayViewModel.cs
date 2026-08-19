@@ -12,6 +12,7 @@ using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services;
 using HuntAndPeck.Services.Interfaces;
 using HuntAndPeck.Services.Macro;
+using HuntAndPeck.Views;
 using System.Security.Principal;
 
 namespace HuntAndPeck.ViewModels
@@ -1141,6 +1142,7 @@ namespace HuntAndPeck.ViewModels
                     case LeaderKind.Snapshot: EnterSnapshotRegion(); break;
                     case LeaderKind.SelectText: EnterSelectText(); break;
                     case LeaderKind.ToggleGroupView: ToggleGroupView(); break;
+                    case LeaderKind.ToggleQuadrantGuide: QuadrantGuideWindow.Toggle(); break;
                 }
             }
             else

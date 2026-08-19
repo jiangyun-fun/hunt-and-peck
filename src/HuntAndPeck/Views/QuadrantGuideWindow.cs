@@ -40,6 +40,9 @@ namespace HuntAndPeck.Views
         private const int FocusedPollIntervalMs = 400;
         private static readonly List<QuadrantGuideWindow> s_windows = new List<QuadrantGuideWindow>();
         private static DispatcherTimer s_focusedTracker;
+        // Live enable state (QuadrantGuideEnabled at startup; toggled by <leader>c,
+        // which also persists the choice back to the config).
+        private static bool s_enabled;
 
         // Quadrant letter size (px at 96 DPI; scaled by the monitor's device scale,
         // like HintCanvas scales its label sizes).
@@ -86,19 +89,31 @@ namespace HuntAndPeck.Views
         protected override bool CloseOnDeactivate => false;
 
         /// <summary>
-        /// One guide window per monitor, or an empty list when the guide is disabled
-        /// (QuadrantGuideEnabled=false) or no labels resolve. Must run on the UI
-        /// thread (creates windows). With QuadrantGuideFocusedOnly (default) the
-        /// windows then track focus: only the foreground monitor's guide is visible.
+        /// Startup entry: one guide window per monitor when QuadrantGuideEnabled,
+        /// otherwise an empty list (Toggle can still create them later). Must run on
+        /// the UI thread (creates windows). With QuadrantGuideFocusedOnly (default)
+        /// the windows then track focus: only the foreground monitor's guide is visible.
         /// </summary>
         public static IList<QuadrantGuideWindow> CreateForAllScreens()
         {
-            var windows = new List<QuadrantGuideWindow>();
             s_windows.Clear();
-            if (!OverlayActionConfig.ReadQuadrantGuideEnabled())
+            s_enabled = OverlayActionConfig.ReadQuadrantGuideEnabled();
+            if (!s_enabled)
             {
-                return windows;
+                return new List<QuadrantGuideWindow>();
             }
+            return CreateAndShowWindows();
+        }
+
+        /// <summary>
+        /// Builds + shows the windows (no config gate) and starts the focused-monitor
+        /// tracker when applicable. Shared by startup and <see cref="Toggle"/> (which
+        /// may enable a guide that was disabled at startup). Empty when no labels
+        /// resolve.
+        /// </summary>
+        private static IList<QuadrantGuideWindow> CreateAndShowWindows()
+        {
+            var windows = new List<QuadrantGuideWindow>();
             string[] labels = OverlayActionConfig.ReadQuadrantGuideLabels();
             if (labels.Length < 4)
             {
@@ -130,12 +145,64 @@ namespace HuntAndPeck.Views
         }
 
         /// <summary>
+        /// Leader toggle (<c>&lt;leader&gt;c</c>): shows/hides the guide LIVE (no
+        /// restart) and persists the choice to QuadrantGuideEnabled. Enabling when the
+        /// guide was disabled at startup builds the windows on demand. Must run on the
+        /// UI thread (may create windows).
+        /// </summary>
+        public static void Toggle()
+        {
+            s_enabled = !s_enabled;
+            if (s_enabled && s_windows.Count == 0)
+            {
+                CreateAndShowWindows();   // applies visibility itself
+            }
+            else
+            {
+                ApplyGuideVisibility();
+            }
+            OverlayActionConfig.WriteSetting("QuadrantGuideEnabled", s_enabled ? "true" : "false");
+        }
+
+        /// <summary>
+        /// Applies s_enabled to every window: hidden when off; when on, the focused
+        /// monitor's window only (tracker mode) or all of them.
+        /// </summary>
+        private static void ApplyGuideVisibility()
+        {
+            if (!s_enabled)
+            {
+                foreach (var w in s_windows)
+                {
+                    w.Visibility = Visibility.Hidden;
+                }
+                return;
+            }
+            if (s_focusedTracker != null)
+            {
+                ApplyFocusedMonitor();
+            }
+            else
+            {
+                foreach (var w in s_windows)
+                {
+                    w.Visibility = Visibility.Visible;
+                }
+            }
+        }
+
+        /// <summary>
         /// Shows only the guide on the FOREGROUND window's monitor (hides the rest).
-        /// No-op when the foreground window cannot be resolved. Single-monitor setups
-        /// never start the tracker, so this only runs when it can change something.
+        /// No-op when disabled (the tracker keeps ticking across toggles) or when the
+        /// foreground window cannot be resolved. Single-monitor setups never start the
+        /// tracker, so this only runs when it can change something.
         /// </summary>
         private static void ApplyFocusedMonitor()
         {
+            if (!s_enabled)
+            {
+                return;
+            }
             IntPtr fg = User32.GetForegroundWindow();
             if (fg == IntPtr.Zero)
             {

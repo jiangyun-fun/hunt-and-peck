@@ -26,7 +26,9 @@ namespace HuntAndPeck.Services
         /// <summary>Enter text-span selection (2-pick; selects the text between two labels).</summary>
         SelectText,
         /// <summary>Toggle the group view (dotted first-char group boxes vs. full labels).</summary>
-        ToggleGroupView
+        ToggleGroupView,
+        /// <summary>Toggle the persistent quadrant guide (cross + quadrant letters).</summary>
+        ToggleQuadrantGuide
     }
 
     /// <summary>
@@ -69,6 +71,7 @@ namespace HuntAndPeck.Services
                 case LeaderKind.Snapshot: return "snapshot region";
                 case LeaderKind.SelectText: return "select text";
                 case LeaderKind.ToggleGroupView: return "toggle group view";
+                case LeaderKind.ToggleQuadrantGuide: return "toggle quadrant guide";
                 default: return Kind.ToString().ToLowerInvariant();
             }
         }
@@ -93,7 +96,8 @@ namespace HuntAndPeck.Services
         // binding could never fire). No `i` binding either: plain I is insert mode
         // (it classifies as InsertToggle before label/leader input). Dim therefore
         // lives on `x`. `s` = snapshot region, `v` = select text span, `p` = toggle
-        // group view (dotted first-char boxes vs. full labels).
+        // group view (dotted first-char boxes vs. full labels), `c` = toggle the
+        // quadrant guide (cross; live + persisted, no restart).
         private static readonly LeaderBinding[] DefaultBindings =
         {
             new LeaderBinding('L', LeaderKind.Mode, ClickAction.Left),
@@ -103,6 +107,7 @@ namespace HuntAndPeck.Services
             new LeaderBinding('M', LeaderKind.Mode, ClickAction.Move),
             new LeaderBinding('Z', LeaderKind.Suspend),
             new LeaderBinding('G', LeaderKind.CycleLayout),
+            new LeaderBinding('C', LeaderKind.ToggleQuadrantGuide),
             new LeaderBinding('X', LeaderKind.ToggleDim),
             new LeaderBinding('S', LeaderKind.Snapshot),
             new LeaderBinding('V', LeaderKind.SelectText),
@@ -192,6 +197,8 @@ namespace HuntAndPeck.Services
                 case "SELECT": return new LeaderBinding(key, LeaderKind.SelectText);
                 case "GROUPVIEW":
                 case "GROUPS": return new LeaderBinding(key, LeaderKind.ToggleGroupView);
+                case "QUADRANTGUIDE":
+                case "GUIDE": return new LeaderBinding(key, LeaderKind.ToggleQuadrantGuide);
                 default: return null; // unknown target -> skip
             }
         }
