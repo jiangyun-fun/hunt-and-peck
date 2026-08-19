@@ -308,11 +308,14 @@ retired, they all pass through to the app — do not put `Q`, `I`, or `0–9` in
   passes through. (Dim moved off `i` because plain `i` became insert mode.)
 - **Insert mode: plain `i` suspends the overlay** (vim-style; same state as `<leader>z`):
   the overlay stops capturing keys AND **hides its labels** (opacity 0), leaving only the
-  `SUSPENDED` status, so you can type into the app beneath (vimium, Excel shortcuts)
-  with zero key collision. Clicks pass through (no dismiss). **`q`/`Esc` exits insert
-  mode back to the live overlay** (intercepted by the hook while suspended — they do NOT
-  reach the app, and they resume rather than close; a second `Esc` after resuming behaves
-  normally), and the **main hotkey** (`Ctrl+Shift+M` / `Capslock+f`) also exits. `i` is
+  `INSERT` badge, so you can type into the app beneath (vimium, Excel shortcuts)
+  with zero key collision. Clicks pass through (no dismiss). **Exit: press the SAME exit
+  key twice within 500 ms — `q q` or `Esc Esc`** (badge shows the gesture). A single
+  plain `q`/`Esc` passes through to the app as ordinary input (insert mode is for typing
+  there; swallowing every single press made normal typing exit insert mode by accident —
+  the one stray character from the first tap is the accepted cost); any other keydown
+  between the two taps breaks the gesture. The **main hotkey** (`Ctrl+Shift+M` /
+  `Capslock+f`) also exits, single press. `i` is
   therefore a RESERVED letter (excluded from `HintCharacters`); `Shift+I` stays the
   Large nudge-down chord, `Ctrl+I`/`Win+I` pass through. An `i` pressed while a
   snapshot/select 2-pick is in progress is ignored (no suspend mid-pick). Per-session

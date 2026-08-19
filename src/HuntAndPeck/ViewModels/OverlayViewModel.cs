@@ -647,8 +647,12 @@ namespace HuntAndPeck.ViewModels
             set { _isContinuous = value; NotifyOfPropertyChange(nameof(TriggerModeLabel)); }
         }
 
-        /// <summary>Overlay badge: the current trigger mode (or SUSPENDED).</summary>
-        public string TriggerModeLabel => _suspended ? "SUSPENDED"
+        /// <summary>
+        /// Overlay badge: the current trigger mode. While suspended (insert mode) it
+        /// names the exit gesture so it stays discoverable (double-tap, since a single
+        /// q/Esc is ordinary app input there).
+        /// </summary>
+        public string TriggerModeLabel => _suspended ? "INSERT (qq/Esc Esc)"
             : (_isContinuous ? "CONTINUOUS" : "ONE-SHOT");
 
         /// <summary>Flips one-click &lt;-&gt; continuous. No-op for non-Grid (Automation).</summary>
@@ -663,10 +667,11 @@ namespace HuntAndPeck.ViewModels
 
         /// <summary>
         /// Insert mode / persistent suspend: the overlay stops capturing keys AND hides
-        /// its labels (opacity 0), leaving only the SUSPENDED status, so you can type
+        /// its labels (opacity 0), leaving only the INSERT badge, so you can type
         /// into the app beneath (vimium, Excel) with zero key collision. Vim-style:
-        /// enter with plain <c>i</c> (or <c>&lt;leader&gt;z</c>); exit with <c>q</c>/
-        /// <c>Esc</c> (intercepted by the hook while suspended) or the main hotkey
+        /// enter with plain <c>i</c> (or <c>&lt;leader&gt;z</c>); exit with a DOUBLE
+        /// press of the same key (<c>q q</c> / <c>Esc Esc</c> within 500 ms — single
+        /// presses pass through to the app as normal input) or the main hotkey
         /// (Ctrl+Shift+M / Capslock+f).
         /// </summary>
         public bool Suspended

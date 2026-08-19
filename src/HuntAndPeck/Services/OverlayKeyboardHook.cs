@@ -93,6 +93,18 @@ namespace HuntAndPeck.Services
         // Idle auto-close timer (OverlayAutoCloseSec). Null when the feature is off (0).
         private DispatcherTimer _autoCloseTimer;
 
+        // Insert-mode exit gesture: the SAME exit key (plain Q / Esc) must be pressed
+        // twice within this window to resume the overlay. A single press passes
+        // through to the app -- typing there is the point of insert mode, and
+        // swallowing every plain q/Esc made ordinary typing exit insert mode
+        // accidentally. Any other keydown between the two presses breaks the
+        // sequence. Measured in Stopwatch ticks.
+        private const int InsertExitWindowMs = 500;
+        private static readonly long InsertExitWindowTicks =
+            (long)InsertExitWindowMs * System.Diagnostics.Stopwatch.Frequency / 1000;
+        private int _insertExitVk;
+        private long _insertExitLastTicks;
+
         public OverlayKeyboardHook()
         {
             // Captured on the (UI) thread that constructs us; callbacks arrive here.
@@ -266,18 +278,38 @@ namespace HuntAndPeck.Services
             bool altHeld = _sAltHeld || IsDown(User32.VK_MENU);
             if (_vm != null && _vm.Suspended)
             {
-                // Insert mode exit keys: while suspended everything passes through to
-                // the app (that IS insert mode), EXCEPT a plain Esc/Q, which resumes
-                // the overlay (vim semantics: `i` enters, Esc exits). Modifier chords
-                // (Alt/Capslock-held, Ctrl+Esc, Win+.) keep passing through untouched.
-                if (down && !altHeld && !_sCapsHeld
-                    && (vk == User32.VK_ESCAPE || vk == User32.VK_Q)
-                    && !IsDown(User32.VK_CONTROL)
-                    && !IsDown(User32.VK_LWIN) && !IsDown(User32.VK_RWIN))
+                // Insert mode: everything passes through to the app (that IS insert
+                // mode) EXCEPT the exit gesture -- the SAME exit key (q / Esc)
+                // pressed twice within InsertExitWindowMs resumes the overlay. The
+                // FIRST press passes through (a single q/Esc must behave as normal
+                // app input; one stray char is the cost of the double-tap exit).
+                // Keyups never break the sequence (they land between the two taps);
+                // any other keydown does. Modifier chords (Alt/Capslock-held,
+                // Ctrl+Esc, Win+.) are untouched.
+                if (down)
                 {
-                    _dispatcher.BeginInvoke(new Action(() => _vm.ExitSuspend()));
-                    ResetAutoClose();
-                    return new IntPtr(1);
+                    bool plainExitKey = !altHeld && !_sCapsHeld
+                        && (vk == User32.VK_ESCAPE || vk == User32.VK_Q)
+                        && !IsDown(User32.VK_CONTROL)
+                        && !IsDown(User32.VK_LWIN) && !IsDown(User32.VK_RWIN);
+                    if (plainExitKey)
+                    {
+                        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                        if (vk == _insertExitVk && now - _insertExitLastTicks <= InsertExitWindowTicks)
+                        {
+                            _insertExitVk = 0;
+                            _insertExitLastTicks = 0;
+                            _dispatcher.BeginInvoke(new Action(() => _vm.ExitSuspend()));
+                            ResetAutoClose();
+                            return new IntPtr(1);
+                        }
+                        _insertExitVk = vk;
+                        _insertExitLastTicks = now;
+                    }
+                    else
+                    {
+                        _insertExitVk = 0;   // another key between the taps: not the gesture
+                    }
                 }
                 return User32.CallNextHookEx(_kbHook, code, wParam, lParam);
             }
