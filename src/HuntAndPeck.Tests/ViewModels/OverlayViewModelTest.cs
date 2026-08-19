@@ -84,6 +84,52 @@ namespace HuntAndPeck.Tests.ViewModels
         }
 
         [Fact]
+        public void Snapshot_Complete_ClosesEvenInContinuousMode()
+        {
+            // d/t/v already close after completing in Continuous mode
+            // (SelectionActionsClose=true default); snapshot must behave the same
+            // (one-shot), not follow the raw trigger mode.
+            var hints = new List<Hint>();
+            for (int i = 0; i < 40; i++)
+            {
+                hints.Add(new PointHint(IntPtr.Zero, new Rect(i * 10, 0, 8, 8), new Point(i * 10, 4)));
+            }
+            var vm = new OverlayViewModel(new HintSession
+            {
+                Hints = hints,
+                OwningWindow = IntPtr.Zero,
+                OwningWindowBounds = new Rect(0, 0, 400, 100)
+            }, new HintLabelService())
+            {
+                IsContinuous = true
+            };
+            Rect? captured = null;
+            int closed = 0;
+            vm.CaptureRegion = r => captured = r;
+            vm.CloseOverlay = () => closed++;
+
+            vm.EnterSnapshotRegion();
+            Assert.Equal("SNAP 1/2", vm.SnapshotBadgeLabel);
+
+            TypeLabel(vm, vm.Hints[0].Label);      // corner 1 (anchor)
+            Assert.Equal("SNAP 2/2", vm.SnapshotBadgeLabel);
+
+            TypeLabel(vm, vm.Hints[39].Label);     // corner 2: capture + close
+
+            Assert.NotNull(captured);
+            Assert.True(captured.Value.Width > 0);
+            Assert.Equal(1, closed);               // closed even though IsContinuous
+        }
+
+        private static void TypeLabel(OverlayViewModel vm, string label)
+        {
+            foreach (char c in label)
+            {
+                vm.AppendLabelChar(c);
+            }
+        }
+
+        [Fact]
         public void NormalizeRegion_CornersInOrder_YieldsPositiveRect()
         {
             var r = OverlayViewModel.NormalizeRegion(new Point(10, 20), new Point(110, 220));

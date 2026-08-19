@@ -1196,7 +1196,8 @@ namespace HuntAndPeck.ViewModels
         /// <summary>
         /// Handles a matched label as a snapshot corner. Corner-1 is stored as the anchor
         /// (labels re-highlight so corner-2 is pickable); corner-2 forms the rectangle,
-        /// fires CaptureRegion, then follows trigger mode (close / continuous reset).
+        /// fires CaptureRegion, then closes (one-shot by default; Continuous +
+        /// SelectionActionsClose=false stays up).
         /// </summary>
         private void HandleSnapshotCorner(Hint hint)
         {
@@ -1221,8 +1222,10 @@ namespace HuntAndPeck.ViewModels
                 CaptureRegion?.Invoke(rect);
             }
 
-            // Follow trigger mode (same as a click): one-shot closes, continuous resets.
-            if (_isContinuous)
+            // Snapshot closes unless the user opted to keep the overlay up in
+            // Continuous mode (SelectionActionsClose=false) -- the same policy as
+            // span-select and Double/Triple (d/t/v all behave one-shot by default).
+            if (_isContinuous && !_selectionActionsClose)
             {
                 ResetForNextClick();
             }
