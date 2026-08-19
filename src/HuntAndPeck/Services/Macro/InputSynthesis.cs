@@ -141,5 +141,37 @@ namespace HuntAndPeck.Services.Macro
             }
             User32.SendInput((uint)arr.Length, arr, Marshal.SizeOf(typeof(User32.INPUT)));
         }
+
+        /// <summary>
+        /// Injects ONE mouse event (e.g. <see cref="User32.MOUSEEVENTF_LEFTDOWN"/>) via
+        /// SendInput and returns the injected event count. A return of 0 means the call
+        /// was BLOCKED by UIPI -- the foreground window's integrity level is higher than
+        /// hap's (an elevated app while hap runs unelevated); callers surface that.
+        /// mouse_event cannot report this (void return), which is why clicks synthesize
+        /// through here now.
+        /// </summary>
+        public static uint SendMouseEvent(uint flags)
+        {
+            var arr = new[]
+            {
+                new User32.INPUT
+                {
+                    type = User32.INPUT_MOUSE,
+                    u = new User32.INPUTUNION
+                    {
+                        mi = new User32.MOUSEINPUT
+                        {
+                            dx = 0,
+                            dy = 0,
+                            mouseData = 0,
+                            dwFlags = flags,
+                            time = 0,
+                            dwExtraInfo = IntPtr.Zero
+                        }
+                    }
+                }
+            };
+            return User32.SendInput((uint)arr.Length, arr, Marshal.SizeOf(typeof(User32.INPUT)));
+        }
     }
 }

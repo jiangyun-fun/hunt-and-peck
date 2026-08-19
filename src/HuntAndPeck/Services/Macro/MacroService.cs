@@ -114,8 +114,14 @@ namespace HuntAndPeck.Services.Macro
         private static void ClickPoint(int x, int y)
         {
             User32.SetCursorPos(x, y);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+            // SendInput (not mouse_event) so a UIPI block is detectable: 0 injected
+            // events = the target window is more elevated than hap.
+            if (InputSynthesis.SendMouseEvent(User32.MOUSEEVENTF_LEFTDOWN) == 0
+                || InputSynthesis.SendMouseEvent(User32.MOUSEEVENTF_LEFTUP) == 0)
+            {
+                TimingLog.Log("macro click SendInput blocked at " + x + "," + y
+                    + " (0 events injected) -- elevated target? start hap as administrator");
+            }
         }
 
         // Fail loudly: a step that threw (e.g. ambiguous window, unimplemented overlay

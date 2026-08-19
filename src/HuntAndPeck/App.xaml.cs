@@ -233,12 +233,32 @@ namespace HuntAndPeck
             }
             else
             {
-                // Prevent multiple startup in non-headless mode
+                // Prevent multiple startup in non-headless mode. The failure used to be
+                // silent, which masqueraded as "hap stopped working": the OLD instance
+                // (e.g. started unelevated at login) keeps the hotkeys, its clicks are
+                // then UIPI-blocked on elevated apps, and the freshly started (elevated)
+                // copy looks dead. Say so instead.
                 if (_singleLaunchMutex.AlreadyRunning)
                 {
+                    System.Windows.MessageBox.Show(
+                        "hap is already running.\n\n"
+                        + "This new copy is exiting. The running instance keeps the\n"
+                        + "hotkeys -- if it was started WITHOUT administrator rights, its\n"
+                        + "clicks cannot reach elevated apps (v2rayN etc.). Exit the old\n"
+                        + "instance from its tray icon (Exit), then start hap again.",
+                        "hap already running",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
                     Current.Shutdown();
                     return;
                 }
+
+                // Record our elevation so on-box reports (timing log, blocked badge)
+                // are interpretable: elevated targets need an elevated hap.
+                TimingLog.Log("startup elevated="
+                    + new System.Security.Principal.WindowsPrincipal(
+                          System.Security.Principal.WindowsIdentity.GetCurrent())
+                      .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator));
 
                 // Create this as late as possible as it has a window
                 _keyListenerService = new KeyListenerService();

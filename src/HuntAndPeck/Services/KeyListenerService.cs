@@ -37,8 +37,33 @@ namespace HuntAndPeck.Services
                 User32.UnregisterHotKey(Handle, hotKey.RegistrationId);
             }
 
+            TryRegister(hotKey);
+        }
+
+        /// <summary>
+        /// Registers a hotkey and SURFACES failure. RegisterHotKey returns false when
+        /// another process already owns the combo, and the return was previously
+        /// ignored -- so a conflicting tool (or a stale hap instance started before
+        /// the mutex guarded startup) silently left a hotkey dead, which on-box
+        /// masqueraded as "hap stopped working". One MessageBox per failing chord.
+        /// </summary>
+        private void TryRegister(HotKey hotKey)
+        {
             hotKey.RegistrationId = _hotkeyIdCounter++;
-            User32.RegisterHotKey(Handle, hotKey.RegistrationId, (uint)hotKey.Modifier, (uint)hotKey.Keys);
+            if (User32.RegisterHotKey(Handle, hotKey.RegistrationId, (uint)hotKey.Modifier, (uint)hotKey.Keys))
+            {
+                return;
+            }
+            string chord = hotKey.Modifier + "+" + hotKey.Keys;
+            MessageBox.Show(
+                "hap could not register the hotkey " + chord + ".\n\n"
+                + "Another program (or another hap instance) already owns it.\n"
+                + "If a hap tray icon is already running, exit it first (tray menu:\n"
+                + "Exit), then start hap again. Otherwise check which app uses\n"
+                + "this combo and change HotkeyKey/HotkeyModifier in the options.",
+                "hap hotkey conflict",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
         }
 
         /// <summary>
@@ -117,8 +142,7 @@ namespace HuntAndPeck.Services
                         {
                             continue;
                         }
-                        hk.RegistrationId = _hotkeyIdCounter++;
-                        User32.RegisterHotKey(Handle, hk.RegistrationId, (uint)hk.Modifier, (uint)hk.Keys);
+                        TryRegister(hk);
                     }
                 }
             }

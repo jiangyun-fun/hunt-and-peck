@@ -11,6 +11,8 @@ using HuntAndPeck.Models;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services;
 using HuntAndPeck.Services.Interfaces;
+using HuntAndPeck.Services.Macro;
+using System.Security.Principal;
 
 namespace HuntAndPeck.ViewModels
 {
@@ -84,6 +86,16 @@ namespace HuntAndPeck.ViewModels
         private bool _isContinuous;
         private bool _dimmed;
         private bool _suspended;
+
+        // Set when a fire's SendInput injected 0 events (UIPI: the target window is
+        // more elevated than hap); surfaced by the post-fire callbacks on the UI
+        // thread. Reset at the start of each fire attempt.
+        private bool _inputBlocked;
+
+        // Read once per process (elevation cannot change mid-overlay); names the fix
+        // in the blocked badge so an on-box report is interpretable.
+        private static readonly bool IsElevated = new WindowsPrincipal(
+            WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
 
         // --- Type-to-zoom zones (Grid + Screen, ZoneZoomEnabled) ---
         // ZonePick: show cols*rows large labels; type one to drill into its sub-rect.
@@ -903,6 +915,7 @@ namespace HuntAndPeck.ViewModels
                 POINT p;
                 User32.GetCursorPos(out p);
                 User32.SetCursorPos(p.X + (int)_offsetX, p.Y + (int)_offsetY);
+                _inputBlocked = false;   // fresh attempt: clear the UIPI-blocked badge
 
                 // Post-fire: stay up (continuous) or close. Selection actions (Double/
                 // Triple) close EVEN in Continuous mode by default (SelectionActionsClose):
@@ -910,6 +923,7 @@ namespace HuntAndPeck.ViewModels
                 // Notepad3/Edge). Left/Right/Move stay continuous (repeated clicking/nav).
                 Action postFire = () =>
                 {
+                    SurfaceInputBlocked();
                     bool selAction = CurrentAction == ClickAction.Double
                                   || CurrentAction == ClickAction.Triple;
                     if (_isContinuous && !(selAction && _selectionActionsClose))
@@ -1174,6 +1188,18 @@ namespace HuntAndPeck.ViewModels
              : "";
 
         /// <summary>
+        /// Blocked-badge visibility: shown after a fire whose SendInput injected 0
+        /// events (UIPI -- the target window is more elevated than hap, e.g. an
+        /// elevated v2rayN while hap runs unelevated). Collapsed otherwise.
+        /// </summary>
+        public Visibility BlockedBadgeVisibility
+            => _inputBlocked ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>Blocked-badge text; names the fix when hap itself is unelevated.</summary>
+        public string BlockedBadgeLabel
+            => _inputBlocked ? (IsElevated ? "INPUT BLOCKED" : "INPUT BLOCKED - RUN hap AS ADMIN") : "";
+
+        /// <summary>
         /// Enters snapshot-region mode (<leader>s). Guards: ignored while suspended or if a
         /// snapshot is already in progress. Clears any partial prefix so the next keys are
         /// read as corner labels.
@@ -1278,6 +1304,7 @@ namespace HuntAndPeck.ViewModels
             User32.GetCursorPos(out p);
             int x = p.X + (int)_offsetX;
             int y = p.Y + (int)_offsetY;
+            _inputBlocked = false;   // fresh attempt: clear the UIPI-blocked badge
 
             if (_selectPhase == SelectPhase.AwaitStart)
             {
@@ -1289,6 +1316,10 @@ namespace HuntAndPeck.ViewModels
                 // anchor/caret for the extend.
                 User32.SetCursorPos(x, y);
                 DoLeftClick();
+                if (_inputBlocked)
+                {
+                    SurfaceInputBlocked();   // pick-1 runs on-thread; surface now
+                }
                 _selectAnchor = new Point(x, y);
                 _selectPhase = SelectPhase.AwaitEnd;
                 NotifyOfPropertyChange(nameof(SelectBadgeLabel));
@@ -1301,6 +1332,7 @@ namespace HuntAndPeck.ViewModels
             Point anchor = _selectAnchor;
             Action afterSelect = () =>
             {
+                SurfaceInputBlocked();
                 ExitSelectText();
                 // Span-select closes unless the user opted to keep the overlay up in
                 // Continuous mode (SelectionActionsClose=false).
@@ -1362,19 +1394,19 @@ namespace HuntAndPeck.ViewModels
             return new Rect(x, y, w, h);
         }
 
-        private static void DoLeftClick()
+        private void DoLeftClick()
         {
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+            SendMouseEvent(User32.MOUSEEVENTF_LEFTDOWN);
+            SendMouseEvent(User32.MOUSEEVENTF_LEFTUP);
         }
 
-        private static void DoRightClick()
+        private void DoRightClick()
         {
-            User32.mouse_event(User32.MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0);
-            User32.mouse_event(User32.MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
+            SendMouseEvent(User32.MOUSEEVENTF_RIGHTDOWN);
+            SendMouseEvent(User32.MOUSEEVENTF_RIGHTUP);
         }
 
-        private static void DoDoubleClick()
+        private void DoDoubleClick()
         {
             // Two left clicks with a REAL gap between them (runs off-thread via
             // FireInputAsync). The zero-gap form was randomly coalesced/mishandled by the
@@ -1385,7 +1417,7 @@ namespace HuntAndPeck.ViewModels
             DoLeftClick();
         }
 
-        private static void DoTripleClick()
+        private void DoTripleClick()
         {
             // Three left clicks with real gaps (selects a whole line in most apps; a
             // sentence in Word). Runs off-thread; see DoDoubleClick for why the gaps.
@@ -1401,14 +1433,47 @@ namespace HuntAndPeck.ViewModels
         // (down@anchor, move, up) in one shot at pick-2. DoShiftClick is the ShiftClick
         // method's pick-2: extend the selection from the anchor to the cursor.
 
-        private static void DoLeftDown()
+        private void DoLeftDown()
         {
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+            SendMouseEvent(User32.MOUSEEVENTF_LEFTDOWN);
         }
 
-        private static void DoLeftUp()
+        private void DoLeftUp()
         {
-            User32.mouse_event(User32.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+            SendMouseEvent(User32.MOUSEEVENTF_LEFTUP);
+        }
+
+        /// <summary>
+        /// Sends one mouse button event via SendInput and records UIPI blocking: the
+        /// call injects 0 events when the foreground window's integrity level is higher
+        /// than hap's (an elevated app -- v2rayN etc. -- while hap runs unelevated).
+        /// mouse_event could not report this (void return). The flag is surfaced on the
+        /// UI thread by the post-fire callbacks (badge + timing log); it resets at the
+        /// start of each fire attempt.
+        /// </summary>
+        private void SendMouseEvent(uint flags)
+        {
+            if (InputSynthesis.SendMouseEvent(flags) == 0)
+            {
+                _inputBlocked = true;
+            }
+        }
+
+        /// <summary>
+        /// Surfaces a UIPI-blocked fire (SendInput injected 0 events -- the target
+        /// window is more elevated than hap): a red badge plus a timing-log line, so
+        /// an on-box report is interpretable. Called from the post-fire callbacks on
+        /// the UI thread; the badge clears at the start of the next fire attempt.
+        /// </summary>
+        private void SurfaceInputBlocked()
+        {
+            NotifyOfPropertyChange(nameof(BlockedBadgeVisibility));
+            NotifyOfPropertyChange(nameof(BlockedBadgeLabel));
+            if (_inputBlocked)
+            {
+                TimingLog.Log("SendInput blocked (0 events injected); hap elevated=" + IsElevated
+                    + " -- elevated target apps need hap started as administrator");
+            }
         }
 
         private static void DoShiftClick()
