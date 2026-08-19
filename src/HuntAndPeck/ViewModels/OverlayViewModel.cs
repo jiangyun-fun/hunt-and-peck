@@ -324,6 +324,8 @@ namespace HuntAndPeck.ViewModels
             NotifyOfPropertyChange(nameof(MatchLength));
             NotifyOfPropertyChange(nameof(GroupView));
             NotifyOfPropertyChange(nameof(GroupBoxes));
+            NotifyOfPropertyChange(nameof(ZoneGridCols));
+            NotifyOfPropertyChange(nameof(ZoneGridRows));
             NotifyOfPropertyChange(nameof(Bounds));
         }
 
@@ -733,6 +735,16 @@ namespace HuntAndPeck.ViewModels
         public string GroupFontSize => _groupFontSizeRaw ?? _fontSizeRaw;
 
         /// <summary>
+        /// Zone-grid columns of the current group boxes; 0 when the boxes are not a
+        /// regular zone grid (the v1 derived fallback, or no boxes at all). Bound to
+        /// HintCanvas.ZoneGridCols, which draws single shared borders for a zone grid.
+        /// </summary>
+        public int ZoneGridCols => (_groupBoxes != null && _zoneBoxes != null) ? _groupZoneCols : 0;
+
+        /// <summary>Zone-grid rows; see <see cref="ZoneGridCols"/>.</summary>
+        public int ZoneGridRows => (_groupBoxes != null && _zoneBoxes != null) ? _groupZoneRows : 0;
+
+        /// <summary>
         /// &lt;leader&gt;p: toggle the group view (dotted first-char group boxes vs. the
         /// full-label view) for this overlay session. No-op when the session is not
         /// group-capable (zone mode, Automation / taskbar-merged). Clears any typed
@@ -753,6 +765,8 @@ namespace HuntAndPeck.ViewModels
             _groupBoxes = _groupViewOn ? (_zoneBoxes ?? GroupViewService.BuildGroupBoxes(Hints)) : null;
             NotifyOfPropertyChange(nameof(GroupView));
             NotifyOfPropertyChange(nameof(GroupBoxes));
+            NotifyOfPropertyChange(nameof(ZoneGridCols));
+            NotifyOfPropertyChange(nameof(ZoneGridRows));
         }
 
         /// <summary>Appends one typed label character and runs the prefix match.</summary>

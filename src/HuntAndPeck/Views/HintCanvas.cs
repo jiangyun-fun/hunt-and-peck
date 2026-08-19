@@ -224,6 +224,40 @@ namespace HuntAndPeck.Views
             c.RenderGroupVisual();
         }
 
+        /// <summary>
+        /// Zone-grid columns of the group boxes (bound from the view-model; 0 when the
+        /// boxes are NOT a regular zone grid -- the v1 derived fallback). When positive,
+        /// boxes are regular cells that tile the extent, so the borders are drawn as ONE
+        /// outer rounded rect plus each interior separator line exactly once; a per-box
+        /// outline would put TWO dotted lines between adjacent boxes (each box inflated
+        /// on all four sides). Changing it re-renders the group visual.
+        /// </summary>
+        public static readonly DependencyProperty ZoneGridColsProperty =
+            DependencyProperty.Register("ZoneGridCols", typeof(int), typeof(HintCanvas),
+                new FrameworkPropertyMetadata(0, OnZoneGridChanged));
+
+        public int ZoneGridCols
+        {
+            get { return (int)GetValue(ZoneGridColsProperty); }
+            set { SetValue(ZoneGridColsProperty, value); }
+        }
+
+        /// <summary>Zone-grid rows; see <see cref="ZoneGridCols"/>.</summary>
+        public static readonly DependencyProperty ZoneGridRowsProperty =
+            DependencyProperty.Register("ZoneGridRows", typeof(int), typeof(HintCanvas),
+                new FrameworkPropertyMetadata(0, OnZoneGridChanged));
+
+        public int ZoneGridRows
+        {
+            get { return (int)GetValue(ZoneGridRowsProperty); }
+            set { SetValue(ZoneGridRowsProperty, value); }
+        }
+
+        private static void OnZoneGridChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((HintCanvas)d).RenderGroupVisual();
+        }
+
         private void ReRenderAllHints()
         {
             if (_hints != null)
@@ -342,6 +376,9 @@ namespace HuntAndPeck.Views
                     c._visualByHint.Add(dv);
                     c.RenderHint(i);
                 }
+                // The group visual draws per-point preview dots from _hints; if the
+                // boxes binding pulled first, it must re-render now that hints exist.
+                c.RenderGroupVisual();
             }
         }
 
@@ -509,6 +546,18 @@ namespace HuntAndPeck.Views
         // the labels that will appear inside it.
         private const double GroupBoxPad = 5.0;
 
+        // Point-preview dots (level 1): one small dot at every clickable position,
+        // same color family as the dotted box outline but opaque.
+        private const double DotRadius = 2.0;
+        private static readonly Brush DotFill = FreezeBrush(Color.FromArgb(0xFF, 0x40, 0x40, 0x40));
+
+        private static Brush FreezeBrush(Color color)
+        {
+            var b = new SolidColorBrush(color);
+            b.Freeze();
+            return b;
+        }
+
         /// <summary>
         /// Parses <see cref="GroupBoxesSource"/> into the local box list and (re)builds
         /// the cached key-char texts. The char font size is <see cref="GroupFontSizeText"/>
@@ -555,10 +604,14 @@ namespace HuntAndPeck.Views
         }
 
         /// <summary>
-        /// Draws (or clears) the group boxes: one dotted rounded rect per group plus its
-        /// key char in a small yellow pill at the box's top-left corner. Only drawn at
-        /// level 1 (GroupView on, no typed prefix); at level 2 the boxes clear so only
-        /// the group's prefix-stripped pills show.
+        /// Draws (or clears) the group view at level 1: per-point preview dots (where a
+        /// zone key's labels WILL land), the zone borders, and each box's key char in a
+        /// small yellow pill centered in the box. Zone-grid boxes (regular tiling cells
+        /// from <see cref="GroupViewService.TryAssignZoneLabels"/>) draw ONE outer
+        /// rounded rect plus each interior separator exactly once; the v1 derived
+        /// fallback keeps its per-box outlines. Only drawn at level 1 (GroupView on, no
+        /// typed prefix); at level 2 everything clears so only the group's
+        /// prefix-stripped pills show.
         /// </summary>
         private void RenderGroupVisual()
         {
@@ -575,6 +628,77 @@ namespace HuntAndPeck.Views
             double inflate = GroupBoxPad * _dpi;
             using (var dc = _groupVisual.RenderOpen())
             {
+                // Point preview: one dot at every clickable position, so level 1
+                // answers "which positions will this zone key label?" before it is
+                // typed. PointHint's br.Left/Top IS the cursor target (see
+                // RenderHint); group view is PointHint-only (IsGroupable).
+                if (_hints != null)
+                {
+                    double dotR = DotRadius * _dpi;
+                    for (int i = 0; i < _hints.Count; i++)
+                    {
+                        if (!(_hints[i].Hint is PointHint))
+                        {
+                            continue;
+                        }
+                        var br = _hints[i].Hint.BoundingRectangle;
+                        dc.DrawEllipse(DotFill, null, new Point(br.Left, br.Top), dotR, dotR);
+                    }
+                }
+
+                if (ZoneGridCols > 0 && ZoneGridRows > 0)
+                {
+                    // Zone-grid borders: the boxes tile the extent exactly, so draw
+                    // the outer boundary ONCE (inflated, for standoff outside the
+                    // outermost points) and each interior separator ONCE -- the old
+                    // per-box outline put TWO dotted lines between adjacent boxes
+                    // (each box inflated on all four sides).
+                    Rect extent = _groupBoxes[0].Bounds;
+                    for (int i = 1; i < _groupBoxes.Count; i++)
+                    {
+                        extent.Union(_groupBoxes[i].Bounds);
+                    }
+                    var outer = new Rect(
+                        extent.Left - inflate,
+                        extent.Top - inflate,
+                        extent.Width + inflate * 2,
+                        extent.Height + inflate * 2);
+                    dc.DrawRoundedRectangle(null, DottedPen(), outer, radius, radius);
+                    // Same cell math as TryAssignZoneLabels (extent / spec), so the
+                    // separators land exactly on the zone boundaries it sliced by.
+                    double cellW = extent.Width / ZoneGridCols;
+                    double cellH = extent.Height / ZoneGridRows;
+                    for (int c = 1; c < ZoneGridCols; c++)
+                    {
+                        double x = extent.Left + c * cellW;
+                        dc.DrawLine(DottedPen(), new Point(x, extent.Top), new Point(x, extent.Bottom));
+                    }
+                    for (int r = 1; r < ZoneGridRows; r++)
+                    {
+                        double y = extent.Top + r * cellH;
+                        dc.DrawLine(DottedPen(), new Point(extent.Left, y), new Point(extent.Right, y));
+                    }
+                }
+                else
+                {
+                    // Fallback (v1 derived boxes): irregular per-first-char rects.
+                    for (int i = 0; i < _groupBoxes.Count; i++)
+                    {
+                        var g = _groupBoxes[i];
+                        var rect = new Rect(
+                            g.Bounds.Left - inflate,
+                            g.Bounds.Top - inflate,
+                            g.Bounds.Width + inflate * 2,
+                            g.Bounds.Height + inflate * 2);
+                        dc.DrawRoundedRectangle(null, DottedPen(), rect, radius, radius);
+                    }
+                }
+
+                // Key-char pill centered in each box (both paths -- same center for a
+                // cell and its inflate). A corner pill sits exactly where box
+                // boundaries meet (ambiguous ownership at a glance); centered matches
+                // the zone-zoom pick view (labels at zone centers) and reads as the
+                // target.
                 for (int i = 0; i < _groupBoxes.Count; i++)
                 {
                     var g = _groupBoxes[i];
@@ -583,12 +707,6 @@ namespace HuntAndPeck.Views
                         g.Bounds.Top - inflate,
                         g.Bounds.Width + inflate * 2,
                         g.Bounds.Height + inflate * 2);
-                    dc.DrawRoundedRectangle(null, DottedPen(), rect, radius, radius);
-
-                    // Key-char pill centered in the box. A corner pill sits exactly
-                    // where box boundaries meet (ambiguous ownership at a glance);
-                    // centered matches the zone-zoom pick view (labels at zone centers)
-                    // and reads as the target.
                     var ft = _groupTexts[i];
                     double pillW = ft.Width + pad * 2;
                     double pillH = ft.Height + pad * 2;

@@ -1,0 +1,71 @@
+---
+title: "Overlay usability batch — 9 items"
+author: "Yun Jiang"
+date: 2026-08-19
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+---
+
+# Objective
+
+Ship nine user-requested overlay changes in one batch (one CI drop at the end):
+
+| # | Ask | Resolution |
+|---|-----|------------|
+| 1 | Show the actual clickable points inside the zone boxes (level 1) | Per-point dots in `HintCanvas.RenderGroupVisual` |
+| 2 | One border line between boxes, not two | Zone-grid rendering: single outer rect + interior separators drawn once |
+| 3 | `GroupZones` 5×5 → 4×6 | Default change across config/options/comments |
+| 4 | `i` = insert mode (suspend), `q`/`Esc` exits | Reserve `I` like `Q` (24-letter alphabet); hook intercepts Esc/Q while suspended |
+| 5 | Close after v/d/s completes | Snapshot follows `SelectionActionsClose` (Double/Triple/v already do) |
+| 6 | Always-on quadrant guide I/O/J/K | New persistent click-through `QuadrantGuideWindow` per monitor; hotkeys stay F1–F4 (letters = user's AHK layer) |
+| 7 | Portrait monitors: in-zone 4×6 not 6×4 | `TryDeriveZoneGrid` best-factorization vs aspect |
+| 8 | Leader popup + badge don't scale on high-res | `ApplyChromeScale` LayoutTransform (DIU height / 1080, clamp ≥ 1) |
+| 9 | hap "stops working" on elevated apps (v2rayN) | Single-instance mutex, surface `RegisterHotKey` failures, clicks → `SendInput` with injected-count check + BLOCKED badge, startup elevation log |
+
+# Key decisions (user-confirmed)
+
+- `I` is reserved (removed from `HintCharacters`) so plain `i` always enters insert
+  mode — dim toggle moves to `<leader>x`. Numeric coherence: 24 letters ↔ 4×6 = 24
+  zone keys × 6×4 = 24 in-zone labels = 576 = 24² labels; nothing wasted.
+- The quadrant guide is **always visible** (persistent window), labels I/O/J/K from
+  a new `QuadrantGuideLabels` config; hap hotkeys stay `Ctrl+Shift+F1..F4`.
+
+# Files touched
+
+- `src/HuntAndPeck/Views/HintCanvas.cs` — dots, single-stroke zone grid, `ZoneGridCols/Rows` DPs
+- `src/HuntAndPeck/Views/OverlayView.xaml(.cs)` — binds, element names, chrome scaling
+- `src/HuntAndPeck/ViewModels/OverlayViewModel.cs` — zone-grid props, insert/suspend, snapshot close, SendInput clicks
+- `src/HuntAndPeck/Services/GroupViewService.cs` — `TryDeriveZoneGrid` factorization
+- `src/HuntAndPeck/Services/OverlayActionConfig.cs` — 4×6 default, guide readers
+- `src/HuntAndPeck/Services/OverlayKeyboardHook.cs`, `src/NativeMethods/User32.cs` — `i` routing, suspended Esc/Q
+- `src/HuntAndPeck/Services/LeaderBindingConfig.cs` — `x=ToggleDim`
+- `src/HuntAndPeck/Views/QuadrantGuideWindow.xaml(.cs)` (new), `ForegroundWindow.cs` — shared `SetClickThrough`
+- `src/HuntAndPeck/App.xaml.cs`, `KeyListenerService.cs` — guide lifecycle, single instance, hotkey-failure surfacing
+- `src/HuntAndPeck/App.config`, `OptionsViewModel.cs`, `OptionsView.xaml`, `HuntAndPeck.csproj`, tests, `CLAUDE.md`
+
+# Approach per item
+
+As approved in the session plan (see `~/.claude/plans/vast-plotting-thunder.md`);
+summary: dots at `(br.Left, br.Top)` for PointHints; zone-grid path draws extent
+union + `GroupBoxPad`-inflated outer rounded rect and single dotted separators at
+`extent.Left + c*(extent.Width/cols)`; best-fit factorization
+`min |c/r − aspect|` over `r = n/c`; `VK_I = 0x49` beside `VK_Q`; snapshot mirrors
+`afterSelect`; guide window uses the OverlayView DPI counter-scale pattern;
+chrome scale `clamp(Bounds.Height/_scaleY / 1080, 1, 3)`; item 9 ships
+diagnostics + guards since the root cause can't be confirmed from Linux.
+
+# Verification criteria
+
+1. CI green (windows-latest MSBuild + vstest) after each commit.
+2. On-box manual checklist: dots/single borders at level 1; 4×6 zones; portrait
+   4×6 in-zone; `i`/`q`/`Esc` insert cycle; d/t/v/s close in Continuous; guide
+   cross always visible + click-through; badge/leader ~2× on 4K; elevated-app
+   click either lands or reports BLOCKED/duplicate-instance.
+
+# Report
+
+See `20260819-*.overlay-usability-batch.report.qmd` (written on completion).
