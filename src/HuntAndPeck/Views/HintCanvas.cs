@@ -461,7 +461,7 @@ namespace HuntAndPeck.Views
         /// font is not installed). Any other name is treated as an installed/system
         /// family, with comma fallbacks allowed (e.g. "Consolas, Courier New").
         /// </summary>
-        private static FontFamily ResolveFontFamily(string name)
+        internal static FontFamily ResolveFontFamily(string name)
         {
             if (string.Equals(name, BundledFontFamily, StringComparison.OrdinalIgnoreCase))
             {

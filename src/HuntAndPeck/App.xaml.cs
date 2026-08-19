@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Windows;
 using HuntAndPeck.ViewModels;
 using System.Linq;
@@ -21,6 +22,7 @@ namespace HuntAndPeck
         private KeyListenerService _keyListenerService;
         private OverlayView _currentOverlayView;
         private OverlayViewModel _currentVm;
+        private readonly List<QuadrantGuideWindow> _quadrantGuideWindows = new List<QuadrantGuideWindow>();
 
         /// <summary>True while the hint overlay is showing (a 2nd hotkey press then toggles mode).</summary>
         private bool IsOverlayActive()
@@ -259,6 +261,13 @@ namespace HuntAndPeck
                     DataContext = shellViewModel
                 };
                 shellView.Show();
+
+                // Persistent quadrant guide (QuadrantGuideEnabled/Labels, read once
+                // here like the hotkeys -- restart to apply): a faint always-on-top
+                // click-through cross + quadrant letters on every monitor, marking
+                // the Ctrl+Shift+F1..F4 regions during normal use. The hint overlay
+                // re-asserts topmost and paints above it while open.
+                _quadrantGuideWindows.AddRange(QuadrantGuideWindow.CreateForAllScreens());
             }
             base.OnStartup(e);
         }

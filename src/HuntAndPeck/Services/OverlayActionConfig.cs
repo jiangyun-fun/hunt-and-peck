@@ -522,6 +522,73 @@ namespace HuntAndPeck.Services
             catch (Exception) { return KeyModifier.Control | KeyModifier.Shift; }
         }
 
+        private const string DefaultGuideLabels = "I,O,J,K";
+
+        /// <summary>
+        /// Whether the persistent quadrant guide is shown (read once at startup, like
+        /// the hotkeys -- restart to apply). The guide is an always-on-top,
+        /// click-through faint cross + quadrant letters on every monitor. Default true.
+        /// </summary>
+        public static bool ReadQuadrantGuideEnabled()
+        {
+            try
+            {
+                EnsureFresh();
+                var raw = ConfigurationManager.AppSettings["QuadrantGuideEnabled"];
+                if (string.IsNullOrWhiteSpace(raw))
+                {
+                    return true;
+                }
+                var v = raw.Trim();
+                return string.Equals(v, "true", StringComparison.OrdinalIgnoreCase) || v == "1";
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// The four quadrant guide labels, comma-separated, in quadrant hotkey scan
+        /// order TL,TR,BL,BR (read once at startup). The letters mark which region
+        /// each Ctrl+Shift+F1..F4 chord opens; they default to I,O,J,K (the user's
+        /// AutoHotkey layer over those chords) and are mnemonic only -- they do not
+        /// change the hotkeys. A value that does not resolve to 4 labels falls back
+        /// to the default.
+        /// </summary>
+        public static string[] ReadQuadrantGuideLabels()
+        {
+            try
+            {
+                EnsureFresh();
+                var raw = ConfigurationManager.AppSettings["QuadrantGuideLabels"];
+                if (string.IsNullOrWhiteSpace(raw))
+                {
+                    raw = DefaultGuideLabels;
+                }
+                var parts = raw.Split(',');
+                var labels = new List<string>();
+                foreach (var p in parts)
+                {
+                    var t = p.Trim();
+                    if (t.Length > 0)
+                    {
+                        labels.Add(t);
+                    }
+                }
+                // Fewer than 4 usable labels cannot mark 4 quadrants: use the default.
+                return labels.Count >= 4
+                    ? new[] { labels[0], labels[1], labels[2], labels[3] }
+                    : DefaultGuideLabels.Split(',');
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return DefaultGuideLabels.Split(',');
+            }
+        }
+
         /// <summary>
         /// Overlay idle auto-close timeout in seconds (hot-reload, read when the overlay
         /// arms). 0 = off (never auto-close). Default 0.

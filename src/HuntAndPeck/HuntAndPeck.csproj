@@ -139,6 +139,7 @@
     </Compile>
     <Compile Include="Views\ForegroundWindow.cs" />
     <Compile Include="Views\HintCanvas.cs" />
+    <Compile Include="Views\QuadrantGuideWindow.cs" />
     <Compile Include="Views\OptionsView.xaml.cs">
       <DependentUpon>OptionsView.xaml</DependentUpon>
     </Compile>

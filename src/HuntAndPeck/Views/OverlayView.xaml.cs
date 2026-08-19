@@ -148,30 +148,6 @@ namespace HuntAndPeck.Views
         // not in WPF PreviewKeyDown, because the overlay is non-activated.
 
         /// <summary>
-        /// Toggles WS_EX_TRANSPARENT on the overlay HWND. When on, the window is
-        /// transparent to MOUSE hit-testing only (clicks fall through to the app
-        /// beneath) while keyboard focus is unaffected, so typing keeps working.
-        /// </summary>
-        private void SetClickThrough(bool on)
-        {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            int ext = User32.GetWindowLong(hwnd, User32.GWL_EXSTYLE);
-            // WS_EX_NOACTIVATE always on: the overlay must never be activated (it
-            // reads input via the global hook, not focus), so closing it causes no
-            // foreground transition that would dismiss an open context menu beneath.
-            ext |= User32.WS_EX_NOACTIVATE;
-            if (on)
-            {
-                ext |= User32.WS_EX_TRANSPARENT;
-            }
-            else
-            {
-                ext &= ~User32.WS_EX_TRANSPARENT;
-            }
-            User32.SetWindowLong(hwnd, User32.GWL_EXSTYLE, ext);
-        }
-
-        /// <summary>
         /// Re-asserts this overlay at the top of the topmost z-order band WITHOUT
         /// stealing activation (SWP_NOACTIVATE), so labels paint above an open
         /// context menu / dropdown / tooltip without dismissing it. Called once on

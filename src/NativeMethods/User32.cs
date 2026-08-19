@@ -82,6 +82,10 @@ namespace HuntAndPeck.NativeMethods
         // should not enter the activation chain at all, so closing it causes no
         // foreground transition that would dismiss an open context menu beneath.
         public const int WS_EX_NOACTIVATE = 0x08000000;
+        // Hide from Alt+Tab / task list -- used by the persistent quadrant guide,
+        // which would otherwise pollute the window switcher (it lives for the
+        // whole app lifetime, unlike the transient hint overlay).
+        public const int WS_EX_TOOLWINDOW = 0x00000080;
 
         // ---- Low-level hooks (WH_KEYBOARD_LL / WH_MOUSE_LL) ----
         // Used by OverlayKeyboardHook so the overlay can capture typed label

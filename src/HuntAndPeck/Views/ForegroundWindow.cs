@@ -68,6 +68,34 @@ namespace HuntAndPeck.Views
         }
 
         /// <summary>
+        /// Toggles WS_EX_TRANSPARENT on the window HWND (WS_EX_NOACTIVATE is always set).
+        /// When on, the window is transparent to MOUSE hit-testing only (clicks fall
+        /// through to the app beneath) while keyboard focus is unaffected. Shared by
+        /// the hint overlay and the quadrant guide; NOACTIVATE means showing/closing
+        /// never causes a foreground transition that would dismiss an open context
+        /// menu beneath.
+        /// </summary>
+        protected void SetClickThrough(bool on)
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            int ext = User32.GetWindowLong(hwnd, User32.GWL_EXSTYLE);
+            // WS_EX_NOACTIVATE always on: the window must never be activated (it
+            // reads input via a global hook or not at all), so showing/closing it
+            // causes no foreground transition that would dismiss an open context
+            // menu beneath.
+            ext |= User32.WS_EX_NOACTIVATE;
+            if (on)
+            {
+                ext |= User32.WS_EX_TRANSPARENT;
+            }
+            else
+            {
+                ext &= ~User32.WS_EX_TRANSPARENT;
+            }
+            User32.SetWindowLong(hwnd, User32.GWL_EXSTYLE, ext);
+        }
+
+        /// <summary>
         /// Forces the window to the foreground by attaching to the foreground window thread
         /// </summary>
         private void ForceForeground()
