@@ -110,7 +110,7 @@ namespace HuntAndPeck.Services
 
         /// <summary>
         /// Parses a <c>GroupZones</c> spec: "<c>cols x rows</c>" (separator <c>x</c>/
-        /// <c>X</c>/<c>*</c>, e.g. "5x5"). Both dims must be &gt;= 1 and their product
+        /// <c>X</c>/<c>*</c>, e.g. "4x6"). Both dims must be &gt;= 1 and their product
         /// &gt;= 2 (a 1x1 spec is meaningless). Pure.
         /// </summary>
         public static bool TryParseZoneSpec(string raw, out int cols, out int rows)
@@ -164,11 +164,13 @@ namespace HuntAndPeck.Services
 
         /// <summary>
         /// Derives the PER-ZONE point-grid dimensions for zone-aligned generation: the
-        /// largest inCols x inRows with near-square cells (inCols/inRows tracks the
-        /// bounds' aspect) whose product stays within the second-char budget. 16:9 with
-        /// 25 letters gives 6x4 = 24. Each axis is clamped by the
-        /// <see cref="MinZonePointSpacing"/> legibility floor so small bounds (e.g. a
-        /// 400x300 window) get a sparser -- but still uniform -- lattice. Pure.
+        /// inCols x inRows (product within the second-char budget, rows = the char set
+        /// fully used) whose COLS/ROWS ratio best matches the bounds' aspect, so point
+        /// cells are as square as the budget allows. 16:9 gives 6x4 = 24 (25 letters);
+        /// PORTRAIT 9:16 gives 4x6 (the old floor(sqrt(n*aspect)) + n/inCols arithmetic
+        /// produced 3x8 there -- aspect-aware only in principle). Each axis is clamped
+        /// by the <see cref="MinZonePointSpacing"/> legibility floor so small bounds
+        /// (e.g. a 400x300 window) get a sparser -- but still uniform -- lattice. Pure.
         /// </summary>
         public static void TryDeriveZoneGrid(
             int charCount, double width, double height,
@@ -178,10 +180,30 @@ namespace HuntAndPeck.Services
             if (width < 1) width = 1;
             if (height < 1) height = 1;
             double aspect = width / height;
-            inCols = (int)Math.Floor(Math.Sqrt(charCount * aspect));
-            if (inCols < 1) inCols = 1;
-            inRows = charCount / inCols;
-            if (inRows < 1) inRows = 1;
+            // Best factorization: candidates are (c, charCount / c) for every c (rows
+            // = floor keeps the full-usage property of the old formula); pick the pair
+            // whose c/r ratio is closest to the bounds' aspect. Ascending c with a
+            // strict < keeps the tie-break deterministic (fewer columns win ties).
+            // Ex: 25 chars 16:9 -> 6x4 (|1.5-1.78| beats 5x5 and 7x3); 25 chars
+            // 9:16 -> 4x6 (|0.67-0.56| beats 3x8); square -> 5x5.
+            inCols = 1;
+            inRows = charCount;
+            double bestErr = double.MaxValue;
+            for (int c = 1; c <= charCount; c++)
+            {
+                int r = charCount / c;
+                if (r < 1)
+                {
+                    break;
+                }
+                double err = Math.Abs(c / (double)r - aspect);
+                if (err < bestErr)
+                {
+                    bestErr = err;
+                    inCols = c;
+                    inRows = r;
+                }
+            }
             // Legibility floor: at most one point per MinZonePointSpacing px within a
             // zone cell, per axis.
             int maxCols = Math.Max(1, (int)(width / (zoneCols * MinZonePointSpacing)));

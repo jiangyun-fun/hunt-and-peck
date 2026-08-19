@@ -446,8 +446,9 @@ namespace HuntAndPeck.Services
                 // totalRows = zoneRows x inRows, spanEdges over the bounds, so the
                 // zone boundaries (extent / zoneCols) split each axis into EXACT
                 // integer chunks and every zone holds exactly inCols x inRows points
-                // (6x4 = 24 on 16:9 with 25 letters -- previously a single global
-                // 29x16 lattice sliced unevenly into mixed 6x3 / 6x4 / 5-wide zones).
+                // (best-fit to the bounds' aspect: 6x4 = 24 per zone on 16:9, 4x6 on
+                // portrait -- previously a single global 29x16 lattice sliced
+                // unevenly into mixed 6x3 / 6x4 / 5-wide zones).
                 // inCols*inRows <= chars by construction, so zone label assignment
                 // can never overflow. GridLayouts presets and dense regions do not
                 // apply while a zone spec is active (zone mode wants uniform); the

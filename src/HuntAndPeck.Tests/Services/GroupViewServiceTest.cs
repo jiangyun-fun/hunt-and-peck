@@ -296,10 +296,33 @@ namespace HuntAndPeck.Tests.Services
         [Fact]
         public void TryDeriveZoneGrid_Portrait_TracksAspect()
         {
+            // Portrait 9:16 must derive 4x6 (|0.67-0.56| beats 3x8's |0.38-0.56|):
+            // the on-box request. The old floor(sqrt(n*aspect)) + n/inCols
+            // arithmetic gave 3x8 there.
             int c, r;
             GroupViewService.TryDeriveZoneGrid(25, 1080, 1920, 5, 5, out c, out r);
-            Assert.Equal(3, c);
-            Assert.Equal(8, r);
+            Assert.Equal(4, c);
+            Assert.Equal(6, r);
+        }
+
+        [Fact]
+        public void TryDeriveZoneGrid_Landscape16x9_24Chars_Is6x4()
+        {
+            // The shipped alphabet (A-Z minus Q and I) has 24 letters; landscape
+            // must stay 6x4 with it.
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(24, 1920, 1080, 4, 6, out c, out r);
+            Assert.Equal(6, c);
+            Assert.Equal(4, r);
+        }
+
+        [Fact]
+        public void TryDeriveZoneGrid_Portrait_24Chars_Is4x6()
+        {
+            int c, r;
+            GroupViewService.TryDeriveZoneGrid(24, 1080, 1920, 4, 6, out c, out r);
+            Assert.Equal(4, c);
+            Assert.Equal(6, r);
         }
 
         [Fact]
@@ -314,12 +337,15 @@ namespace HuntAndPeck.Tests.Services
         }
 
         [Fact]
-        public void TryDeriveZoneGrid_SmallCharCount_ClampsAtOne()
+        public void TryDeriveZoneGrid_SmallCharCount_TracksAspect()
         {
+            // 2 chars on a landscape bounds: the best-fit factorization picks 2x1
+            // (|2-1.78| beats |0.5-1.78|). The old formula's cols-first bias gave
+            // 1x2; 2x1 matches the aspect, so the expectation flipped deliberately.
             int c, r;
             GroupViewService.TryDeriveZoneGrid(2, 1920, 1080, 5, 5, out c, out r);
-            Assert.Equal(1, c);
-            Assert.Equal(2, r);
+            Assert.Equal(2, c);
+            Assert.Equal(1, r);
         }
 
         // ---- TryGridZoneSpec (spec fits the char set) ----

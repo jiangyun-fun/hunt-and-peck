@@ -577,16 +577,18 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
-        /// The group-view zone-grid spec, "cols x rows" e.g. "5x5" (hot-reload). The
+        /// The group-view zone-grid spec, "cols x rows" e.g. "4x6" (hot-reload). The
         /// level-1 boxes become a regular cols x rows grid over the session bounds,
         /// keyed by the first cols*rows HintCharacters in scan order, and grid-session
         /// labels are reassigned zone-based (first char = zone key). Blank/invalid (or
         /// cols*rows above the char count) falls back to the derived label-group boxes
-        /// and scan-order labels. Default "5x5".
+        /// and scan-order labels. Default "4x6" (24 zones = the 24-letter shipped
+        /// alphabet, an exact fit; the in-zone grid derives from the bounds' aspect:
+        /// 6x4 landscape, 4x6 portrait).
         /// </summary>
         public static string ReadGroupZones()
         {
-            const string DefaultZones = "5x5";
+            const string DefaultZones = "4x6";
             try
             {
                 EnsureFresh();

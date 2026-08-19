@@ -93,14 +93,14 @@ namespace HuntAndPeck.ViewModels
         public string HideNonMatchingLabels { get { return Get("HideNonMatchingLabels", "true"); } set { Set("HideNonMatchingLabels", value); OnPropertyChanged("HideNonMatchingLabels"); } }
 
         // Group view (progressive 1-char labels): opens with dotted zone boxes;
-        // <leader>p toggles it per-session. GroupZones is the box grid ("5x5");
+        // <leader>p toggles it per-session. GroupZones is the box grid ("4x6");
         // GroupFontSize is the box-corner key char size (0 = follow HintFontSize).
         public bool GroupViewEnabled
         {
             get { return GetBoolDefault("GroupViewEnabled", true); }
             set { Set("GroupViewEnabled", value ? "true" : "false"); OnPropertyChanged("GroupViewEnabled"); }
         }
-        public string GroupZones { get { return Get("GroupZones", "5x5"); } set { Set("GroupZones", value); OnPropertyChanged("GroupZones"); } }
+        public string GroupZones { get { return Get("GroupZones", "4x6"); } set { Set("GroupZones", value); OnPropertyChanged("GroupZones"); } }
         public string GroupFontSize { get { return Get("GroupFontSize", "14"); } set { Set("GroupFontSize", value); OnPropertyChanged("GroupFontSize"); } }
 
         public bool TimingLogEnabled

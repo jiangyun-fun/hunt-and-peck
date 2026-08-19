@@ -117,7 +117,7 @@ namespace HuntAndPeck.ViewModels
         // points, labeled by their second char alone (HintCanvas strips the typed
         // prefix). Same points/labels/coverage as the full view -- pure presentation.
         // Grid-like sessions only (all-PointHint); zone mode and Automation opt out.
-        // With a valid GroupZones spec (default 5x5) the boxes are a REGULAR cols x
+        // With a valid GroupZones spec (default 4x6) the boxes are a REGULAR cols x
         // rows grid and the labels themselves are zone-based: first char = the zone's
         // key (first cols*rows HintCharacters in scan order), second char cycles the
         // char set within the zone (a 1-point zone is labeled by its key alone and

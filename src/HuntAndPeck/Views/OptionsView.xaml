@@ -113,7 +113,7 @@
 
                     <CheckBox Content="Group view: open with dotted zone boxes, not every label (&lt;leader&gt;p toggles)" IsChecked="{Binding GroupViewEnabled}" Margin="0,4,0,6" />
 
-                    <TextBlock Text="Group zone grid cols x rows (e.g. 5x5; blank = derived boxes)" FontWeight="Bold" />
+                    <TextBlock Text="Group zone grid cols x rows (e.g. 4x6; blank = derived boxes)" FontWeight="Bold" />
                     <TextBox Text="{Binding GroupZones}" Margin="0,2,0,6" />
 
                     <TextBlock Text="Group key-char font size px (0 = follow font size)" FontWeight="Bold" />
