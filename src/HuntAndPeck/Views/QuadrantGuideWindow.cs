@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using HuntAndPeck.NativeMethods;
 using HuntAndPeck.Services;
 
@@ -19,8 +20,9 @@ namespace HuntAndPeck.Views
     /// <para>
     /// Code-only (no XAML): the content is fully drawn (no bindings). Built once at
     /// startup via <see cref="CreateForAllScreens"/> (config: QuadrantGuideEnabled /
-    /// QuadrantGuideLabels -- restart to apply), exactly one window per
-    /// <c>Screen.AllScreens</c> so each monitor gets its own cross at its own DPI.
+    /// QuadrantGuideLabels / QuadrantGuideFocusedOnly -- restart to apply), exactly one
+    /// window per <c>Screen.AllScreens</c> so each monitor gets its own cross at its own
+    /// DPI; with FocusedOnly (default) only the foreground monitor's window is visible.
     /// </para>
     /// </summary>
     public class QuadrantGuideWindow : ForegroundWindow
@@ -28,6 +30,16 @@ namespace HuntAndPeck.Views
         // Faintness of the whole guide: visible against most backgrounds without
         // reading as screen furniture. Tunable on the box if it fights dark themes.
         private const double GuideOpacity = 0.30;
+
+        // Focused-monitor tracking: with multiple monitors only the guide on the
+        // FOREGROUND window's monitor shows (one cross at a time -- where the next
+        // quadrant hotkey will act). A short DispatcherTimer poll beats a
+        // SetWinEventHook in simplicity, and ~400ms lag is imperceptible for a
+        // passive aid. Static: one tracker serves all guide windows for the app
+        // lifetime.
+        private const int FocusedPollIntervalMs = 400;
+        private static readonly List<QuadrantGuideWindow> s_windows = new List<QuadrantGuideWindow>();
+        private static DispatcherTimer s_focusedTracker;
 
         // Quadrant letter size (px at 96 DPI; scaled by the monitor's device scale,
         // like HintCanvas scales its label sizes).
@@ -76,11 +88,13 @@ namespace HuntAndPeck.Views
         /// <summary>
         /// One guide window per monitor, or an empty list when the guide is disabled
         /// (QuadrantGuideEnabled=false) or no labels resolve. Must run on the UI
-        /// thread (creates windows).
+        /// thread (creates windows). With QuadrantGuideFocusedOnly (default) the
+        /// windows then track focus: only the foreground monitor's guide is visible.
         /// </summary>
         public static IList<QuadrantGuideWindow> CreateForAllScreens()
         {
             var windows = new List<QuadrantGuideWindow>();
+            s_windows.Clear();
             if (!OverlayActionConfig.ReadQuadrantGuideEnabled())
             {
                 return windows;
@@ -98,7 +112,41 @@ namespace HuntAndPeck.Views
                 window.Show();
                 windows.Add(window);
             }
+            s_windows.AddRange(windows);
+            if (OverlayActionConfig.ReadQuadrantGuideFocusedOnly() && windows.Count > 1)
+            {
+                ApplyFocusedMonitor();
+                if (s_focusedTracker == null)
+                {
+                    s_focusedTracker = new DispatcherTimer
+                    {
+                        Interval = TimeSpan.FromMilliseconds(FocusedPollIntervalMs)
+                    };
+                    s_focusedTracker.Tick += (s, e) => ApplyFocusedMonitor();
+                    s_focusedTracker.Start();
+                }
+            }
             return windows;
+        }
+
+        /// <summary>
+        /// Shows only the guide on the FOREGROUND window's monitor (hides the rest).
+        /// No-op when the foreground window cannot be resolved. Single-monitor setups
+        /// never start the tracker, so this only runs when it can change something.
+        /// </summary>
+        private static void ApplyFocusedMonitor()
+        {
+            IntPtr fg = User32.GetForegroundWindow();
+            if (fg == IntPtr.Zero)
+            {
+                return;
+            }
+            var b = System.Windows.Forms.Screen.FromHandle(fg).Bounds;
+            var focused = new Rect(b.X, b.Y, b.Width, b.Height);
+            foreach (var w in s_windows)
+            {
+                w.Visibility = w._monitor == focused ? Visibility.Visible : Visibility.Hidden;
+            }
         }
 
         private void QuadrantGuideWindow_OnLoaded(object sender, RoutedEventArgs e)

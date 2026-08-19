@@ -375,15 +375,18 @@ retired, they all pass through to the app — do not put `Q`, `I`, or `0–9` in
   cycles the quarters** (badge `Q n/4`); `Ctrl+Tab`/`Ctrl+Shift+Tab`/`Win+Tab` still pass
   through. Each cycle resets the typed prefix + pan (same as monitor cycling).
   Keys/modifier configurable via `QuadrantHotkeyKeys`/`QuadrantHotkeyModifier`.
-- **Persistent quadrant guide** (`QuadrantGuideEnabled`/`QuadrantGuideLabels`, startup-only,
-  default on): a per-monitor, always-on-top, click-through window drawing a faint (~30%
-  opacity) dotted cross at the monitor center plus one letter pill at each quadrant center
-  (default `I,O,J,K` in TL/TR/BL/BR order) — a spatial memory aid for which
-  `Ctrl+Shift+F1..F4` region is where, visible during normal use. The letters are mnemonic
-  only (the user's AutoHotkey layer over the chords); they do NOT change the hotkeys. The
-  hint overlay re-asserts topmost and paints above the guide while open; `WS_EX_TOOLWINDOW`
-  keeps the guide out of Alt+Tab. Shows over fullscreen apps too — set
-  `QuadrantGuideEnabled=false` (restart) to hide it.
+- **Persistent quadrant guide** (`QuadrantGuideEnabled`/`QuadrantGuideLabels`/
+  `QuadrantGuideFocusedOnly`, startup-only, default on): a per-monitor, always-on-top,
+  click-through window drawing a faint (~30% opacity) dotted cross at the monitor center
+  plus one letter pill at each quadrant center (default `I,O,J,K` in TL/TR/BL/BR order) —
+  a spatial memory aid for which `Ctrl+Shift+F1..F4` region is where, visible during
+  normal use. With multiple monitors and `QuadrantGuideFocusedOnly` (default true), only
+  the **foreground monitor's** cross shows — it follows focus on a ~400 ms poll (one cross
+  at a time, where the next quadrant hotkey will act); set false for a cross on every
+  monitor. The letters are mnemonic only (the user's AutoHotkey layer over the chords);
+  they do NOT change the hotkeys. The hint overlay re-asserts topmost and paints above
+  the guide while open; `WS_EX_TOOLWINDOW` keeps the guide out of Alt+Tab. Shows over
+  fullscreen apps too — set `QuadrantGuideEnabled=false` (restart) to hide it.
 - **Elevation / UIPI**: synthesized clicks (SendInput) are BLOCKED by Windows when the
   target window is more elevated than hap — e.g. an elevated v2rayN while hap runs
   unelevated; the symptom is "hap stops working" on that app. hap now detects it (SendInput

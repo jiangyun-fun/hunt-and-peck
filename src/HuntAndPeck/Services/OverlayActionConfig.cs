@@ -590,6 +590,32 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Whether the quadrant guide shows ONLY on the foreground window's monitor
+        /// (read once at startup). With multiple monitors, one cross at a time --
+        /// where the next quadrant hotkey will act; the other monitors' guides hide.
+        /// Default true; false shows the cross on every monitor.
+        /// </summary>
+        public static bool ReadQuadrantGuideFocusedOnly()
+        {
+            try
+            {
+                EnsureFresh();
+                var raw = ConfigurationManager.AppSettings["QuadrantGuideFocusedOnly"];
+                if (string.IsNullOrWhiteSpace(raw))
+                {
+                    return true;
+                }
+                var v = raw.Trim();
+                return string.Equals(v, "true", StringComparison.OrdinalIgnoreCase) || v == "1";
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return true;
+            }
+        }
+
+        /// <summary>
         /// Overlay idle auto-close timeout in seconds (hot-reload, read when the overlay
         /// arms). 0 = off (never auto-close). Default 0.
         /// </summary>
