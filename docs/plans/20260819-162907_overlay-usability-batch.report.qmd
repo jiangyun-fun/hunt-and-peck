@@ -1,0 +1,93 @@
+---
+title: "Overlay usability batch — report"
+author: "Yun Jiang"
+date: 2026-08-19
+format:
+  html:
+    html-math-method: mathjax
+include-in-header:
+  text: |
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✅</text></svg>">
+---
+
+# What was done
+
+Eight commits on `master` (plan: [20260819-145846_overlay-usability-batch.plan.qmd](20260819-145846_overlay-usability-batch.plan.qmd)):
+
+| Commit | Items |
+|--------|-------|
+| `7068a8f` feat(group): point-preview dots + single-stroke zone borders | 1, 2 |
+| `896c41f` feat(zones): default GroupZones 4x6 + best-fit in-zone derivation | 3, 7 |
+| `7df4e85` feat(overlay): vim-style insert mode on plain i, q/Esc to exit | 4 |
+| `cc0a049` fix(overlay): snapshot region always closes like one-shot | 5 |
+| `b1ea3e6` feat(guide): persistent quadrant guide overlay (I/O/J/K) | 6 |
+| `95d7bf7` feat(overlay): resolution-aware badge/leader/match chrome scaling | 8 |
+| `1267b18` fix(input): surface UIPI + hotkey-registration failures, dup-instance guard | 9 |
+| `f9d60b9` docs+fix: review pass (monitor-relative guide coords, wording) | — |
+
+Key shape of the implementation (details in the plan):
+
+1. **Point dots** — `HintCanvas.RenderGroupVisual` draws one dot per
+   `PointHint` at `(br.Left, br.Top)` (the cursor target); re-renders on
+   `HintsSource` change.
+2. **Single borders** — new `ZoneGridCols/Rows` DPs select a zone-grid path:
+   one outer rounded rect (extent + `GroupBoxPad`) + interior separators
+   drawn once, same cell math as `TryAssignZoneLabels`. v1 fallback keeps
+   per-box outlines.
+3. **4×6 zones** — default changed in `OverlayActionConfig`,
+   `App.config`, `OptionsViewModel`/`OptionsView`, comments.
+4. **Portrait 4×6** — `TryDeriveZoneGrid` now searches the best (c, n/c)
+   factorization for `min |c/r − aspect|`; landscape 6×4 and square 5×5
+   unchanged, portrait 3×8 → 4×6, 2-char landscape 1×2 → 2×1 (test updated
+   with rationale).
+5. **Insert mode** — `VK_I` reserved like `VK_Q`; plain `i` → `InsertToggle`
+   → `EnterSuspend` (cancels a pending leader; no-op mid-2-pick); the hook
+   intercepts plain `q`/`Esc` while suspended → `ExitSuspend`; dim moved
+   `<leader>i` → `<leader>x`; `HintCharacters` loses `I` (24 letters;
+   24² = 576 = the default grid exactly).
+6. **Snapshot close** — `HandleSnapshotCorner` now follows
+   `SelectionActionsClose` like `afterSelect` (d/t/v/s all one-shot by
+   default).
+7. **Quadrant guide** — new code-only `QuadrantGuideWindow` per monitor
+   (topmost, click-through, `WS_EX_TOOLWINDOW`, ~30% opacity dotted cross +
+   letter pills); `SetClickThrough` refactored into `ForegroundWindow`;
+   `QuadrantGuideEnabled/Labels` startup-only config.
+8. **Chrome scaling** — `ApplyChromeScale` LayoutTransform
+   `clamp(DIU-height/1080, 1, 3)` on badge strip / leader popup / match box.
+9. **Elevation** — clicks synthesize via `InputSynthesis.SendMouseEvent`
+   (SendInput) with injected-count check → red `INPUT BLOCKED` badge +
+   timing-log line; `RegisterHotKey` failures + second-instance exits now
+   show a MessageBox; startup logs elevation.
+
+# Verification status
+
+- **Unit tests updated/added** (Rule #0: these verify the pure logic):
+  - `GroupViewServiceTest`: portrait → 4×6; new 24-letter landscape/portrait
+    facts; small-char-count flipped to 2×1 with rationale comment.
+  - `OverlayKeyboardHookTest`: plain `I` → `InsertToggle`; `Shift+I` → Large
+    nudge-down (Dx 0, Dy +1); `Ctrl+I`/`Win+I` → `None`.
+  - `LeaderBindingConfigTest`: default map has `x=ToggleDim`, no `i`/`q`.
+  - `OverlayViewModelTest`: completing both snapshot corners in Continuous
+    mode captures a non-degenerate rect AND closes.
+- **Compile gate**: CI (windows-latest MSBuild + vstest) — this report is
+  written before the push; the run link/status is recorded in the session.
+  **I have not compiled locally (Linux box) — CI is the gate.**
+- **On-box manual checklist** (user-driven, next): dots + single borders at
+  level 1; 4×6 zones; portrait monitor 4×6 in-zone; `i`/`q`/`Esc` insert
+  cycle; d/t/v/s close in Continuous; guide cross always visible +
+  click-through + hidden under an open overlay; badge/leader ~2× on the 4K
+  monitor; elevated v2rayN: single instance + elevated hap → clicks land,
+  otherwise the BLOCKED badge/duplicate-instance message names the cause.
+
+# Notes / honest scope
+
+- Item 9's root cause is NOT confirmed from Linux. The duplicate-instance
+  mechanism was already guarded by the (previously silent)
+  `SingleLaunchMutex`; the new messaging + SendInput failure detection make
+  the actual failure legible on-box. If hap truly runs High-IL against a
+  High-IL target, UIPI permits SendInput — the new log lines will say so.
+- `DoShiftClick`'s internal click pair still uses the array SendInput
+  without per-event failure tracking; select pick-1 (always a plain click)
+  already detects the blocked case for the select flow.
+- Label capacity is now 576 (was 625) — exactly the default grid size, so
+  no Grid-mode loss; Automation sessions cap at 576 too.
