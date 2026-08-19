@@ -132,6 +132,36 @@ namespace HuntAndPeck.Views
         }
 
         /// <summary>
+        /// Horizontal glyph stretch for the labels (bound from the view-model;
+        /// HintFontWidth percent / 100, default 1.15, 1.0 = normal). At small sizes
+        /// the bundled mono's confusable pairs (w/m) read better widened than grown;
+        /// the pill widens with the text so padding stays even. Changing it
+        /// re-renders every label (the cached FormattedTexts are unaffected -- only
+        /// the geometry changes).
+        /// </summary>
+        public static readonly DependencyProperty LabelWidthScaleProperty =
+            DependencyProperty.Register("LabelWidthScale", typeof(double), typeof(HintCanvas),
+                new FrameworkPropertyMetadata(1.0, OnLabelWidthScaleChanged));
+
+        public double LabelWidthScale
+        {
+            get { return (double)GetValue(LabelWidthScaleProperty); }
+            set { SetValue(LabelWidthScaleProperty, value); }
+        }
+
+        private static void OnLabelWidthScaleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var c = (HintCanvas)d;
+            if (c._hints != null)
+            {
+                for (int i = 0; i < c._hints.Count; i++)
+                {
+                    c.RenderHint(i);
+                }
+            }
+        }
+
+        /// <summary>
         /// Group view on/off (bound from the view-model; <c>GroupViewEnabled</c> config,
         /// toggled live by <c>&lt;leader&gt;p</c>). While on and no label prefix is typed,
         /// only the group boxes show (every hint pill renders nothing); once a prefix is
@@ -513,7 +543,8 @@ namespace HuntAndPeck.Views
             // DPI-correct physical size; positions (br.Left/Top) stay in physical px.
             double pad = Pad * _dpi;
             double radius = DefaultCornerRadius * _dpi;
-            double pillW = ft.Width + pad * 2;
+            double wide = LabelWidthScale > 1.0 ? LabelWidthScale : 1.0;
+            double pillW = (ft.Width + pad * 2) * wide;
             double pillH = ft.Height + pad * 2;
             // PointHint: br.Left/Top IS the cursor target, so center the pill on it.
             // Previously the pill was top-left-anchored there, which sat every label
@@ -536,7 +567,23 @@ namespace HuntAndPeck.Views
             {
                 dc.DrawRoundedRectangle(h.Active ? _activeBg : _inactiveBg, null,
                     new Rect(x, y, pillW, pillH), radius, radius);
-                dc.DrawText(ft, new Point(x + pad, y + pad));
+                // LabelWidthScale > 1: stretch the glyphs horizontally inside the
+                // (already widened) pill. The pill is the original layout scaled by
+                // `wide`, so symmetric padding means the text slot starts at
+                // x + pad*wide and is ft.Width*wide wide; the transform scales X
+                // around that slot's center, and DrawText at the unscaled-glyph
+                // center maps its edges onto the slot exactly.
+                if (wide > 1.001)
+                {
+                    double textCx = x + pad * wide + ft.Width * wide / 2.0;
+                    dc.PushTransform(new ScaleTransform(wide, 1.0, textCx, 0.0));
+                    dc.DrawText(ft, new Point(textCx - ft.Width / 2.0, y + pad));
+                    dc.Pop();
+                }
+                else
+                {
+                    dc.DrawText(ft, new Point(x + pad, y + pad));
+                }
             }
         }
 

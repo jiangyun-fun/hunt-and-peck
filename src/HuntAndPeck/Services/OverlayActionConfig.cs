@@ -616,6 +616,44 @@ namespace HuntAndPeck.Services
         }
 
         /// <summary>
+        /// Horizontal stretch applied to label glyphs (hot-reload, read once per
+        /// overlay): percent, 100 = normal, default 115 -- at small sizes (8 px) the
+        /// bundled mono's w/m stem shapes are hard to tell apart, and widening helps
+        /// more than growing the pill. Clamped to [100, 200] so a typo cannot shrink
+        /// or explode the labels. Returns the multiplier (1.0 = normal).
+        /// </summary>
+        public static double ReadHintFontWidthScale()
+        {
+            const double DefaultPercent = 115.0;
+            try
+            {
+                EnsureFresh();
+                var raw = ConfigurationManager.AppSettings["HintFontWidth"];
+                double pct;
+                if (string.IsNullOrWhiteSpace(raw)
+                    || !double.TryParse(raw.Trim(), NumberStyles.Float,
+                        CultureInfo.InvariantCulture, out pct))
+                {
+                    return DefaultPercent / 100.0;
+                }
+                if (pct < 100.0)
+                {
+                    pct = 100.0;
+                }
+                else if (pct > 200.0)
+                {
+                    pct = 200.0;
+                }
+                return pct / 100.0;
+            }
+            catch (Exception)
+            {
+                // Deliberate fallback so a malformed config keeps the app usable.
+                return DefaultPercent / 100.0;
+            }
+        }
+
+        /// <summary>
         /// Overlay idle auto-close timeout in seconds (hot-reload, read when the overlay
         /// arms). 0 = off (never auto-close). Default 0.
         /// </summary>

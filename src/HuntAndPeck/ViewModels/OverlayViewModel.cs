@@ -796,6 +796,16 @@ namespace HuntAndPeck.ViewModels
         /// </summary>
         public int ZoneGridCols => (_groupBoxes != null && _zoneBoxes != null) ? _groupZoneCols : 0;
 
+        /// <summary>
+        /// Horizontal glyph stretch for the labels (HintFontWidth percent / 100, read
+        /// once per overlay; default 1.15). Widens pills + glyphs so small-size
+        /// confusables (w/m in the bundled mono at 8 px) separate. Bound to
+        /// HintCanvas.LabelWidthScale.
+        /// </summary>
+        private readonly double _labelWidthScale = OverlayActionConfig.ReadHintFontWidthScale();
+
+        public double LabelWidthScale => _labelWidthScale;
+
         /// <summary>Zone-grid rows; see <see cref="ZoneGridCols"/>.</summary>
         public int ZoneGridRows => (_groupBoxes != null && _zoneBoxes != null) ? _groupZoneRows : 0;
 

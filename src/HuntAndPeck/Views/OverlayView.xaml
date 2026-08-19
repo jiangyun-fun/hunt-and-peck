@@ -19,7 +19,8 @@
                           PillOpacity="{Binding PillOpacity}" HideInactive="{Binding HideInactive}"
                           GroupView="{Binding GroupView}" GroupBoxesSource="{Binding GroupBoxes}"
                           GroupMatchLength="{Binding MatchLength}" GroupFontSizeText="{Binding GroupFontSize}"
-                          ZoneGridCols="{Binding ZoneGridCols}" ZoneGridRows="{Binding ZoneGridRows}">
+                          ZoneGridCols="{Binding ZoneGridCols}" ZoneGridRows="{Binding ZoneGridRows}"
+                          LabelWidthScale="{Binding LabelWidthScale}">
             <local:HintCanvas.RenderTransform>
                 <TranslateTransform X="{Binding OffsetX}" Y="{Binding OffsetY}" />
             </local:HintCanvas.RenderTransform>
