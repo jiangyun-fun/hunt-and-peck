@@ -88,17 +88,21 @@ namespace HuntAndPeck.Tests.ViewModels
         {
             // d/t/v already close after completing in Continuous mode
             // (SelectionActionsClose=true default); snapshot must behave the same
-            // (one-shot), not follow the raw trigger mode.
+            // (one-shot), not follow the raw trigger mode. Hints span 2D (4 rows x
+            // 10 cols) so the two picked corners differ on BOTH axes -- same-row
+            // corners are a zero-height rect, which is the documented no-op pick.
             var hints = new List<Hint>();
             for (int i = 0; i < 40; i++)
             {
-                hints.Add(new PointHint(IntPtr.Zero, new Rect(i * 10, 0, 8, 8), new Point(i * 10, 4)));
+                int x = (i % 10) * 10;
+                int y = (i / 10) * 10;
+                hints.Add(new PointHint(IntPtr.Zero, new Rect(x, y, 8, 8), new Point(x + 4, y + 4)));
             }
             var vm = new OverlayViewModel(new HintSession
             {
                 Hints = hints,
                 OwningWindow = IntPtr.Zero,
-                OwningWindowBounds = new Rect(0, 0, 400, 100)
+                OwningWindowBounds = new Rect(0, 0, 100, 40)
             }, new HintLabelService())
             {
                 IsContinuous = true
@@ -118,6 +122,7 @@ namespace HuntAndPeck.Tests.ViewModels
 
             Assert.NotNull(captured);
             Assert.True(captured.Value.Width > 0);
+            Assert.True(captured.Value.Height > 0);
             Assert.Equal(1, closed);               // closed even though IsContinuous
         }
 
