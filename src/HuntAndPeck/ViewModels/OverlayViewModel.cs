@@ -494,15 +494,25 @@ namespace HuntAndPeck.ViewModels
         }
 
         /// <summary>
-        /// True when the overlay holds one session per monitor (Grid + Screen) and can
-        /// follow the foreground window to another monitor via <see cref="SwitchToMonitor"/>.
-        /// False for single-session modes (Automation, Grid + Window), zone mode (one
-        /// monitor by design), and quadrant mode (all four sessions share one monitor's
-        /// bounds, so a bounds match could not pick the right quadrant).
+        /// True when the overlay can follow the foreground window to another monitor via
+        /// <see cref="SwitchToMonitor"/>: the multi-session Grid + Screen overlay (one
+        /// session per monitor, swapped by bounds match), or a quadrant overlay wired
+        /// with <see cref="RebuildForMonitor"/> (its four sessions share one monitor's
+        /// bounds, so following means rebuilding them). False for single-session modes
+        /// (Automation, Grid + Window) and zone mode (one monitor by design).
         /// </summary>
         public bool CanFollowForegroundMonitor
-            => _zonePhase == ZonePhase.Normal && !_isQuadrantMode
-               && _sessions != null && _sessions.Count > 1;
+            => _zonePhase == ZonePhase.Normal
+               && _sessions != null && _sessions.Count > 1
+               && (!_isQuadrantMode || RebuildForMonitor != null);
+
+        /// <summary>
+        /// Quadrant follow: rebuilds the four quadrant sessions (TL/TR/BL/BR) for a new
+        /// monitor's physical-px bounds, keeping the current quadrant index. Set by
+        /// ShellViewModel for quadrant overlays only; null elsewhere. Runs on the UI
+        /// thread, synchronously (the grid-only build measured ~6 ms on-box).
+        /// </summary>
+        public Func<Rect, IList<HintSession>> RebuildForMonitor { get; set; }
 
         /// <summary>
         /// Focus-follow (multi-monitor Grid + Screen): switches to the session covering
@@ -511,15 +521,54 @@ namespace HuntAndPeck.ViewModels
         /// makes, but driven by the foreground monitor changing (Alt+Tab to another
         /// monitor) instead of Tab. Each monitor's session was built for its own bounds
         /// (portrait monitors included), so this is an instant swap with correct
-        /// geometry. No-op when not multi-session, when no session matches (a monitor
-        /// with no session, e.g. plugged in after open), or when already on that
-        /// monitor -- in particular a same-monitor focus event never disturbs a typed
-        /// prefix. Resets the pan offset like Tab.
+        /// geometry. Quadrant overlays rebuild their sessions for the new monitor via
+        /// <see cref="RebuildForMonitor"/> (keeping the quadrant index). No-op when not
+        /// follow-capable, when no session matches (a monitor with no session, e.g.
+        /// plugged in after open), or when already on that monitor -- in particular a
+        /// same-monitor focus event never disturbs a typed prefix. Resets the pan
+        /// offset like Tab.
         /// </summary>
         public void SwitchToMonitor(Rect monitorBounds)
         {
             if (!CanFollowForegroundMonitor)
             {
+                return;
+            }
+            if (_isQuadrantMode)
+            {
+                // All four sessions share one monitor's bounds; a CHANGE of monitor
+                // cannot be a bounds match -- rebuild the quadrants for it instead.
+                var current = _sessions[0].OwningWindowBounds;
+                if (current == monitorBounds)
+                {
+                    return;
+                }
+                var fresh = RebuildForMonitor(monitorBounds);
+                if (fresh == null || fresh.Count == 0)
+                {
+                    TimingLog.LogAlways("overlay follow skipped: no session for "
+                        + (int)monitorBounds.X + "," + (int)monitorBounds.Y
+                        + " " + (int)monitorBounds.Width + "x" + (int)monitorBounds.Height);
+                    return;
+                }
+                _sessions = fresh;
+                // Keep the quadrant the user is on (clamp mirrors CycleLayout; a
+                // quadrant rebuild always yields 4).
+                if (_currentSession >= _sessions.Count)
+                {
+                    _currentSession = _sessions.Count - 1;
+                }
+                if (_currentSession < 0)
+                {
+                    _currentSession = 0;
+                }
+                LoadSession(_sessions[_currentSession]);
+                OffsetX = 0;
+                OffsetY = 0;
+                NotifyOfPropertyChange(nameof(QuadrantLabel));
+                TimingLog.LogAlways("overlay follow (quadrant) -> "
+                    + (int)monitorBounds.X + "," + (int)monitorBounds.Y
+                    + " " + (int)monitorBounds.Width + "x" + (int)monitorBounds.Height);
                 return;
             }
             for (int i = 0; i < _sessions.Count; i++)

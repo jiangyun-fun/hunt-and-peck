@@ -245,9 +245,9 @@ namespace HuntAndPeck.Tests.ViewModels
             single.SwitchToMonitor(bounds);
             Assert.Equal(bounds, single.Bounds);
 
-            // Quadrant mode: all four sessions share one monitor's bounds, so a
-            // bounds match could not pick the right quadrant -- follow must be
-            // gated off and the switch a no-op (stays on quadrant index 2).
+            // Quadrant mode WITHOUT a rebuild delegate (not wired): all four sessions
+            // share one monitor's bounds, so a bounds match could not pick the right
+            // quadrant -- follow must stay gated off (no-op; stays on quadrant index 2).
             var quad = new OverlayViewModel(new List<HintSession>
             {
                 MonitorSession(bounds, 40),
@@ -261,6 +261,61 @@ namespace HuntAndPeck.Tests.ViewModels
             Assert.False(quad.CanFollowForegroundMonitor);
             quad.SwitchToMonitor(bounds);
             Assert.Equal(60, quad.Hints.Count);
+        }
+
+        [Fact]
+        public void SwitchToMonitor_QuadrantFollow_RebuildsForNewMonitor_KeepsQuadrant()
+        {
+            // Quadrant follow with the rebuild delegate wired: a change of monitor
+            // REBUILDS the four quadrant sessions for it (portrait bounds here) and
+            // keeps the quadrant the user is on (index 2), resetting prefix + pan.
+            // Same-monitor and null-rebuild switches are no-ops.
+            var bounds = new Rect(0, 0, 1920, 1080);
+            var portrait = new Rect(1920, 0, 1080, 1920);
+            var quad = new OverlayViewModel(new List<HintSession>
+            {
+                MonitorSession(bounds, 40),
+                MonitorSession(bounds, 50),
+                MonitorSession(bounds, 60),
+                MonitorSession(bounds, 70)
+            }, 2, new HintLabelService())
+            {
+                IsQuadrantMode = true,
+                RebuildForMonitor = r => new List<HintSession>
+                {
+                    MonitorSession(r, 80),
+                    MonitorSession(r, 90),
+                    MonitorSession(r, 100),
+                    MonitorSession(r, 110)
+                }
+            };
+            Assert.True(quad.CanFollowForegroundMonitor);
+
+            char first = quad.Hints.GroupBy(h => h.Label[0]).First(g => g.Count() >= 2).Key;
+            quad.AppendLabelChar(first);
+            quad.OffsetX = 11;
+
+            quad.SwitchToMonitor(portrait);
+
+            Assert.Equal(portrait, quad.Bounds);     // overlay moved to the portrait monitor
+            Assert.Equal(100, quad.Hints.Count);     // quadrant index 2 kept, rebuilt session
+            Assert.Equal(0, quad.MatchLength);       // prefix cleared (Tab semantics)
+            Assert.Equal(0, quad.OffsetX);           // pan reset
+            Assert.Equal("Q3/4", quad.QuadrantLabel); // badge still reads the same quadrant
+
+            // Same monitor again: a focus event within the viewed monitor must not
+            // disturb a typed prefix.
+            char again = quad.Hints.GroupBy(h => h.Label[0]).First(g => g.Count() >= 2).Key;
+            quad.AppendLabelChar(again);
+            quad.SwitchToMonitor(portrait);
+            Assert.Equal(1, quad.MatchLength);
+
+            // A rebuild that comes back null (degenerate monitor): no-op.
+            quad.RebuildForMonitor = r => null;
+            var other = new Rect(-3840, 0, 3840, 2160);
+            quad.SwitchToMonitor(other);
+            Assert.Equal(portrait, quad.Bounds);
+            Assert.Equal(100, quad.Hints.Count);
         }
 
         /// <summary>

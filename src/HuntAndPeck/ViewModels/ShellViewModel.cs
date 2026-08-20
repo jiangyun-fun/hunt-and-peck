@@ -262,8 +262,10 @@ namespace HuntAndPeck.ViewModels
         /// overlay stays full-screen with labels only in the active quadrant; the VM is
         /// marked <see cref="OverlayViewModel.IsQuadrantMode"/> so plain Tab cycles the
         /// quadrants via <see cref="OverlayViewModel.CycleMonitor"/> (the same path monitor
-        /// cycling uses). Returns null on a degenerate monitor or when the pressed quadrant
-        /// itself yields no grid points.
+        /// cycling uses). The VM also carries a <see cref="OverlayViewModel.RebuildForMonitor"/>
+        /// delegate so focus-follow can rebuild the quadrants for another monitor. Returns
+        /// null on a degenerate monitor or when the pressed quadrant itself yields no grid
+        /// points.
         /// </summary>
         private OverlayViewModel BuildQuadrantOverlayViewModel(IntPtr hWnd, int quadrant)
         {
@@ -279,6 +281,36 @@ namespace HuntAndPeck.ViewModels
             var monitor = new System.Windows.Rect(
                 screen.Bounds.X, screen.Bounds.Y, screen.Bounds.Width, screen.Bounds.Height);
 
+            var sessions = BuildQuadrantSessions(hWnd, monitor);
+            if (sessions[quadrant].Hints.Count == 0)
+            {
+                // The pressed quadrant must be non-empty, else give up (as before).
+                return null;
+            }
+
+            return new OverlayViewModel(sessions, quadrant, _hintLabelService)
+            {
+                IsQuadrantMode = true,
+                // Focus-follow: quadrant sessions all belong to ONE monitor, so following
+                // to another monitor means rebuilding them for it. Synchronous is fine --
+                // the initial off-thread build of the same ~2300 PointHints measured 6 ms
+                // on-box, and the delegate runs on the UI thread only on a real monitor
+                // change. Uses the OPEN-time hWnd (grid points are absolute screen
+                // positions; same semantics as the layout-cycling rebuild).
+                RebuildForMonitor = r => BuildQuadrantSessions(hWnd, r)
+            };
+        }
+
+        /// <summary>
+        /// Builds the four quadrant sessions (TL/TR/BL/BR in scan order) for one monitor
+        /// at ZoneGridStep, each rebased to the full monitor (full-screen overlay, labels
+        /// only in the quadrant). A quarter that yields no grid points gets an empty
+        /// session (renders nothing; Tab still cycles through it) -- the CALLER enforces
+        /// "pressed quadrant must be non-empty" for the initial open; a follow rebuild
+        /// has no pressed quarter and tolerates empties.
+        /// </summary>
+        private List<HintSession> BuildQuadrantSessions(IntPtr hWnd, System.Windows.Rect monitor)
+        {
             // SliceIntoZones(monitor, 2, 2) -> [TL, TR, BL, BR] in scan order, so the
             // quadrant index (0..3) the hotkey carries maps 1:1 to the list position.
             var quadRects = ZoneService.SliceIntoZones(monitor, 2, 2);
@@ -293,12 +325,6 @@ namespace HuntAndPeck.ViewModels
                 DenseRegions = "Center"
             };
 
-            // Build exactly four sessions (one per quadrant) so _currentSession stays the
-            // quadrant index and the Q n/4 badge is correct. A uniform grid always yields
-            // points for a non-zero rect, but defensively substitute an empty session if a
-            // non-pressed quarter comes back null (0 hints -> GetHintStrings(0) is empty ->
-            // renders nothing; Tab still cycles through it). The pressed quadrant must be
-            // non-empty, else give up (return null) as before.
             var sessions = new List<HintSession>(4);
             for (int q = 0; q < 4; q++)
             {
@@ -306,10 +332,6 @@ namespace HuntAndPeck.ViewModels
                 var s = _hintProviderService.EnumGridHintsForBounds(hWnd, qr, layout);
                 if (s == null || s.Hints == null || s.Hints.Count == 0)
                 {
-                    if (q == quadrant)
-                    {
-                        return null;
-                    }
                     s = new HintSession
                     {
                         Hints = new List<Hint>(),
@@ -327,11 +349,7 @@ namespace HuntAndPeck.ViewModels
                 }
                 sessions.Add(s);
             }
-
-            return new OverlayViewModel(sessions, quadrant, _hintLabelService)
-            {
-                IsQuadrantMode = true
-            };
+            return sessions;
         }
 
         private struct MonitorSessions

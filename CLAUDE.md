@@ -165,8 +165,10 @@ retired, they all pass through to the app — do not put `Q`, `I`, or `0–9` in
   (prefix + pan reset), driven by a ~200 ms foreground-monitor poll in `OverlayView`
   (edge-triggered, so it never fights Tab cycling, which does not move focus). Portrait
   monitors carry their own pre-built session, so geometry stays correct on the swap.
-  Zone / quadrant / single-session overlays do not follow (zone mode is one monitor by
-  design; quadrant sessions share one monitor's bounds).
+  **Quadrant overlays follow too**: their four sessions are rebuilt for the new monitor
+  (`RebuildForMonitor`, ~6 ms synchronous), keeping the quadrant you are on. Zone and
+  single-session (Automation / Grid+Window) overlays do not follow. Follows and no-match
+  skips log ungated to `%TEMP%\hap-timing.log` (`overlay follow …`).
 - **Press the hotkey again while the overlay is up** to toggle one-click ⇄ continuous
   (Grid only). `OverlayTriggerMode=OneClick` (hot-reload) makes every open one-shot.
 - **Macros** (`Ctrl+Shift;`, startup-only `MacroHotkeyKey`/`MacroHotkeyModifier`): opens a
