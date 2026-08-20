@@ -20,8 +20,11 @@ on the Windows box — **not** on the dev (Linux) box.
 Run from the repo root. Shell state does **not** persist between Bash calls, so
 **source `.env` in every command**: `set -a; . ./.env; set +a`.
 
-1. **Pick a fresh folder name** for the drop on the Windows box (e.g. `hap-grid`,
-   `hap-perf`). Never overwrite a running `hap.exe` — Windows holds a file lock.
+1. **Pick a fresh folder name** for the drop on the Windows box, in the format
+   `<YYYYMMDD-HHMMSS>.hap-<suffix>` (e.g. `20260820-111752.hap-amber-dots`) — the
+   timestamp prefix makes drops sort chronologically in the test dir and tells you at
+   a glance which build is newest. Never overwrite a running `hap.exe` — Windows
+   holds a file lock.
 
 2. **Commit + push** (Conventional Commits, no `Co-Authored-By`):
    ```bash
@@ -51,10 +54,11 @@ Run from the repo root. Shell state does **not** persist between Bash calls, so
    Verify the shipped `hap.exe.config` has the keys you expect (e.g.
    `grep -nE 'key="(HotkeyKey|HintCharacters|TimingLogEnabled)"' /tmp/hap-drop/hap.exe.config`).
 
-5. **rsync to the Windows box** into the fresh folder:
+5. **rsync to the Windows box** into the fresh folder (timestamp captured when the
+   drop ships, so the folder names the build moment):
    ```bash
    set -a; . ./.env; set +a
-   FOLDER=hap-<suffix>
+   FOLDER="$(date +%Y%m%d-%H%M%S).hap-<suffix>"
    ssh -o StrictHostKeyChecking=accept-new "$HAP_WIN_USER@$HAP_WIN_HOST" "mkdir -p '$HAP_WIN_TEST_DIR/$FOLDER'"
    rsync -az --delete /tmp/hap-drop/ "$HAP_WIN_USER@$HAP_WIN_HOST:$HAP_WIN_TEST_DIR/$FOLDER/"
    ssh "$HAP_WIN_USER@$HAP_WIN_HOST" "ls '$HAP_WIN_TEST_DIR/$FOLDER/hap.exe'"
