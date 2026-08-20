@@ -102,7 +102,14 @@ namespace HuntAndPeck.ViewModels
             => await OpenOverlayAsync();
 
         private async void _keyListener_OnQuadrantHotKeyActivated(int quadrant)
-            => await OpenQuadrantOverlayAsync(quadrant);
+        {
+            // Ungated: a dead quadrant hotkey must be triageable WITHOUT the user
+            // having enabled TimingLogEnabled first. If this line is absent after a
+            // press, the chord never reached hap (registration conflict, AHK/LL-hook
+            // interception, Fn state) -- check the "hotkey register" startup lines.
+            TimingLog.LogAlways("quadrant hotkey q=" + quadrant + " received");
+            await OpenQuadrantOverlayAsync(quadrant);
+        }
 
         private void _keyListener_OnMacroHotKeyActivated(object sender, EventArgs e)
             => _showMacroPicker();
@@ -222,6 +229,7 @@ namespace HuntAndPeck.ViewModels
             var hWnd = User32.GetForegroundWindow();
             if (hWnd == IntPtr.Zero)
             {
+                TimingLog.LogAlways("quadrant q=" + quadrant + " dropped: no foreground window");
                 return;
             }
 
@@ -235,8 +243,10 @@ namespace HuntAndPeck.ViewModels
             var vm = await Task.Run(() => BuildQuadrantOverlayViewModel(hWnd, quadrant));
             if (vm == null)
             {
+                TimingLog.LogAlways("quadrant q=" + quadrant + " build=null (pressed quadrant yielded no grid)");
                 return;
             }
+            TimingLog.LogAlways("quadrant q=" + quadrant + " overlay hints=" + vm.Hints.Count);
             if (_isOverlayActive())
             {
                 _closeOverlay();

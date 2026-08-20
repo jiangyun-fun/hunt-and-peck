@@ -288,10 +288,12 @@ namespace HuntAndPeck.Views
                 double w = _monitor.Width;
                 double h = _monitor.Height;
 
-                // Cross through the monitor center, dotted like the zone borders.
-                var pen = new Pen(new SolidColorBrush(Color.FromArgb(0xB4, 0x40, 0x40, 0x40)), 1.5 * _dpi);
-                pen.DashStyle = new DashStyle(new DoubleCollection { 0.0, 3.0 }, 0);
-                pen.DashCap = PenLineCap.Round;
+                // Cross through the monitor center: SOLID amber, not the old dotted
+                // 1.5px dark gray. The guide window itself runs at GuideOpacity 0.30,
+                // where a desaturated gray vanished on both light and dark wallpapers;
+                // a saturated mid-luminance hue reads through the 30% veil and matches
+                // the yellow letter pills.
+                var pen = new Pen(new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)), 2.0 * _dpi);
                 pen.Freeze();
                 dc.DrawLine(pen, new Point(w / 2.0, 0), new Point(w / 2.0, h));
                 dc.DrawLine(pen, new Point(0, h / 2.0), new Point(w, h / 2.0));

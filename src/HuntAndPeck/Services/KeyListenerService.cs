@@ -45,16 +45,21 @@ namespace HuntAndPeck.Services
         /// another process already owns the combo, and the return was previously
         /// ignored -- so a conflicting tool (or a stale hap instance started before
         /// the mutex guarded startup) silently left a hotkey dead, which on-box
-        /// masqueraded as "hap stopped working". One MessageBox per failing chord.
+        /// masqueraded as "hap stopped working". One MessageBox per failing chord,
+        /// plus an ungated timing-log line per chord (ok or FAILED) so a dead hotkey
+        /// can be triaged from %TEMP%\hap-timing.log even when the popup was
+        /// dismissed long before testing.
         /// </summary>
         private void TryRegister(HotKey hotKey)
         {
             hotKey.RegistrationId = _hotkeyIdCounter++;
+            string chord = hotKey.Modifier + "+" + hotKey.Keys;
             if (User32.RegisterHotKey(Handle, hotKey.RegistrationId, (uint)hotKey.Modifier, (uint)hotKey.Keys))
             {
+                TimingLog.LogAlways("hotkey register ok: " + chord);
                 return;
             }
-            string chord = hotKey.Modifier + "+" + hotKey.Keys;
+            TimingLog.LogAlways("hotkey register FAILED: " + chord);
             MessageBox.Show(
                 "hap could not register the hotkey " + chord + ".\n\n"
                 + "Another program (or another hap instance) already owns it.\n"

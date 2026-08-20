@@ -389,7 +389,7 @@ retired, they all pass through to the app — do not put `Q`, `I`, or `0–9` in
   Keys/modifier configurable via `QuadrantHotkeyKeys`/`QuadrantHotkeyModifier`.
 - **Persistent quadrant guide** (`QuadrantGuideEnabled`/`QuadrantGuideLabels`/
   `QuadrantGuideFocusedOnly`, startup-only, default on): a per-monitor, always-on-top,
-  click-through window drawing a faint (~30% opacity) dotted cross at the monitor center
+  click-through window drawing a faint (~30% opacity) solid amber cross at the monitor center
   plus one letter pill at each quadrant center (default `I,O,J,K` in TL/TR/BL/BR order) —
   a spatial memory aid for which `Ctrl+Shift+F1..F4` region is where, visible during
   normal use. With multiple monitors and `QuadrantGuideFocusedOnly` (default true), only
@@ -443,7 +443,13 @@ retired, they all pass through to the app — do not put `Q`, `I`, or `0–9` in
   dense grids (1000+ labels) take longer to build `FormattedText` for. Lower
   `GridEdgeStep`/`GridCenterStep` density or `HintCharacters` count to go faster.
 - **Overlay timing**: set `TimingLogEnabled=true` to log `enum+merge` and `render`
-  phases to `%TEMP%\hap-timing.log` (see `measure-latency` skill).
+  phases to `%TEMP%\hap-timing.log` (see `measure-latency` skill). Some lines bypass the
+  gate (`TimingLog.LogAlways`) because they must exist when debugging a dead hotkey:
+  per-chord registration outcomes at startup (`hotkey register ok/FAILED: …`) and
+  quadrant-hotkey press outcomes (`quadrant hotkey q=n received` → `overlay hints=N` /
+  `build=null` / `dropped: no foreground window`). No `received` line after a press means
+  the chord never reached hap (conflict, AHK interception, Fn state) — check the startup
+  lines for a FAILED registration.
 - **Multi-event input bursts run on a background thread** (`FireInputAsync`, ~20 ms gaps
   between events): double/triple click, Shift+click, and the select-drag. Load-bearing:
   the UI thread owns the LL hooks, so a burst run on it is HELD by the OS and flushed as

@@ -31,6 +31,27 @@ namespace HuntAndPeck.Services
             }
         }
 
+        /// <summary>
+        /// Ungated variant for lines that must exist EXACTLY when things go wrong on
+        /// the box: hotkey-registration outcomes (once per chord at startup) and
+        /// quadrant-hotkey presses (1-2 lines each). "Ctrl+Shift+F1 does nothing"
+        /// cannot be triaged through the gated log -- the user only enables
+        /// TimingLogEnabled to measure latency, never while debugging a dead hotkey --
+        /// so these bypass the gate. Volume is negligible; best-effort, never throws.
+        /// </summary>
+        public static void LogAlways(string message)
+        {
+            try
+            {
+                File.AppendAllText(LogPath,
+                    DateTime.Now.ToString("HH:mm:ss.fff") + "  " + message + Environment.NewLine);
+            }
+            catch (Exception)
+            {
+                // Best-effort logging; never break the app over a log write.
+            }
+        }
+
         private static bool IsEnabled()
         {
             try
