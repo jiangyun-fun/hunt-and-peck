@@ -593,11 +593,14 @@ namespace HuntAndPeck.Views
         // the labels that will appear inside it.
         private const double GroupBoxPad = 5.0;
 
-        // Point-preview dots (level 1): one small dot at every clickable position,
-        // same color/alpha family as the dotted box outline (on-box feedback: the
-        // first cut at radius 2 + opaque read too heavy against the boxes).
-        private const double DotRadius = 1.25;
-        private static readonly Brush DotFill = FreezeBrush(Color.FromArgb(0xB4, 0x40, 0x40, 0x40));
+        // Point-preview dots (level 1): one small dot at every clickable position, in
+        // the amber accent family (same hue as the guide cross) -- the dots preview
+        // where the YELLOW pills will land, so the accent reads as "targets", while
+        // the dotted gray zone borders stay neutral structure (on-box feedback: same
+        // gray for both blurred dots into the lines; radius 2 + fully opaque read
+        // too heavy, so amber at ~88% alpha + radius 1.5).
+        private const double DotRadius = 1.5;
+        private static readonly Brush DotFill = FreezeBrush(Color.FromArgb(0xE0, 0xF5, 0x9E, 0x0B));
 
         private static Brush FreezeBrush(Color color)
         {

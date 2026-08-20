@@ -200,7 +200,8 @@ retired, they all pass through to the app — do not put `Q`, `I`, or `0–9` in
   dotted boxes** instead of every pill — zone i keyed by `HintCharacters[i]` in scan
   order (default = A–Z minus Q and I), the key char in a small pill **centered** in each
   box, and **one small dot at every point position inside the boxes** (the point preview:
-  you see where each zone's labels WILL land before typing its key). The zone grid draws
+  you see where each zone's labels WILL land before typing its key; dots are amber —
+  accent "targets" — while the dotted zone borders stay neutral gray). The zone grid draws
   ONE outer border plus each interior separator ONCE (the old per-box outlines doubled
   the line between adjacent boxes). The grid tiles the region the session's points
   actually OCCUPY (their union extent —
