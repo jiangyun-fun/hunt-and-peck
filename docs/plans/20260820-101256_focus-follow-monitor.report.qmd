@@ -1,0 +1,50 @@
+---
+title: "Report — overlay follows the focused monitor"
+author: "Yun Jiang"
+---
+
+# Report — focus-follow across monitors
+
+**Status: implemented, CI green, drop shipped.** Plan:
+[20260820-100824_focus-follow-monitor.plan.qmd](20260820-100824_focus-follow-monitor.plan.qmd).
+Commit `89f2294` on `master` (jiangyun-fun/hunt-and-peck).
+
+## What was done
+
+1. `OverlayViewModel.SwitchToMonitor(Rect)` (`src/HuntAndPeck/ViewModels/OverlayViewModel.cs`):
+   finds the session whose `OwningWindowBounds` equals the given monitor bounds and
+   `LoadSession`s it — the same swap `CycleMonitor` makes (Bounds change → the view
+   repositions; labels regenerate; prefix + pan reset). No-op on no match, on
+   same-monitor, and whenever `CanFollowForegroundMonitor` is false (single-session,
+   zone, quadrant modes).
+2. `OverlayView` foreground-monitor poll (`src/HuntAndPeck/Views/OverlayView.xaml.cs`):
+   a 200 ms `DispatcherTimer`, started on load only when the VM is follow-capable,
+   stopped on close. Edge-triggered: it acts only when the foreground window's monitor
+   differs from the last seen one, so Tab cycling (which does not move focus) is never
+   fought. Monitor identity = `Screen.FromHandle(GetForegroundWindow()).Bounds`
+   (physical px, same WinForms API the sessions were built from).
+3. Tests (`src/HuntAndPeck.Tests/ViewModels/OverlayViewModelTest.cs`): 3 new facts —
+   landscape↔portrait swap with prefix/pan reset; same/unknown-monitor no-op (prefix
+   survives); capability gates for single-session and quadrant mode.
+4. `CLAUDE.md`: new "Focus-follow across monitors" bullet.
+
+## Verification
+
+- CI run `32323719751` (windows-latest): Build ✓, Test ✓ (xUnit incl. the 3 new
+  facts), artifact uploaded ✓ — `gh run watch --exit-status` exit 0.
+- Drop shipped to the Windows box:
+  `/mnt/c/5.sibio/93.bk/20260627-144526.test/hap-focus-follow/hap.exe`
+  (artifact sanity-check: `hap.exe` + `hap.exe.config` present; expected keys there).
+- **Not yet verified on-box**: the actual focus-follow behavior (Alt+Tab to the
+  portrait monitor moves the labels within ~200 ms; Tab cycling unaffected). Manual
+  test pending — restart hap from the new folder (quit the old instance first).
+
+## Notes / caveats
+
+- Portrait correctness is inherited: each monitor's session is pre-built for its own
+  bounds (per-aspect zone alignment), so the switch is a geometry-correct swap with
+  no re-enumeration.
+- Cross-DPI moves use the load-time cached transform — identical to existing Tab
+  cycling (process is system-DPI aware; no per-monitor manifest in the repo).
+- Quadrant / zone / Automation overlays intentionally do not follow (documented in
+  CLAUDE.md); a follow-with-rebuild for quadrant mode would be a separate change.
