@@ -536,9 +536,18 @@ namespace HuntAndPeck.ViewModels
                     LoadSession(_sessions[i]);
                     OffsetX = 0;
                     OffsetY = 0;
+                    // Ungated: the follow is invisible in the gated log (no enum
+                    // phase), and a no-show ("labels stayed on the old monitor")
+                    // must be triageable -- did we switch, or skip for no match?
+                    TimingLog.LogAlways("overlay follow -> "
+                        + (int)monitorBounds.X + "," + (int)monitorBounds.Y
+                        + " " + (int)monitorBounds.Width + "x" + (int)monitorBounds.Height);
                     return;
                 }
             }
+            TimingLog.LogAlways("overlay follow skipped: no session for "
+                + (int)monitorBounds.X + "," + (int)monitorBounds.Y
+                + " " + (int)monitorBounds.Width + "x" + (int)monitorBounds.Height);
         }
 
         /// <summary>
