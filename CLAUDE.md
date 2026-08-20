@@ -159,6 +159,14 @@ retired, they all pass through to the app — do not put `Q`, `I`, or `0–9` in
   / Win+Tab pass through** (browser/app tab switch, Task View) — only plain Tab/Shift+Tab
   cycle monitors. (Cycling is Grid + Screen only; Automation / Grid+Window stay
   single-session.)
+- **Focus-follow across monitors** (Grid + Screen only): while the overlay is up,
+  switching the foreground window to another monitor (Alt+Tab / Win+Tab — both pass
+  through) **moves the overlay to that monitor** — the same session swap Tab makes
+  (prefix + pan reset), driven by a ~200 ms foreground-monitor poll in `OverlayView`
+  (edge-triggered, so it never fights Tab cycling, which does not move focus). Portrait
+  monitors carry their own pre-built session, so geometry stays correct on the swap.
+  Zone / quadrant / single-session overlays do not follow (zone mode is one monitor by
+  design; quadrant sessions share one monitor's bounds).
 - **Press the hotkey again while the overlay is up** to toggle one-click ⇄ continuous
   (Grid only). `OverlayTriggerMode=OneClick` (hot-reload) makes every open one-shot.
 - **Macros** (`Ctrl+Shift;`, startup-only `MacroHotkeyKey`/`MacroHotkeyModifier`): opens a

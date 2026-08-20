@@ -34,6 +34,20 @@ namespace HuntAndPeck.Views
         // window is ~free.
         private const int TopmostReassertIntervalMs = 100;
 
+        // Foreground-monitor follow: while the overlay is up, poll which monitor
+        // holds the foreground window; when it CHANGES (Alt+Tab / Win+Tab to
+        // another monitor -- both pass through by design), switch the overlay to
+        // that monitor's session (OverlayViewModel.SwitchToMonitor) so the labels
+        // move with the user instead of lingering on the left-behind monitor.
+        // Sessions are pre-built per monitor (a portrait monitor carries its own
+        // grid geometry), so the switch is an instant swap -- no re-enumeration.
+        // Only the CHANGE acts: Tab cycling (which does not move the foreground
+        // window) is never fought. A poll beats a SetWinEventHook in simplicity
+        // (same trade the quadrant guide's tracker makes). Stopped on close.
+        private DispatcherTimer _foregroundMonitorTimer;
+        private Rect _lastForegroundMonitor;
+        private const int ForegroundMonitorPollMs = 200;
+
         // Chrome (badge strip / leader popup / match box) is laid out at fixed
         // physical px (the layoutGrid counter-scale cancels WPF's DPI render, and
         // unlike HintCanvas these XAML panels have no DpiScale hook), so on a
@@ -121,6 +135,21 @@ namespace HuntAndPeck.Views
                 _topmostReassertTimer.Start();
             }
 
+            // Follow focus across monitors: only the multi-session (Grid + Screen)
+            // overlay can switch; single-session / zone / quadrant overlays skip the
+            // timer entirely. The baseline is captured here (the overlay never
+            // activates, so the foreground window is still the hotkey's target app).
+            if (vm != null && vm.CanFollowForegroundMonitor)
+            {
+                _lastForegroundMonitor = ForegroundMonitorRect();
+                _foregroundMonitorTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(ForegroundMonitorPollMs)
+                };
+                _foregroundMonitorTimer.Tick += (s, ev) => FollowForegroundMonitor();
+                _foregroundMonitorTimer.Start();
+            }
+
             // Measure window-load to content-rendered (the label layout/render cost).
             _renderSw = Stopwatch.StartNew();
             ContentRendered += OverlayView_OnContentRendered;
@@ -205,14 +234,59 @@ namespace HuntAndPeck.Views
                 User32.SWP_NOMOVE | User32.SWP_NOSIZE | User32.SWP_NOACTIVATE);
         }
 
+        /// <summary>
+        /// Physical-px bounds of the monitor holding the foreground window (empty
+        /// when there is none). Portrait monitors report their rotated bounds; the
+        /// per-monitor sessions were built from the same WinForms Screen API in this
+        /// process, so the bounds equality in <see cref="OverlayViewModel.SwitchToMonitor"/>
+        /// matches exactly (the guide's ApplyFocusedMonitor relies on the same).
+        /// </summary>
+        private static Rect ForegroundMonitorRect()
+        {
+            IntPtr fg = User32.GetForegroundWindow();
+            if (fg == IntPtr.Zero)
+            {
+                return Rect.Empty;
+            }
+            var b = System.Windows.Forms.Screen.FromHandle(fg).Bounds;
+            return new Rect(b.X, b.Y, b.Width, b.Height);
+        }
+
+        /// <summary>
+        /// Timer body: acts only when the foreground window's monitor CHANGED since
+        /// the last look (edge-triggered), then asks the VM to swap to that monitor's
+        /// session. A no-match monitor (no session for it) quietly keeps the current
+        /// one.
+        /// </summary>
+        private void FollowForegroundMonitor()
+        {
+            var vm = DataContext as OverlayViewModel;
+            if (vm == null || _foregroundMonitorTimer == null)
+            {
+                return;
+            }
+            var m = ForegroundMonitorRect();
+            if (m.IsEmpty || m == _lastForegroundMonitor)
+            {
+                return;
+            }
+            _lastForegroundMonitor = m;
+            vm.SwitchToMonitor(m);
+        }
+
         protected override void OnClosed(EventArgs e)
         {
-            // Stop the re-assert timer and drop the HWND so a late tick (if any)
-            // can't touch a destroyed window.
+            // Stop the re-assert + focus-follow timers and drop the HWND so a late
+            // tick (if any) can't touch a destroyed window.
             if (_topmostReassertTimer != null)
             {
                 _topmostReassertTimer.Stop();
                 _topmostReassertTimer = null;
+            }
+            if (_foregroundMonitorTimer != null)
+            {
+                _foregroundMonitorTimer.Stop();
+                _foregroundMonitorTimer = null;
             }
             _hwnd = IntPtr.Zero;
             base.OnClosed(e);

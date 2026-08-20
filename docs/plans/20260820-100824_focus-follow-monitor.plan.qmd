@@ -1,0 +1,57 @@
+---
+title: "Focus-follow: move the overlay to the focused monitor"
+author: "Yun Jiang"
+---
+
+# Plan — overlay follows the focused monitor
+
+## Objective
+
+While the hint overlay is up (typically continuous mode), switching the foreground
+window to another monitor (Alt+Tab / Win+Tab — both already pass through) currently
+leaves the labels on the old monitor. The overlay should **move to the newly
+focused monitor**, reusing that monitor's pre-built session — the same swap Tab
+makes, but driven by a focus change instead of a keypress.
+
+User note: some monitors are **portrait** — geometry must come from each monitor's
+own pre-built session (already true: `BuildMonitorSessions` generates one grid per
+monitor with per-aspect zone alignment), never from a shared landscape assumption.
+
+## Approach
+
+- **Edge-triggered follow.** `OverlayView` polls the foreground window's monitor
+  (~200 ms `DispatcherTimer`, same simplicity-over-SetWinEventHook trade the
+  quadrant guide makes). Only a *change* from the last seen monitor acts — Tab
+  cycling (which does not change the foreground window) is never fought.
+- **Session swap, no re-enumeration.** `OverlayViewModel.SwitchToMonitor(Rect)`
+  finds the session whose `OwningWindowBounds` equals the new monitor's physical
+  bounds and `LoadSession`s it: `Bounds` change repositions the window
+  (`ApplyBounds`), labels regenerate for that monitor's count, prefix + pan reset —
+  identical semantics to `CycleMonitor`.
+- **Scope guard.** Only the multi-session Grid + Screen overlay follows
+  (`CanFollowForegroundMonitor`). Zone mode is single-monitor by design; quadrant
+  mode's four sessions share one monitor's bounds, so a bounds match could not
+  pick the right quadrant; Automation / Grid+Window are single-session. Unknown
+  monitor (plugged in after open) → no-op.
+
+## Files
+
+- `src/HuntAndPeck/ViewModels/OverlayViewModel.cs` — add `SwitchToMonitor(Rect)` +
+  `CanFollowForegroundMonitor`.
+- `src/HuntAndPeck/Views/OverlayView.xaml.cs` — foreground-monitor poll timer
+  (start on load when capable, stop on close).
+- `src/HuntAndPeck.Tests/ViewModels/OverlayViewModelTest.cs` — tests: switch by
+  bounds (landscape ↔ portrait), prefix/pan reset, same/unknown monitor no-op,
+  capability gates (single-session, quadrant).
+- `CLAUDE.md` — document the behavior in the monitor-cycling bullet.
+
+## Risks / verification
+
+- Bounds equality relies on both sides coming from the WinForms `Screen` API in
+  the same process (same virtualization) — the same pattern the guide's
+  `ApplyFocusedMonitor` and `BuildMonitorSessions` already use.
+- Cross-DPI moves use the load-time cached transform — unchanged from Tab cycling
+  today (process is system-DPI aware; no manifest).
+- Verify: CI compile + xUnit green; on-box: open overlay on monitor A, Alt+Tab to
+  a window on the portrait monitor → labels move there within ~200 ms; Tab
+  cycling still works and is not bounced back by the poll.

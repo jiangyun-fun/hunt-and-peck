@@ -494,6 +494,54 @@ namespace HuntAndPeck.ViewModels
         }
 
         /// <summary>
+        /// True when the overlay holds one session per monitor (Grid + Screen) and can
+        /// follow the foreground window to another monitor via <see cref="SwitchToMonitor"/>.
+        /// False for single-session modes (Automation, Grid + Window), zone mode (one
+        /// monitor by design), and quadrant mode (all four sessions share one monitor's
+        /// bounds, so a bounds match could not pick the right quadrant).
+        /// </summary>
+        public bool CanFollowForegroundMonitor
+            => _zonePhase == ZonePhase.Normal && !_isQuadrantMode
+               && _sessions != null && _sessions.Count > 1;
+
+        /// <summary>
+        /// Focus-follow (multi-monitor Grid + Screen): switches to the session covering
+        /// <paramref name="monitorBounds"/> (physical px, e.g. Screen.FromHandle of the
+        /// new foreground window) -- the same session swap <see cref="CycleMonitor"/>
+        /// makes, but driven by the foreground monitor changing (Alt+Tab to another
+        /// monitor) instead of Tab. Each monitor's session was built for its own bounds
+        /// (portrait monitors included), so this is an instant swap with correct
+        /// geometry. No-op when not multi-session, when no session matches (a monitor
+        /// with no session, e.g. plugged in after open), or when already on that
+        /// monitor -- in particular a same-monitor focus event never disturbs a typed
+        /// prefix. Resets the pan offset like Tab.
+        /// </summary>
+        public void SwitchToMonitor(Rect monitorBounds)
+        {
+            if (!CanFollowForegroundMonitor)
+            {
+                return;
+            }
+            for (int i = 0; i < _sessions.Count; i++)
+            {
+                if (_sessions[i].OwningWindowBounds == monitorBounds)
+                {
+                    if (i == _currentSession)
+                    {
+                        return;
+                    }
+                    _currentSession = i;
+                    // LoadSession sets Bounds (the view repositions), rebuilds the
+                    // labels for this monitor's point count, and clears the prefix.
+                    LoadSession(_sessions[i]);
+                    OffsetX = 0;
+                    OffsetY = 0;
+                    return;
+                }
+            }
+        }
+
+        /// <summary>
         /// True when more than one layout preset is configured AND a rebuild delegate is
         /// wired, so the `;` key can cycle grid shapes live (Grid only). Drives both the
         /// keyboard hook (whether `;` is captured) and the layout badge.

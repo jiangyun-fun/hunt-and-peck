@@ -173,5 +173,116 @@ namespace HuntAndPeck.Tests.ViewModels
             Assert.Equal(0, r.Width);
             Assert.Equal(0, r.Height);
         }
+
+        [Fact]
+        public void SwitchToMonitor_MovesToMatchingSession_AndResetsState()
+        {
+            // Landscape primary + PORTRAIT secondary (1080x1920 at x=1920) -- the
+            // mixed-orientation setup focus-follow must handle. Each session was
+            // built for its own monitor, so switching is a pure swap: Bounds moves,
+            // the portrait session's labels load, and prefix + pan reset (Tab
+            // semantics).
+            var landscape = new Rect(0, 0, 1920, 1080);
+            var portrait = new Rect(1920, 0, 1080, 1920);
+            var vm = new OverlayViewModel(new List<HintSession>
+            {
+                MonitorSession(landscape, 40),
+                MonitorSession(portrait, 60)
+            }, 0, new HintLabelService());
+            Assert.True(vm.CanFollowForegroundMonitor);
+
+            char first = vm.Hints.GroupBy(h => h.Label[0]).First(g => g.Count() >= 2).Key;
+            vm.AppendLabelChar(first);
+            vm.OffsetX = 42;
+            vm.OffsetY = 7;
+
+            vm.SwitchToMonitor(portrait);
+
+            Assert.Equal(portrait, vm.Bounds);       // overlay moved
+            Assert.Equal(60, vm.Hints.Count);        // portrait session's labels
+            Assert.Equal(0, vm.MatchLength);         // prefix cleared
+            Assert.Equal(0, vm.OffsetX);             // pan reset
+            Assert.Equal(0, vm.OffsetY);
+
+            vm.SwitchToMonitor(landscape);           // and back again
+            Assert.Equal(landscape, vm.Bounds);
+            Assert.Equal(40, vm.Hints.Count);
+        }
+
+        [Fact]
+        public void SwitchToMonitor_SameOrUnknownMonitor_IsNoOp()
+        {
+            var landscape = new Rect(0, 0, 1920, 1080);
+            var portrait = new Rect(1920, 0, 1080, 1920);
+            var vm = new OverlayViewModel(new List<HintSession>
+            {
+                MonitorSession(landscape, 40),
+                MonitorSession(portrait, 60)
+            }, 1, new HintLabelService());
+
+            char first = vm.Hints.GroupBy(h => h.Label[0]).First(g => g.Count() >= 2).Key;
+            vm.AppendLabelChar(first);
+
+            // Same monitor (a focus event within the viewed monitor): the typed
+            // prefix must survive.
+            vm.SwitchToMonitor(portrait);
+            Assert.Equal(1, vm.MatchLength);
+
+            // Unknown bounds (no session covers that monitor): no-op.
+            vm.SwitchToMonitor(new Rect(-3840, 0, 3840, 2160));
+            Assert.Equal(1, vm.MatchLength);
+            Assert.Equal(portrait, vm.Bounds);
+            Assert.Equal(60, vm.Hints.Count);
+        }
+
+        [Fact]
+        public void SwitchToMonitor_SingleSession_OrQuadrantMode_CannotFollow()
+        {
+            // Single-session (Automation / Grid+Window): never follow-capable.
+            var bounds = new Rect(0, 0, 1920, 1080);
+            var single = new OverlayViewModel(MonitorSession(bounds, 40), new HintLabelService());
+            Assert.False(single.CanFollowForegroundMonitor);
+            single.SwitchToMonitor(bounds);
+            Assert.Equal(bounds, single.Bounds);
+
+            // Quadrant mode: all four sessions share one monitor's bounds, so a
+            // bounds match could not pick the right quadrant -- follow must be
+            // gated off and the switch a no-op (stays on quadrant index 2).
+            var quad = new OverlayViewModel(new List<HintSession>
+            {
+                MonitorSession(bounds, 40),
+                MonitorSession(bounds, 50),
+                MonitorSession(bounds, 60),
+                MonitorSession(bounds, 70)
+            }, 2, new HintLabelService())
+            {
+                IsQuadrantMode = true
+            };
+            Assert.False(quad.CanFollowForegroundMonitor);
+            quad.SwitchToMonitor(bounds);
+            Assert.Equal(60, quad.Hints.Count);
+        }
+
+        /// <summary>
+        /// A grid-like session covering <paramref name="monitorBounds"/> with
+        /// pointCount PointHints (enough that some labels are 2-char, so a typed
+        /// shared first char narrows without firing -- see the existing leader test).
+        /// </summary>
+        private static HintSession MonitorSession(Rect monitorBounds, int pointCount)
+        {
+            var hints = new List<Hint>();
+            for (int i = 0; i < pointCount; i++)
+            {
+                int x = (int)(monitorBounds.Left + (i % 10) * 10);
+                int y = (int)(monitorBounds.Top + (i / 10) * 10);
+                hints.Add(new PointHint(IntPtr.Zero, new Rect(x, y, 8, 8), new Point(x + 4, y + 4)));
+            }
+            return new HintSession
+            {
+                Hints = hints,
+                OwningWindow = IntPtr.Zero,
+                OwningWindowBounds = monitorBounds
+            };
+        }
     }
 }
