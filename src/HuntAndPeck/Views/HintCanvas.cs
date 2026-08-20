@@ -796,7 +796,10 @@ namespace HuntAndPeck.Views
 
         /// <summary>
         /// The dotted box outline pen (round dash cap + a 0-length dash = round dots).
-        /// Dash values are multiples of the pen thickness in WPF.
+        /// Dash values are multiples of the pen thickness in WPF. Steel blue --
+        /// deliberately a DIFFERENT hue family from the amber point-preview dots
+        /// (cool structure vs warm targets; the shared dark gray of the first cut
+        /// blurred the two together), readable on light and dark backgrounds.
         /// </summary>
         private Pen _dottedPen;
 
@@ -804,7 +807,7 @@ namespace HuntAndPeck.Views
         {
             if (_dottedPen == null || _dottedPen.Thickness != 1.5 * _dpi)
             {
-                var pen = new Pen(new SolidColorBrush(Color.FromArgb(0xB4, 0x40, 0x40, 0x40)), 1.5 * _dpi);
+                var pen = new Pen(new SolidColorBrush(Color.FromArgb(0xC0, 0x46, 0x82, 0xB4)), 1.5 * _dpi);
                 pen.DashStyle = new DashStyle(new DoubleCollection { 0.0, 3.0 }, 0);
                 pen.DashCap = PenLineCap.Round;
                 pen.Freeze();

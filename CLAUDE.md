@@ -201,7 +201,8 @@ retired, they all pass through to the app — do not put `Q`, `I`, or `0–9` in
   order (default = A–Z minus Q and I), the key char in a small pill **centered** in each
   box, and **one small dot at every point position inside the boxes** (the point preview:
   you see where each zone's labels WILL land before typing its key; dots are amber —
-  accent "targets" — while the dotted zone borders stay neutral gray). The zone grid draws
+  warm "targets" — while the dotted zone borders are steel blue structure, a different
+  hue family so the two never blur). The zone grid draws
   ONE outer border plus each interior separator ONCE (the old per-box outlines doubled
   the line between adjacent boxes). The grid tiles the region the session's points
   actually OCCUPY (their union extent —
